@@ -28,7 +28,7 @@ export default function LoginPage() {
   return (
     <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#07070f"}}>
       <div style={{background:"#13131f",border:"1px solid rgba(255,255,255,0.1)",borderRadius:"16px",padding:"40px",width:"100%",maxWidth:"400px"}}>
-        <img src="/LOGO.png" alt="TicklyDo" style={{height: "60px", marginBottom: "8px"}} />
+        <img src="/LOGO.png" alt="TicklyDo" style={{height: "100px", marginBottom: "8px"}} />
         <p style={{color:"rgba(200,190,255,0.6)",marginBottom:"32px",fontFamily:"sans-serif"}}>
           {isRegister ? "Vytvor si účet" : "Prihlás sa do svojho účtu"}
         </p>
@@ -76,6 +76,9 @@ export default function LoginPage() {
             {isRegister ? "Prihlás sa" : "Registruj sa"}
           </span>
         </p>
+      <button onClick={() => router.push("/")} style={{marginTop:"16px",background:"none",border:"none",color:"rgba(200,190,255,0.5)",fontSize:"13px",cursor:"pointer",fontFamily:"sans-serif"}}>
+  ← Späť na úvodnú stránku
+</button>
       </div>
     </div>
   );
