@@ -12,7 +12,7 @@ const [checking, setChecking] = useState(true);
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) router.push("/home");
-      else setChecking(false);
+      else setTimeout(() => setChecking(false), 2000);
     });
     return () => unsubscribe();
   }, [router]);
