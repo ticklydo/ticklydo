@@ -1,20 +1,27 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { auth } from "./firebase";
 import { onAuthStateChanged } from "firebase/auth";
 
 export default function LandingPage() {
   const router = useRouter();
+const [checking, setChecking] = useState(true);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) router.push("/home");
+      else setChecking(false);
     });
     return () => unsubscribe();
   }, [router]);
-
+if (checking) return (
+  <div style={{minHeight:"100vh",background:"#09090f",display:"flex",alignItems:"center",justifyContent:"center"}}>
+    <img src="/IKONA.png" alt="loading" style={{width:"120px",animation:"bounce 0.8s infinite alternate"}} />
+    <style>{`@keyframes bounce { from { transform: translateY(0px) rotate(-5deg); } to { transform: translateY(-30px) rotate(5deg); } }`}</style>
+  </div>
+);
   return (
     <>
       <style>{`
