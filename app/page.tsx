@@ -587,10 +587,7 @@ if (checking) return (
         <div className="cta-inner">
           <h2>Začni organizovať<br /><span className="gradient-text">dnes, nie zajtra.</span></h2>
           <p>Registrácia je zadarmo. Žiadna kreditná karta.</p>
-          <button className="btn-primary" onClick={() => router.push("/register")}>
-            ✦ Vyskúšaj TicklyDo
-          </button>
-        </div>
+                  </div>
       </section>
 
       {/* FOOTER */}
