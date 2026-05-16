@@ -7,10 +7,7 @@ import { useRouter } from "next/navigation";
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  import { useSearchParams } from "next/navigation";
-// ...
-const searchParams = useSearchParams();
-const [isRegister, setIsRegister] = useState(searchParams.get("mode") === "register");
+  const [isRegister, setIsRegister] = useState(false);
   const [error, setError] = useState("");
   const router = useRouter();
 
