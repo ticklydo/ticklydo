@@ -16,7 +16,7 @@ export const metadata: Metadata = {
   title: "TicklyDo",
   description: "Organizuj nápady po svojom.",
   icons: {
-    icon: "/IKONA.png",
+    icon: "/favicon.ico",
   },
 };
 
