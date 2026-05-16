@@ -470,7 +470,7 @@ if (checking) return (
 
         @media (max-width: 600px) {
           .landing-nav { padding: 0.9rem 1.2rem; }
-          .hero { padding: 6rem 1.2rem 3rem; }
+          .hero { padding: 8rem 1.2rem 3rem; }
           .hero-actions { flex-direction: column; align-items: stretch; width: 100%; max-width: 300px; }
           .preview-content { grid-template-columns: 1fr; }
           .preview-sidebar { display: none; }
