@@ -482,8 +482,11 @@ if (checking) return (
 
       {/* NAV */}
       <nav className="landing-nav">
-        <img src="/LOGO.png" alt="TicklyDo" style={{height: "80px"}} />
-              </nav>
+  <img src="/LOGO.png" alt="TicklyDo" style={{height: "80px"}} />
+  <button className="nav-cta" onClick={() => router.push("/register")}>
+    Registrovať sa
+  </button>
+</nav>
 
       {/* HERO */}
       <section className="hero">
