@@ -524,22 +524,22 @@ if (checking) return (
               <div className="preview-title">Moje tasky</div>
               <div className="preview-task">
                 <div className="task-check task-check-done">✓</div>
-                <span className="task-label task-label-done">Wireframe úvodnej stránky</span>
+                <span className="task-label task-label-done">Pripraviť prezentáciu pre klienta</span>
                 <span className="task-tag tag-teal">Hotovo</span>
               </div>
               <div className="preview-task">
                 <div className="task-check task-check-pink" />
-                <span className="task-label">Napojiť Vercel na doménu</span>
+                <span className="task-label">Odoslať faktúru</span>
                 <span className="task-tag tag-pink">Dnes</span>
               </div>
               <div className="preview-task">
                 <div className="task-check task-check-blue" />
-                <span className="task-label">Dizajn landing page</span>
+                <span className="task-label">Dohodnúť stretnutie s partnerom</span>
                 <span className="task-tag tag-blue">Zajtra</span>
               </div>
               <div className="preview-task">
                 <div className="task-check task-check-todo" />
-                <span className="task-label">Monetizácia — preskúmať</span>
+                <span className="task-label">Skontrolovať mesačný rozpočet</span>
                 <span className="task-tag tag-muted">Neskôr</span>
               </div>
               <div className="cal-section">
