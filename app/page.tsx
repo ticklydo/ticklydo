@@ -483,10 +483,7 @@ if (checking) return (
       {/* NAV */}
       <nav className="landing-nav">
         <img src="/LOGO.png" alt="TicklyDo" style={{height: "80px"}} />
-        <button className="nav-cta" onClick={() => router.push("/login")}>
-          Prihlásiť sa →
-        </button>
-      </nav>
+              </nav>
 
       {/* HERO */}
       <section className="hero">
@@ -498,14 +495,11 @@ if (checking) return (
         <p className="hero-sub">
           Tasky, kalendár a nápady na jednom mieste. Žiadny chaos, len čistý flow.
         </p>
-        <div className="hero-actions">
-          <button className="btn-primary" onClick={() => router.push("/register")}>
-            ✦ Vyskúšaj zadarmo
-          </button>
-          <button className="btn-secondary" onClick={() => router.push("/login")}>
-            Prihlásiť sa
-          </button>
-        </div>
+        <div className="hero-actions"> 
+        <button className="btn-primary" onClick={() => router.push("/login")}>
+  Prihlásiť sa
+</button>
+</div>
 
         {/* PREVIEW */}
         <div className="hero-preview">
@@ -548,7 +542,7 @@ if (checking) return (
               <div className="cal-section">
                 <div className="cal-label">Máj 2026</div>
                 <div className="cal-mini">
-                  {["P","U","S","Š","P","S","N"].map(d => <div key={d} className="cal-day">{d}</div>)}
+                  {["Po","Ut","St","Št","Pi","So","Ne"].map(d => <div key={d} className="cal-day">{d}</div>)}
                   {["","","","1","2","3","4"].map((d,i) => <div key={i} className={`cal-day ${d==="3"?"cal-day-task":""}`}>{d}</div>)}
                   {["5","6","7","8","9","10","11"].map(d => <div key={d} className={`cal-day ${d==="6"||d==="8"?"cal-day-task":""}`}>{d}</div>)}
                   {["12","13","14","15"].map(d => <div key={d} className={`cal-day ${d==="12"?"cal-day-today":d==="14"?"cal-day-task":""}`}>{d}</div>)}
