@@ -16,8 +16,10 @@ export const metadata: Metadata = {
   title: "TicklyDo",
   description: "Organizuj nápady po svojom.",
   icons: {
-    icon: "/favicon.ico",
-  },
+  icon: "/favicon.ico",
+  shortcut: "/favicon.ico",
+  apple: "/IKONA.png",
+},
 };
 
 export default function RootLayout({
