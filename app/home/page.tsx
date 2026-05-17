@@ -223,7 +223,7 @@ export default function HomePage() {
           <>
             <div style={{ fontSize: 22, fontWeight: 900 }}>
               Vitaj{userName ? `, ${userName}` : ""} v{" "}
-              <span style={gradientText(grad)}>TicklyDo</span> 👋
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" style={{display:"inline-block", verticalAlign:"middle", marginLeft:4}}><path d="M12 2L14.5 9.5H22L16 14L18.5 21.5L12 17L5.5 21.5L8 14L2 9.5H9.5L12 2Z" fill="url(#sg)" /><defs><linearGradient id="sg" x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse"><stop stopColor={appliedA}/><stop offset="1" stopColor={appliedB}/></linearGradient></defs></svg>
             </div>
 
             <div style={{ fontSize: 11, fontWeight: 800, color: theme.muted, textTransform: "uppercase", letterSpacing: "1.2px" }}>
