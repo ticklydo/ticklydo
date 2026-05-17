@@ -137,71 +137,78 @@ export default function HomePage() {
 
       {/* ── SIDEBAR ── */}
       <aside style={{
-        width: 72, background: theme.card,
-        borderRight: `1px solid ${theme.border}`,
-        display: "flex", flexDirection: "column",
-        alignItems: "center", padding: "18px 0 24px",
-        gap: 6, flexShrink: 0,
-        transition: "background .3s, border-color .3s",
+  width: 72, background: theme.card,
+  borderRight: `1px solid ${theme.border}`,
+  display: "flex", flexDirection: "column",
+  alignItems: "center", padding: "18px 0 24px",
+  gap: 4, flexShrink: 0,
+  transition: "background .3s, border-color .3s",
+}}>
+  <img src="/IKONA.png" alt="TicklyDo" style={{
+    width: 42, height: 42, borderRadius: 13,
+    marginBottom: 18, cursor: "pointer",
+    objectFit: "contain",
+  }} />
+
+  {[
+    { id: "home",          label: "Domov",      svg: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg> },
+    { id: "work",          label: "Moja práca", svg: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg> },
+    { id: "notifications", label: "Notifikácie", svg: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg> },
+  ].map((item) => (
+    <button key={item.id} title={item.label} onClick={() => setActivePage(item.id as Page)}
+      style={{
+        width: 46, height: 46, borderRadius: 13,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        cursor: "pointer", border: "none",
+        background: activePage === item.id ? theme.card2 : "transparent",
+        color: activePage === item.id ? appliedA : theme.muted,
+        position: "relative", transition: "all .2s",
       }}>
-        <img src="/IKONA.png" alt="TicklyDo" style={{
-          width: 42, height: 42, borderRadius: 13,
-          marginBottom: 18, cursor: "pointer",
-          objectFit: "contain",
+      {activePage === item.id && (
+        <span style={{
+          position: "absolute", left: 0, top: "50%", transform: "translateY(-50%)",
+          width: 3, height: 24, borderRadius: "0 3px 3px 0",
+          background: grad,
         }} />
+      )}
+      {item.svg}
+    </button>
+  ))}
 
-        {NAV.map((item) => (
-          <button key={item.id} title={item.label} onClick={() => setActivePage(item.id)}
-            style={{
-              width: 46, height: 46, borderRadius: 13,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              cursor: "pointer", fontSize: 20, border: "none",
-              background: activePage === item.id ? theme.card2 : "transparent",
-              color: activePage === item.id ? theme.text : theme.muted,
-              position: "relative", transition: "all .2s",
-            }}>
-            {activePage === item.id && (
-              <span style={{
-                position: "absolute", left: 0, top: "50%", transform: "translateY(-50%)",
-                width: 3, height: 24, borderRadius: "0 3px 3px 0",
-                background: grad,
-              }} />
-            )}
-            {item.icon}
-          </button>
-        ))}
+  <div style={{ width: 36, height: 1, background: theme.border, margin: "6px 0" }} />
 
-        <div style={{ width: 36, height: 1, background: theme.border, margin: "6px 0" }} />
+  <button title="Profil & Nastavenia" onClick={() => setActivePage("profile")}
+    style={{
+      width: 46, height: 46, borderRadius: 13,
+      display: "flex", alignItems: "center", justifyContent: "center",
+      cursor: "pointer", border: "none",
+      background: activePage === "profile" ? theme.card2 : "transparent",
+      color: activePage === "profile" ? appliedA : theme.muted,
+      position: "relative",
+    }}>
+    {activePage === "profile" && (
+      <span style={{
+        position: "absolute", left: 0, top: "50%", transform: "translateY(-50%)",
+        width: 3, height: 24, borderRadius: "0 3px 3px 0",
+        background: grad,
+      }} />
+    )}
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+  </button>
 
-        <button title="Profil & Nastavenia" onClick={() => setActivePage("profile")}
-          style={{
-            width: 46, height: 46, borderRadius: 13,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            cursor: "pointer", fontSize: 20, border: "none",
-            background: activePage === "profile" ? theme.card2 : "transparent",
-            color: activePage === "profile" ? theme.text : theme.muted,
-            position: "relative",
-          }}>
-          {activePage === "profile" && (
-            <span style={{
-              position: "absolute", left: 0, top: "50%", transform: "translateY(-50%)",
-              width: 3, height: 24, borderRadius: "0 3px 3px 0",
-              background: grad,
-            }} />
-          )}
-          ⚙️
-        </button>
+  <div style={{ flex: 1 }} />
 
-        <div style={{ flex: 1 }} />
-
-        <button title="Odhlásiť sa"
-          style={{
-            width: 46, height: 46, borderRadius: 13,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            cursor: "pointer", fontSize: 18, border: "none",
-            background: "transparent", color: theme.muted,
-          }}>↩️</button>
-      </aside>
+  <button title="Odhlásiť sa"
+    style={{
+      width: 46, height: 46, borderRadius: 13,
+      display: "flex", alignItems: "center", justifyContent: "center",
+      cursor: "pointer", border: "none",
+      background: "transparent", color: theme.muted,
+      transition: "color .2s",
+    }}>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+  </button>
+</aside>
 
       {/* ── CONTENT ── */}
       <div style={{
