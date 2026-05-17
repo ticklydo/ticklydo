@@ -357,9 +357,12 @@ export default function HomePage() {
         {/* HOME */}
         {activePage === "home" && (
           <>
-            <div style={{ fontSize: 22, fontWeight: 900 }}>
-              Vitaj{userName ? `, ${userName}` : ""}
-            </div>
+            <div style={{ fontSize: 22, fontWeight: 900, display: "flex", alignItems: "center", gap: 12 }}>
+  <div style={{ width: 44, height: 44, borderRadius: "50%", background: grad, padding: 3, flexShrink: 0 }}>
+    {currentAvatar.svg(appliedA, appliedB)}
+  </div>
+  Vitaj{userName ? `, ${userName}` : ""}
+</div>
 
             <div style={{ fontSize: 11, fontWeight: 800, color: theme.muted, textTransform: "uppercase", letterSpacing: "1.2px" }}>
               Naposledy otvorené
