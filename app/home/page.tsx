@@ -1,10 +1,10 @@
 "use client";
- 
+
 import { useState, useEffect, useCallback } from "react";
 // @ts-ignore
 import { auth } from "../../firebase";
 import { onAuthStateChanged } from "firebase/auth";
- 
+
 const PRESETS = [
   { a: "#e040fb", b: "#7c63ff" },
   { a: "#ff6b6b", b: "#ffa34d" },
@@ -15,16 +15,16 @@ const PRESETS = [
   { a: "#8e2de2", b: "#4a00e0" },
   { a: "#11998e", b: "#38ef7d" },
 ];
- 
+
 const PROJECTS = [
   { emoji: "📋", name: "Môj prvý projekt",    meta: "Zmenené pred 8 min",   starred: true,  grad: ["#3b1fa8","#9b5fe8"], shadow: "rgba(108,63,199,0.3)" },
   { emoji: "📊", name: "Dashboard a reporty", meta: "Zmenené dnes",         starred: false, grad: ["#0d4f6e","#1ab3d4"], shadow: "rgba(14,124,158,0.3)" },
   { emoji: "💡", name: "Nápady na Q3",        meta: "Zmenené včera",        starred: false, grad: ["#7a1f3a","#e8567a"], shadow: "rgba(192,54,90,0.3)" },
   { emoji: "🚀", name: "Spustenie produktu",  meta: "Zmenené pred 2 dňami", starred: false, grad: ["#1a5c2a","#4ecb6e"], shadow: "rgba(46,158,74,0.3)" },
 ];
- 
+
 type Page = "home" | "work" | "notifications" | "profile";
- 
+
 export default function HomePage() {
   const [activePage, setActivePage]       = useState<Page>("home");
   const [stars, setStars]                 = useState(PROJECTS.map((p) => p.starred));
@@ -39,21 +39,21 @@ export default function HomePage() {
   const [userName, setUserName]           = useState("");
   const [editingName, setEditingName]     = useState(false);
   const [darkMode, setDarkMode]           = useState(true);
- 
+
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user: any) => {
       if (user) setUserEmail(user.email ?? "");
     });
     return () => unsub();
   }, []);
- 
+
   // sync darkMode toggle
   useEffect(() => {
     setToggles(t => [darkMode, t[1], t[2]]);
   }, [darkMode]);
- 
+
   const grad   = `linear-gradient(135deg, ${appliedA}, ${appliedB})`;
- 
+
   // THEME colors based on dark/light
   const theme = {
     bg:      darkMode ? "#0b0c13" : "#f4f4f8",
@@ -63,14 +63,14 @@ export default function HomePage() {
     muted:   darkMode ? "#6b6c80" : "#8888a0",
     border:  darkMode ? "#22233a" : "#dddde8",
   };
- 
+
   function applyColors() {
     setAppliedA(colorA);
     setAppliedB(colorB);
     setApplyLabel("✓ Aplikované!");
     setTimeout(() => setApplyLabel("Použiť farbu"), 1800);
   }
- 
+
   function pickPreset(i: number) {
     setSelectedPreset(i);
     setColorA(PRESETS[i].a);
@@ -78,7 +78,7 @@ export default function HomePage() {
     setAppliedA(PRESETS[i].a);
     setAppliedB(PRESETS[i].b);
   }
- 
+
   function handleToggle(i: number) {
     if (i === 0) {
       setDarkMode(v => !v);
@@ -86,13 +86,13 @@ export default function HomePage() {
       setToggles(t => t.map((v, j) => j === i ? !v : v));
     }
   }
- 
+
   const NAV = [
     { id: "home",          icon: "🏠", label: "Domov" },
     { id: "work",          icon: "📁", label: "Moja práca" },
     { id: "notifications", icon: "🔔", label: "Notifikácie" },
   ] as const;
- 
+
   return (
     <div style={{
       display: "flex", height: "100vh", overflow: "hidden",
@@ -100,7 +100,7 @@ export default function HomePage() {
       fontFamily: "var(--font-geist-sans)",
       transition: "background .3s, color .3s",
     }}>
- 
+
       {/* ── SIDEBAR ── */}
       <aside style={{
         width: 72, background: theme.card,
@@ -118,7 +118,7 @@ export default function HomePage() {
           boxShadow: `0 4px 16px ${appliedA}66`,
           marginBottom: 18, cursor: "pointer",
         }}>Td</div>
- 
+
         {NAV.map((item) => (
           <button key={item.id} title={item.label} onClick={() => setActivePage(item.id)}
             style={{
@@ -139,9 +139,9 @@ export default function HomePage() {
             {item.icon}
           </button>
         ))}
- 
+
         <div style={{ width: 36, height: 1, background: theme.border, margin: "6px 0" }} />
- 
+
         <button title="Profil & Nastavenia" onClick={() => setActivePage("profile")}
           style={{
             width: 46, height: 46, borderRadius: 13,
@@ -160,9 +160,9 @@ export default function HomePage() {
           )}
           ⚙️
         </button>
- 
+
         <div style={{ flex: 1 }} />
- 
+
         <button title="Odhlásiť sa"
           style={{
             width: 46, height: 46, borderRadius: 13,
@@ -171,14 +171,14 @@ export default function HomePage() {
             background: "transparent", color: theme.muted,
           }}>↩️</button>
       </aside>
- 
+
       {/* ── CONTENT ── */}
       <div style={{
         flex: 1, overflowY: "auto",
         padding: "28px 28px 60px",
         display: "flex", flexDirection: "column", gap: 16,
       }}>
- 
+
         {/* HOME */}
         {activePage === "home" && (
           <>
@@ -189,11 +189,11 @@ export default function HomePage() {
               </span>{" "}
               👋
             </div>
- 
+
             <div style={{ fontSize: 11, fontWeight: 800, color: theme.muted, textTransform: "uppercase", letterSpacing: "1.2px" }}>
               Naposledy otvorené
             </div>
- 
+
             <div style={{ display: "flex", flexDirection: "column", gap: 10, maxWidth: 480 }}>
               {PROJECTS.map((p, i) => (
                 <div key={i} style={{
@@ -219,11 +219,11 @@ export default function HomePage() {
                 </div>
               ))}
             </div>
- 
+
             <div style={{ fontSize: 11, fontWeight: 800, color: theme.muted, textTransform: "uppercase", letterSpacing: "1.2px", marginTop: 4 }}>
               Pracovné priestory
             </div>
- 
+
             <div style={{
               maxWidth: 480, background: theme.card2, border: `1px solid ${theme.border}`,
               borderRadius: 18, padding: "16px 18px",
@@ -241,7 +241,7 @@ export default function HomePage() {
               </div>
               <span style={{ color: theme.muted }}>→</span>
             </div>
- 
+
             <button style={{
               position: "fixed", bottom: 28, right: 28,
               width: 52, height: 52, borderRadius: "50%",
@@ -252,7 +252,7 @@ export default function HomePage() {
             }}>+</button>
           </>
         )}
- 
+
         {/* WORK */}
         {activePage === "work" && (
           <>
@@ -260,7 +260,7 @@ export default function HomePage() {
             <p style={{ color: theme.muted, fontWeight: 700 }}>Tu bude zoznam tvojich úloh.</p>
           </>
         )}
- 
+
         {/* NOTIFICATIONS */}
         {activePage === "notifications" && (
           <>
@@ -268,12 +268,12 @@ export default function HomePage() {
             <p style={{ color: theme.muted, fontWeight: 700 }}>Zatiaľ žiadne notifikácie.</p>
           </>
         )}
- 
+
         {/* PROFILE */}
         {activePage === "profile" && (
           <>
             <div style={{ fontSize: 22, fontWeight: 900 }}>⚙️ <span style={{ background: grad, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Profil & Nastavenia</span></div>
- 
+
             {/* Avatar + meno + email */}
             <div style={{
               background: theme.card, border: `1px solid ${theme.border}`,
@@ -331,7 +331,7 @@ export default function HomePage() {
                 <div style={{ fontSize: 12, fontWeight: 600, color: theme.muted }}>{userEmail}</div>
               </div>
             </div>
- 
+
             {/* Color picker */}
             <div style={{
               background: theme.card, border: `1px solid ${theme.border}`,
@@ -340,9 +340,9 @@ export default function HomePage() {
               transition: "background .3s",
             }}>
               <div style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase", letterSpacing: 1, color: theme.muted }}>🎨 Farba aplikácie</div>
- 
+
               <div style={{ height: 6, borderRadius: 4, background: grad }} />
- 
+
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10 }}>
                 {PRESETS.map((p, i) => (
                   <div key={i} onClick={() => pickPreset(i)}
@@ -358,7 +358,7 @@ export default function HomePage() {
                   </div>
                 ))}
               </div>
- 
+
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 14, fontWeight: 700 }}>Vlastná farba</div>
@@ -383,7 +383,7 @@ export default function HomePage() {
                   ))}
                 </div>
               </div>
- 
+
               <button onClick={applyColors} style={{
                 background: grad, color: "#fff", border: "none",
                 borderRadius: 13, padding: 14,
@@ -392,7 +392,7 @@ export default function HomePage() {
                 boxShadow: `0 6px 20px ${appliedA}55`,
               }}>{applyLabel}</button>
             </div>
- 
+
             {/* General settings */}
             <div style={{
               background: theme.card, border: `1px solid ${theme.border}`,
@@ -434,4 +434,3 @@ export default function HomePage() {
     </div>
   );
 }
- 
