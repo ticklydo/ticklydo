@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { auth } from "../../firebase";
+import { onAuthStateChanged } from "firebase/auth";
 
 const PRESETS = [
   { a: "#e040fb", b: "#7c63ff" },
@@ -32,6 +34,14 @@ export default function HomePage() {
   const [selectedPreset, setSelectedPreset] = useState(0);
   const [applyLabel, setApplyLabel] = useState("Použiť farbu");
   const [toggles, setToggles] = useState([true, true, true]);
+  const [userEmail, setUserEmail] = useState("");
+
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (user) => {
+      if (user) setUserEmail(user.email ?? "");
+    });
+    return () => unsub();
+  }, []);
 
   const grad = `linear-gradient(135deg, ${appliedA}, ${appliedB})`;
 
@@ -67,7 +77,6 @@ export default function HomePage() {
         alignItems: "center", padding: "18px 0 24px",
         gap: 6, flexShrink: 0,
       }}>
-        {/* Logo */}
         <div style={{
           width: 42, height: 42, borderRadius: 13,
           background: grad,
@@ -77,7 +86,6 @@ export default function HomePage() {
           marginBottom: 18, cursor: "pointer",
         }}>Td</div>
 
-        {/* Nav buttons */}
         {NAV.map((item) => (
           <button key={item.id} title={item.label} onClick={() => setActivePage(item.id)}
             style={{
@@ -87,7 +95,6 @@ export default function HomePage() {
               background: activePage === item.id ? "#1a1b28" : "transparent",
               color: activePage === item.id ? "#f0f0f8" : "#6b6c80",
               position: "relative", transition: "all .2s",
-              boxShadow: activePage === item.id ? `inset 0 0 0 1px #22233a` : "none",
             }}>
             {activePage === item.id && (
               <span style={{
@@ -199,7 +206,6 @@ export default function HomePage() {
               <span style={{ color: "#6b6c80" }}>→</span>
             </div>
 
-            {/* FAB */}
             <button style={{
               position: "fixed", bottom: 28, right: 28,
               width: 52, height: 52, borderRadius: "50%",
@@ -232,7 +238,7 @@ export default function HomePage() {
           <>
             <div style={{ fontSize: 22, fontWeight: 900 }}>⚙️ <span style={{ background: grad, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Profil & Nastavenia</span></div>
 
-            {/* Avatar */}
+            {/* Avatar + email */}
             <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
               <div style={{
                 width: 64, height: 64, borderRadius: "50%", background: grad,
@@ -240,8 +246,7 @@ export default function HomePage() {
                 fontSize: 26, boxShadow: `0 4px 16px ${appliedA}55`, flexShrink: 0,
               }}>🧑</div>
               <div>
-                <div style={{ fontSize: 20, fontWeight: 900 }}>Martin Novák</div>
-                <div style={{ fontSize: 12, fontWeight: 600, color: "#6b6c80", marginTop: 2 }}>martin@ticklydo.com</div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: "#6b6c80" }}>{userEmail}</div>
               </div>
             </div>
 
@@ -249,10 +254,8 @@ export default function HomePage() {
             <div style={{ background: "#13141e", border: "1px solid #22233a", borderRadius: 18, padding: 20, display: "flex", flexDirection: "column", gap: 16, maxWidth: 480 }}>
               <div style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase", letterSpacing: 1, color: "#6b6c80" }}>🎨 Farba aplikácie</div>
 
-              {/* Preview bar */}
               <div style={{ height: 6, borderRadius: 4, background: grad, transition: "background .4s" }} />
 
-              {/* Presets */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10 }}>
                 {PRESETS.map((p, i) => (
                   <div key={i} onClick={() => pickPreset(i)}
@@ -270,7 +273,6 @@ export default function HomePage() {
                 ))}
               </div>
 
-              {/* Custom */}
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 14, fontWeight: 700 }}>Vlastná farba</div>
@@ -285,7 +287,7 @@ export default function HomePage() {
                       <label style={{
                         display: "block", width: 36, height: 36, borderRadius: 10,
                         background: c.val, border: "2px solid #22233a", cursor: "pointer",
-                        overflow: "hidden", transition: "transform .2s",
+                        overflow: "hidden",
                       }}>
                         <input type="color" value={c.val} onChange={e => c.set(e.target.value)}
                           style={{ opacity: 0, width: 0, height: 0 }} />
@@ -299,7 +301,7 @@ export default function HomePage() {
               <button onClick={applyColors} style={{
                 background: grad, color: "#fff", border: "none",
                 borderRadius: 13, padding: 14,
-                fontFamily: "'Nunito', sans-serif", fontWeight: 800, fontSize: 14,
+                fontFamily: "var(--font-geist-sans)", fontWeight: 800, fontSize: 14,
                 cursor: "pointer", width: "100%",
                 boxShadow: `0 6px 20px ${appliedA}55`,
               }}>{applyLabel}</button>
