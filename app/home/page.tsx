@@ -1,9 +1,9 @@
 "use client";
-
+ 
 import { useState, useEffect, useRef } from "react";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { initializeApp, getApps } from "firebase/app";
-
+ 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -12,10 +12,10 @@ const firebaseConfig = {
   messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
-
+ 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 const auth = getAuth(app);
-
+ 
 const PRESETS = [
   { a: "#e040fb", b: "#7c63ff" },
   { a: "#ff6b6b", b: "#ffa34d" },
@@ -26,7 +26,7 @@ const PRESETS = [
   { a: "#8e2de2", b: "#4a00e0" },
   { a: "#11998e", b: "#38ef7d" },
 ];
-
+ 
 const PROJECTS = [
   { name: "Môj prvý projekt",    meta: "Zmenené pred 8 min",   starred: true,  grad: ["#3b1fa8","#9b5fe8"], shadow: "rgba(108,63,199,0.3)",
     svg: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg> },
@@ -37,7 +37,7 @@ const PROJECTS = [
   { name: "Spustenie produktu",  meta: "Zmenené pred 2 dňami", starred: false, grad: ["#1a5c2a","#4ecb6e"], shadow: "rgba(46,158,74,0.3)",
     svg: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> },
 ];
-
+ 
 const AVATARS = [
   { id: "robot", label: "Robot", svg: (c1: string, c2: string) => (
     <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%">
@@ -166,16 +166,16 @@ const AVATARS = [
     </svg>
   )},
 ];
-
+ 
 type Page = "home" | "work" | "notifications" | "profile";
-
+ 
 const gradientText = (grad: string) => ({
   backgroundImage: grad,
   WebkitBackgroundClip: "text" as const,
   WebkitTextFillColor: "transparent" as const,
   backgroundClip: "text" as const,
 });
-
+ 
 export default function HomePage() {
   const [activePage, setActivePage]         = useState<Page>("home");
   const [stars, setStars]                   = useState(PROJECTS.map((p) => p.starred));
@@ -192,11 +192,10 @@ export default function HomePage() {
   const [darkMode, setDarkMode]             = useState(true);
   const [avatarId, setAvatarId]             = useState("robot");
   const [pickingAvatar, setPickingAvatar]   = useState(false);
-
-  // Flag - čakáme kým sa načítajú dáta z Firestore
+  const [loaded, setLoaded]                 = useState(false);
+ 
   const dataLoaded = useRef(false);
-
-  // Načítaj z Firestore pri prihlásení
+ 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user: any) => {
       if (!user) return;
@@ -207,19 +206,18 @@ export default function HomePage() {
       const snap = await getDoc(ref);
       if (snap.exists()) {
         const d = snap.data();
-        if (d.colorA)              { setColorA(d.colorA);   setAppliedA(d.colorA); }
-        if (d.colorB)              { setColorB(d.colorB);   setAppliedB(d.colorB); }
-        if (d.userName)            setUserName(d.userName);
-        if (d.avatarId)            setAvatarId(d.avatarId);
+        if (d.colorA)                { setColorA(d.colorA);   setAppliedA(d.colorA); }
+        if (d.colorB)                { setColorB(d.colorB);   setAppliedB(d.colorB); }
+        if (d.userName)              setUserName(d.userName);
+        if (d.avatarId)              setAvatarId(d.avatarId);
         if (d.darkMode !== undefined) setDarkMode(d.darkMode);
       }
-      // Až teraz povolíme ukladanie
       dataLoaded.current = true;
+      setLoaded(true);
     });
     return () => unsub();
   }, []);
-
-  // Ukladaj do Firestore — len ak sú dáta načítané
+ 
   useEffect(() => {
     if (!dataLoaded.current) return;
     const saveData = async () => {
@@ -237,9 +235,9 @@ export default function HomePage() {
     };
     saveData();
   }, [appliedA, appliedB, userName, avatarId, darkMode]);
-
+ 
   const grad = `linear-gradient(135deg, ${appliedA}, ${appliedB})`;
-
+ 
   const theme = {
     bg:     darkMode ? "#0b0c13" : "#f4f4f8",
     card:   darkMode ? "#13141e" : "#ffffff",
@@ -248,14 +246,14 @@ export default function HomePage() {
     muted:  darkMode ? "#6b6c80" : "#8888a0",
     border: darkMode ? "#22233a" : "#dddde8",
   };
-
+ 
   function applyColors() {
     setAppliedA(colorA);
     setAppliedB(colorB);
     setApplyLabel("✓ Aplikované!");
     setTimeout(() => setApplyLabel("Použiť farbu"), 1800);
   }
-
+ 
   function pickPreset(i: number) {
     setSelectedPreset(i);
     setColorA(PRESETS[i].a);
@@ -263,7 +261,7 @@ export default function HomePage() {
     setAppliedA(PRESETS[i].a);
     setAppliedB(PRESETS[i].b);
   }
-
+ 
   function handleToggle(i: number) {
     if (i === 0) {
       setDarkMode(v => !v);
@@ -271,9 +269,9 @@ export default function HomePage() {
       setToggles(t => t.map((v, j) => j === i ? !v : v));
     }
   }
-
+ 
   const currentAvatar = AVATARS.find(a => a.id === avatarId) ?? AVATARS[0];
-
+ 
   const NAV = [
     { id: "home",          label: "Domov",
       svg: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg> },
@@ -282,7 +280,43 @@ export default function HomePage() {
     { id: "notifications", label: "Notifikácie",
       svg: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg> },
   ] as const;
-
+ 
+  // Loading screen
+  if (!loaded) return (
+    <div style={{
+      height: "100vh", display: "flex", flexDirection: "column",
+      alignItems: "center", justifyContent: "center",
+      background: "#0b0c13", gap: 20,
+    }}>
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.6; transform: scale(0.92); }
+        }
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+      <img src="/IKONA.png" alt="TicklyDo" style={{
+        width: 72, height: 72, borderRadius: 20,
+        animation: "pulse 1.6s ease-in-out infinite",
+        objectFit: "contain",
+      }} />
+      <div style={{
+        width: 32, height: 32, borderRadius: "50%",
+        border: "3px solid #22233a",
+        borderTopColor: "#e040fb",
+        animation: "spin .8s linear infinite",
+      }} />
+      <div style={{
+        color: "#6b6c80", fontSize: 13, fontWeight: 700,
+        fontFamily: "var(--font-geist-sans)",
+        letterSpacing: "0.5px",
+      }}>Načítavam...</div>
+    </div>
+  );
+ 
   return (
     <div style={{
       display: "flex", height: "100vh", overflow: "hidden",
@@ -290,7 +324,7 @@ export default function HomePage() {
       fontFamily: "var(--font-geist-sans)",
       transition: "background .3s, color .3s",
     }}>
-
+ 
       {/* ── SIDEBAR ── */}
       <aside style={{
         width: 72, background: theme.card,
@@ -305,7 +339,7 @@ export default function HomePage() {
           marginBottom: 18, cursor: "pointer",
           objectFit: "contain",
         }} />
-
+ 
         {NAV.map((item) => (
           <button key={item.id} title={item.label} onClick={() => setActivePage(item.id)}
             style={{
@@ -326,9 +360,9 @@ export default function HomePage() {
             {item.svg}
           </button>
         ))}
-
+ 
         <div style={{ width: 36, height: 1, background: theme.border, margin: "6px 0" }} />
-
+ 
         <button title="Profil & Nastavenia" onClick={() => setActivePage("profile")}
           style={{
             width: 46, height: 46, borderRadius: 13,
@@ -347,9 +381,9 @@ export default function HomePage() {
           )}
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
         </button>
-
+ 
         <div style={{ flex: 1 }} />
-
+ 
         <button title="Odhlásiť sa" onClick={() => { auth.signOut(); window.location.href = "/login"; }}
           style={{
             width: 46, height: 54, borderRadius: 13,
@@ -362,14 +396,14 @@ export default function HomePage() {
           Odhlásiť
         </button>
       </aside>
-
+ 
       {/* ── CONTENT ── */}
       <div style={{
         flex: 1, overflowY: "auto",
         padding: "28px 28px 60px",
         display: "flex", flexDirection: "column", gap: 16,
       }}>
-
+ 
         {/* HOME */}
         {activePage === "home" && (
           <>
@@ -379,11 +413,11 @@ export default function HomePage() {
               </div>
               Vitaj{userName ? `, ${userName}` : ""}
             </div>
-
+ 
             <div style={{ fontSize: 11, fontWeight: 800, color: theme.muted, textTransform: "uppercase", letterSpacing: "1.2px" }}>
               Naposledy otvorené
             </div>
-
+ 
             <div style={{ display: "flex", flexDirection: "column", gap: 10, maxWidth: 480 }}>
               {PROJECTS.map((p, i) => (
                 <div key={i} style={{
@@ -415,11 +449,11 @@ export default function HomePage() {
                 </div>
               ))}
             </div>
-
+ 
             <div style={{ fontSize: 11, fontWeight: 800, color: theme.muted, textTransform: "uppercase", letterSpacing: "1.2px", marginTop: 4 }}>
               Pracovné priestory
             </div>
-
+ 
             <div style={{
               maxWidth: 480, background: theme.card2, border: `1px solid ${theme.border}`,
               borderRadius: 18, padding: "16px 18px",
@@ -437,7 +471,7 @@ export default function HomePage() {
               </div>
               <span style={{ color: theme.muted }}>→</span>
             </div>
-
+ 
             <button style={{
               position: "fixed", bottom: 28, right: 28,
               width: 52, height: 52, borderRadius: "50%",
@@ -448,7 +482,7 @@ export default function HomePage() {
             }}>+</button>
           </>
         )}
-
+ 
         {/* WORK */}
         {activePage === "work" && (
           <>
@@ -459,7 +493,7 @@ export default function HomePage() {
             <p style={{ color: theme.muted, fontWeight: 700 }}>Tu bude zoznam tvojich úloh.</p>
           </>
         )}
-
+ 
         {/* NOTIFICATIONS */}
         {activePage === "notifications" && (
           <>
@@ -470,7 +504,7 @@ export default function HomePage() {
             <p style={{ color: theme.muted, fontWeight: 700 }}>Zatiaľ žiadne notifikácie.</p>
           </>
         )}
-
+ 
         {/* PROFILE */}
         {activePage === "profile" && (
           <>
@@ -478,8 +512,7 @@ export default function HomePage() {
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={appliedA} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
               <span style={gradientText(grad)}>Profil & Nastavenia</span>
             </div>
-
-            {/* Avatar + meno + email */}
+ 
             <div style={{
               background: theme.card, border: `1px solid ${theme.border}`,
               borderRadius: 18, padding: 20,
@@ -503,7 +536,7 @@ export default function HomePage() {
                   fontSize: 10, cursor: "pointer", color: "#fff",
                   boxShadow: "0 2px 6px rgba(0,0,0,0.3)",
                 }} onClick={() => setPickingAvatar(v => !v)}>✏️</div>
-
+ 
                 {pickingAvatar && (
                   <div style={{
                     position: "absolute", top: 74, left: 0,
@@ -528,7 +561,7 @@ export default function HomePage() {
                   </div>
                 )}
               </div>
-
+ 
               <div style={{ flex: 1, minWidth: 0 }}>
                 {editingName ? (
                   <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 6 }}>
@@ -573,8 +606,7 @@ export default function HomePage() {
                 <div style={{ fontSize: 12, fontWeight: 600, color: theme.muted }}>{userEmail}</div>
               </div>
             </div>
-
-            {/* Color picker */}
+ 
             <div style={{
               background: theme.card, border: `1px solid ${theme.border}`,
               borderRadius: 18, padding: 20,
@@ -630,8 +662,7 @@ export default function HomePage() {
                 boxShadow: `0 6px 20px ${appliedA}55`,
               }}>{applyLabel}</button>
             </div>
-
-            {/* General settings */}
+ 
             <div style={{
               background: theme.card, border: `1px solid ${theme.border}`,
               borderRadius: 18, padding: 20,
@@ -672,3 +703,4 @@ export default function HomePage() {
     </div>
   );
 }
+ 
