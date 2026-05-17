@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { initializeApp, getApps } from "firebase/app";
 
@@ -36,20 +36,27 @@ const PROJECTS = [
 
 type Page = "home" | "work" | "notifications" | "profile";
 
+const gradientText = (grad: string) => ({
+  background: grad,
+  WebkitBackgroundClip: "text" as const,
+  WebkitTextFillColor: "transparent" as const,
+  backgroundClip: "text" as const,
+});
+
 export default function HomePage() {
-  const [activePage, setActivePage]       = useState<Page>("home");
-  const [stars, setStars]                 = useState(PROJECTS.map((p) => p.starred));
-  const [colorA, setColorA]               = useState("#e040fb");
-  const [colorB, setColorB]               = useState("#7c63ff");
-  const [appliedA, setAppliedA]           = useState("#e040fb");
-  const [appliedB, setAppliedB]           = useState("#7c63ff");
+  const [activePage, setActivePage]         = useState<Page>("home");
+  const [stars, setStars]                   = useState(PROJECTS.map((p) => p.starred));
+  const [colorA, setColorA]                 = useState("#e040fb");
+  const [colorB, setColorB]                 = useState("#7c63ff");
+  const [appliedA, setAppliedA]             = useState("#e040fb");
+  const [appliedB, setAppliedB]             = useState("#7c63ff");
   const [selectedPreset, setSelectedPreset] = useState(0);
-  const [applyLabel, setApplyLabel]       = useState("Použiť farbu");
-  const [toggles, setToggles]             = useState([false, true, true]); // [darkMode, notif, anim]
-  const [userEmail, setUserEmail]         = useState("");
-  const [userName, setUserName]           = useState("");
-  const [editingName, setEditingName]     = useState(false);
-  const [darkMode, setDarkMode]           = useState(true);
+  const [applyLabel, setApplyLabel]         = useState("Použiť farbu");
+  const [toggles, setToggles]               = useState([true, true, true]);
+  const [userEmail, setUserEmail]           = useState("");
+  const [userName, setUserName]             = useState("");
+  const [editingName, setEditingName]       = useState(false);
+  const [darkMode, setDarkMode]             = useState(true);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user: any) => {
@@ -57,41 +64,38 @@ export default function HomePage() {
     });
     return () => unsub();
   }, []);
-  // Načítaj uložené nastavenia
+
   useEffect(() => {
-    const savedA = localStorage.getItem("colorA");
-    const savedB = localStorage.getItem("colorB");
+    const savedA    = localStorage.getItem("colorA");
+    const savedB    = localStorage.getItem("colorB");
     const savedName = localStorage.getItem("userName");
     const savedDark = localStorage.getItem("darkMode");
-    if (savedA) { setColorA(savedA); setAppliedA(savedA); }
-    if (savedB) { setColorB(savedB); setAppliedB(savedB); }
+    if (savedA)    { setColorA(savedA);    setAppliedA(savedA); }
+    if (savedB)    { setColorB(savedB);    setAppliedB(savedB); }
     if (savedName) setUserName(savedName);
     if (savedDark !== null) setDarkMode(savedDark === "true");
   }, []);
 
-  // Ukladaj zmeny
   useEffect(() => {
-    localStorage.setItem("colorA", appliedA);
-    localStorage.setItem("colorB", appliedB);
-    localStorage.setItem("userName", userName);
-    localStorage.setItem("darkMode", String(darkMode));
+    localStorage.setItem("colorA",    appliedA);
+    localStorage.setItem("colorB",    appliedB);
+    localStorage.setItem("userName",  userName);
+    localStorage.setItem("darkMode",  String(darkMode));
   }, [appliedA, appliedB, userName, darkMode]);
 
-  // sync darkMode toggle
   useEffect(() => {
     setToggles(t => [darkMode, t[1], t[2]]);
   }, [darkMode]);
 
-  const grad   = `linear-gradient(135deg, ${appliedA}, ${appliedB})`;
+  const grad = `linear-gradient(135deg, ${appliedA}, ${appliedB})`;
 
-  // THEME colors based on dark/light
   const theme = {
-    bg:      darkMode ? "#0b0c13" : "#f4f4f8",
-    card:    darkMode ? "#13141e" : "#ffffff",
-    card2:   darkMode ? "#1a1b28" : "#ebebf5",
-    text:    darkMode ? "#f0f0f8" : "#111118",
-    muted:   darkMode ? "#6b6c80" : "#8888a0",
-    border:  darkMode ? "#22233a" : "#dddde8",
+    bg:     darkMode ? "#0b0c13" : "#f4f4f8",
+    card:   darkMode ? "#13141e" : "#ffffff",
+    card2:  darkMode ? "#1a1b28" : "#ebebf5",
+    text:   darkMode ? "#f0f0f8" : "#111118",
+    muted:  darkMode ? "#6b6c80" : "#8888a0",
+    border: darkMode ? "#22233a" : "#dddde8",
   };
 
   function applyColors() {
@@ -141,10 +145,10 @@ export default function HomePage() {
         transition: "background .3s, border-color .3s",
       }}>
         <img src="/IKONA.png" alt="TicklyDo" style={{
-  width: 42, height: 42, borderRadius: 13,
-  marginBottom: 18, cursor: "pointer",
-  objectFit: "contain",
-}} />
+          width: 42, height: 42, borderRadius: 13,
+          marginBottom: 18, cursor: "pointer",
+          objectFit: "contain",
+        }} />
 
         {NAV.map((item) => (
           <button key={item.id} title={item.label} onClick={() => setActivePage(item.id)}
@@ -211,10 +215,7 @@ export default function HomePage() {
           <>
             <div style={{ fontSize: 22, fontWeight: 900 }}>
               Vitaj{userName ? `, ${userName}` : ""} v{" "}
-              <span style={{ background: grad, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-                TicklyDo
-              </span>{" "}
-              👋
+              <span style={gradientText(grad)}>TicklyDo</span> 👋
             </div>
 
             <div style={{ fontSize: 11, fontWeight: 800, color: theme.muted, textTransform: "uppercase", letterSpacing: "1.2px" }}>
@@ -283,7 +284,9 @@ export default function HomePage() {
         {/* WORK */}
         {activePage === "work" && (
           <>
-            <div style={{ fontSize: 22, fontWeight: 900 }}>📁 <span style={{ background: grad, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Moja práca</span></div>
+            <div style={{ fontSize: 22, fontWeight: 900 }}>
+              📁 <span style={gradientText(grad)}>Moja práca</span>
+            </div>
             <p style={{ color: theme.muted, fontWeight: 700 }}>Tu bude zoznam tvojich úloh.</p>
           </>
         )}
@@ -291,7 +294,9 @@ export default function HomePage() {
         {/* NOTIFICATIONS */}
         {activePage === "notifications" && (
           <>
-            <div style={{ fontSize: 22, fontWeight: 900 }}>🔔 <span style={{ background: grad, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Notifikácie</span></div>
+            <div style={{ fontSize: 22, fontWeight: 900 }}>
+              🔔 <span style={gradientText(grad)}>Notifikácie</span>
+            </div>
             <p style={{ color: theme.muted, fontWeight: 700 }}>Zatiaľ žiadne notifikácie.</p>
           </>
         )}
@@ -299,7 +304,9 @@ export default function HomePage() {
         {/* PROFILE */}
         {activePage === "profile" && (
           <>
-            <div style={{ fontSize: 22, fontWeight: 900 }}>⚙️ <span style={{ background: grad, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Profil & Nastavenia</span></div>
+            <div style={{ fontSize: 22, fontWeight: 900 }}>
+              ⚙️ <span style={gradientText(grad)}>Profil & Nastavenia</span>
+            </div>
 
             {/* Avatar + meno + email */}
             <div style={{
@@ -314,7 +321,6 @@ export default function HomePage() {
                 fontSize: 26, boxShadow: `0 4px 16px ${appliedA}55`, flexShrink: 0,
               }}>🧑</div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                {/* Meno - editovateľné */}
                 {editingName ? (
                   <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 6 }}>
                     <input
