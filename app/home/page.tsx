@@ -186,7 +186,7 @@ export default function HomePage() {
   const [appliedB, setAppliedB]             = useState("#7c63ff");
   const [selectedPreset, setSelectedPreset] = useState(0);
   const [applyLabel, setApplyLabel]         = useState("Použiť farbu");
-  const [toggles, setToggles]               = useState([true, true, true]);
+  const [toggles, setToggles]               = useState([false, true, true]);
   const [userEmail, setUserEmail]           = useState("");
   const [userName, setUserName]             = useState("");
   const [editingName, setEditingName]       = useState(false);
