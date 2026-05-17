@@ -194,37 +194,43 @@ export default function HomePage() {
   const [avatarId, setAvatarId]             = useState("robot");
   const [pickingAvatar, setPickingAvatar]   = useState(false);
 
-  useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (user: any) => {
-      if (user) setUserEmail(user.email ?? "");
-    });
-    return () => unsub();
-  }, []);
+ // Načítaj z Firestore
+useEffect(() => {
+  const unsub2 = onAuthStateChanged(auth, async (user: any) => {
+    if (!user) return;
+    const { getFirestore, doc, getDoc } = await import("firebase/firestore");
+    const db = getFirestore();
+    const ref = doc(db, "users", user.uid);
+    const snap = await getDoc(ref);
+    if (snap.exists()) {
+      const d = snap.data();
+      if (d.colorA)   { setColorA(d.colorA);   setAppliedA(d.colorA); }
+      if (d.colorB)   { setColorB(d.colorB);   setAppliedB(d.colorB); }
+      if (d.userName) setUserName(d.userName);
+      if (d.avatarId) setAvatarId(d.avatarId);
+      if (d.darkMode !== undefined) setDarkMode(d.darkMode);
+    }
+  });
+  return () => unsub2();
+}, []);
 
-  useEffect(() => {
-    const savedA      = localStorage.getItem("colorA");
-    const savedB      = localStorage.getItem("colorB");
-    const savedName   = localStorage.getItem("userName");
-    const savedDark   = localStorage.getItem("darkMode");
-    const savedAvatar = localStorage.getItem("avatarId");
-    if (savedA)      { setColorA(savedA);      setAppliedA(savedA); }
-    if (savedB)      { setColorB(savedB);      setAppliedB(savedB); }
-    if (savedName)   setUserName(savedName);
-    if (savedDark !== null) setDarkMode(savedDark === "true");
-    if (savedAvatar) setAvatarId(savedAvatar);
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem("colorA",    appliedA);
-    localStorage.setItem("colorB",    appliedB);
-    localStorage.setItem("userName",  userName);
-    localStorage.setItem("darkMode",  String(darkMode));
-    localStorage.setItem("avatarId",  avatarId);
-  }, [appliedA, appliedB, userName, darkMode, avatarId]);
-
-  useEffect(() => {
-    setToggles(t => [darkMode, t[1], t[2]]);
-  }, [darkMode]);
+// Ukladaj do Firestore
+useEffect(() => {
+  const saveData = async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+    const { getFirestore, doc, setDoc } = await import("firebase/firestore");
+    const db = getFirestore();
+    await setDoc(doc(db, "users", user.uid), {
+      colorA: appliedA,
+      colorB: appliedB,
+      userName,
+      avatarId,
+      darkMode,
+    }, { merge: true });
+  };
+  saveData();
+}, [appliedA, appliedB, userName, avatarId, darkMode]);
 
   const grad = `linear-gradient(135deg, ${appliedA}, ${appliedB})`;
 
