@@ -198,6 +198,7 @@ export default function HomePage() {
 useEffect(() => {
   const unsub2 = onAuthStateChanged(auth, async (user: any) => {
     if (!user) return;
+    setUserEmail(user.email ?? "");
     const { getFirestore, doc, getDoc } = await import("firebase/firestore");
     const db = getFirestore();
     const ref = doc(db, "users", user.uid);
