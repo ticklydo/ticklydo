@@ -121,14 +121,11 @@ export default function HomePage() {
         gap: 6, flexShrink: 0,
         transition: "background .3s, border-color .3s",
       }}>
-        <div style={{
-          width: 42, height: 42, borderRadius: 13,
-          background: grad,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontWeight: 900, fontSize: 16, color: "#fff",
-          boxShadow: `0 4px 16px ${appliedA}66`,
-          marginBottom: 18, cursor: "pointer",
-        }}>Td</div>
+        <img src="/IKONA.png" alt="TicklyDo" style={{
+  width: 42, height: 42, borderRadius: 13,
+  marginBottom: 18, cursor: "pointer",
+  objectFit: "contain",
+}} />
 
         {NAV.map((item) => (
           <button key={item.id} title={item.label} onClick={() => setActivePage(item.id)}
