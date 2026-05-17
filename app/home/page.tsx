@@ -37,7 +37,7 @@ const PROJECTS = [
 type Page = "home" | "work" | "notifications" | "profile";
 
 const gradientText = (grad: string) => ({
-  background: grad,
+  backgroundImage: grad,
   WebkitBackgroundClip: "text" as const,
   WebkitTextFillColor: "transparent" as const,
   backgroundClip: "text" as const,
@@ -222,9 +222,8 @@ export default function HomePage() {
         {activePage === "home" && (
           <>
             <div style={{ fontSize: 22, fontWeight: 900 }}>
-              Vitaj{userName ? `, ${userName}` : ""} v{" "}
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" style={{display:"inline-block", verticalAlign:"middle", marginLeft:4}}><path d="M12 2L14.5 9.5H22L16 14L18.5 21.5L12 17L5.5 21.5L8 14L2 9.5H9.5L12 2Z" fill="url(#sg)" /><defs><linearGradient id="sg" x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse"><stop stopColor={appliedA}/><stop offset="1" stopColor={appliedB}/></linearGradient></defs></svg>
-            </div>
+  Vitaj{userName ? `, ${userName}` : ""}
+</div>
 
             <div style={{ fontSize: 11, fontWeight: 800, color: theme.muted, textTransform: "uppercase", letterSpacing: "1.2px" }}>
               Naposledy otvorené
