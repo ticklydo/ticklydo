@@ -292,7 +292,7 @@ export default function HomePage() {
         {activePage === "work" && (
           <>
             <div style={{ fontSize: 22, fontWeight: 900 }}>
-              📁 <span style={gradientText(grad)}>Moja práca</span>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={appliedA} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{display:"inline-block", verticalAlign:"middle", marginRight:8}}><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg><span style={gradientText(grad)}>Moja práca</span>
             </div>
             <p style={{ color: theme.muted, fontWeight: 700 }}>Tu bude zoznam tvojich úloh.</p>
           </>
@@ -302,7 +302,7 @@ export default function HomePage() {
         {activePage === "notifications" && (
           <>
             <div style={{ fontSize: 22, fontWeight: 900 }}>
-              🔔 <span style={gradientText(grad)}>Notifikácie</span>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={appliedA} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{display:"inline-block", verticalAlign:"middle", marginRight:8}}><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg><span style={gradientText(grad)}>Notifikácie</span>
             </div>
             <p style={{ color: theme.muted, fontWeight: 700 }}>Zatiaľ žiadne notifikácie.</p>
           </>
@@ -312,7 +312,7 @@ export default function HomePage() {
         {activePage === "profile" && (
           <>
             <div style={{ fontSize: 22, fontWeight: 900 }}>
-              ⚙️ <span style={gradientText(grad)}>Profil & Nastavenia</span>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={appliedA} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{display:"inline-block", verticalAlign:"middle", marginRight:8}}><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg><span style={gradientText(grad)}>Profil & Nastavenia</span>
             </div>
 
             {/* Avatar + meno + email */}
