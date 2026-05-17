@@ -28,10 +28,14 @@ const PRESETS = [
 ];
 
 const PROJECTS = [
-  { emoji: "📋", name: "Môj prvý projekt",    meta: "Zmenené pred 8 min",   starred: true,  grad: ["#3b1fa8","#9b5fe8"], shadow: "rgba(108,63,199,0.3)" },
-  { emoji: "📊", name: "Dashboard a reporty", meta: "Zmenené dnes",         starred: false, grad: ["#0d4f6e","#1ab3d4"], shadow: "rgba(14,124,158,0.3)" },
-  { emoji: "💡", name: "Nápady na Q3",        meta: "Zmenené včera",        starred: false, grad: ["#7a1f3a","#e8567a"], shadow: "rgba(192,54,90,0.3)" },
-  { emoji: "🚀", name: "Spustenie produktu",  meta: "Zmenené pred 2 dňami", starred: false, grad: ["#1a5c2a","#4ecb6e"], shadow: "rgba(46,158,74,0.3)" },
+  { name: "Môj prvý projekt",    meta: "Zmenené pred 8 min",   starred: true,  grad: ["#3b1fa8","#9b5fe8"], shadow: "rgba(108,63,199,0.3)",
+    svg: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg> },
+  { name: "Dashboard a reporty", meta: "Zmenené dnes",         starred: false, grad: ["#0d4f6e","#1ab3d4"], shadow: "rgba(14,124,158,0.3)",
+    svg: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg> },
+  { name: "Nápady na Q3",        meta: "Zmenené včera",        starred: false, grad: ["#7a1f3a","#e8567a"], shadow: "rgba(192,54,90,0.3)",
+    svg: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="2" x2="12" y2="6"/><path d="M12 6a6 6 0 1 0 0 12 6 6 0 0 0 0-12z"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg> },
+  { name: "Spustenie produktu",  meta: "Zmenené pred 2 dňami", starred: false, grad: ["#1a5c2a","#4ecb6e"], shadow: "rgba(46,158,74,0.3)",
+    svg: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> },
 ];
 
 // SVG avatars
@@ -377,7 +381,13 @@ export default function HomePage() {
                   background: `linear-gradient(135deg, ${p.grad[0]}, ${p.grad[1]})`,
                   boxShadow: `0 6px 22px ${p.shadow}`,
                 }}>
-                  <div style={{ fontSize: 24, flexShrink: 0 }}>{p.emoji}</div>
+                  <div style={{
+  width: 40, height: 40, borderRadius: 11, flexShrink: 0,
+  background: "rgba(255,255,255,0.15)",
+  display: "flex", alignItems: "center", justifyContent: "center",
+}}>
+  {p.svg}
+</div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 800, fontSize: 14, color: "#fff" }}>{p.name}</div>
                     <div style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.55)", marginTop: 2 }}>{p.meta}</div>
