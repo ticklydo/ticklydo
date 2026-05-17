@@ -57,6 +57,25 @@ export default function HomePage() {
     });
     return () => unsub();
   }, []);
+  // Načítaj uložené nastavenia
+  useEffect(() => {
+    const savedA = localStorage.getItem("colorA");
+    const savedB = localStorage.getItem("colorB");
+    const savedName = localStorage.getItem("userName");
+    const savedDark = localStorage.getItem("darkMode");
+    if (savedA) { setColorA(savedA); setAppliedA(savedA); }
+    if (savedB) { setColorB(savedB); setAppliedB(savedB); }
+    if (savedName) setUserName(savedName);
+    if (savedDark !== null) setDarkMode(savedDark === "true");
+  }, []);
+
+  // Ukladaj zmeny
+  useEffect(() => {
+    localStorage.setItem("colorA", appliedA);
+    localStorage.setItem("colorB", appliedB);
+    localStorage.setItem("userName", userName);
+    localStorage.setItem("darkMode", String(darkMode));
+  }, [appliedA, appliedB, userName, darkMode]);
 
   // sync darkMode toggle
   useEffect(() => {
