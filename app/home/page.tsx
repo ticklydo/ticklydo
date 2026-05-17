@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { initializeApp, getApps } from "firebase/app";
 
@@ -38,7 +38,6 @@ const PROJECTS = [
     svg: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> },
 ];
 
-// SVG avatars
 const AVATARS = [
   { id: "robot", label: "Robot", svg: (c1: string, c2: string) => (
     <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%">
@@ -194,44 +193,50 @@ export default function HomePage() {
   const [avatarId, setAvatarId]             = useState("robot");
   const [pickingAvatar, setPickingAvatar]   = useState(false);
 
- // Načítaj z Firestore
-useEffect(() => {
-  const unsub2 = onAuthStateChanged(auth, async (user: any) => {
-    if (!user) return;
-    setUserEmail(user.email ?? "");
-    const { getFirestore, doc, getDoc } = await import("firebase/firestore");
-    const db = getFirestore();
-    const ref = doc(db, "users", user.uid);
-    const snap = await getDoc(ref);
-    if (snap.exists()) {
-      const d = snap.data();
-      if (d.colorA)   { setColorA(d.colorA);   setAppliedA(d.colorA); }
-      if (d.colorB)   { setColorB(d.colorB);   setAppliedB(d.colorB); }
-      if (d.userName) setUserName(d.userName);
-      if (d.avatarId) setAvatarId(d.avatarId);
-      if (d.darkMode !== undefined) setDarkMode(d.darkMode);
-    }
-  });
-  return () => unsub2();
-}, []);
+  // Flag - čakáme kým sa načítajú dáta z Firestore
+  const dataLoaded = useRef(false);
 
-// Ukladaj do Firestore
-useEffect(() => {
-  const saveData = async () => {
-    const user = auth.currentUser;
-    if (!user) return;
-    const { getFirestore, doc, setDoc } = await import("firebase/firestore");
-    const db = getFirestore();
-    await setDoc(doc(db, "users", user.uid), {
-      colorA: appliedA,
-      colorB: appliedB,
-      userName,
-      avatarId,
-      darkMode,
-    }, { merge: true });
-  };
-  saveData();
-}, [appliedA, appliedB, userName, avatarId, darkMode]);
+  // Načítaj z Firestore pri prihlásení
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, async (user: any) => {
+      if (!user) return;
+      setUserEmail(user.email ?? "");
+      const { getFirestore, doc, getDoc } = await import("firebase/firestore");
+      const db = getFirestore();
+      const ref = doc(db, "users", user.uid);
+      const snap = await getDoc(ref);
+      if (snap.exists()) {
+        const d = snap.data();
+        if (d.colorA)              { setColorA(d.colorA);   setAppliedA(d.colorA); }
+        if (d.colorB)              { setColorB(d.colorB);   setAppliedB(d.colorB); }
+        if (d.userName)            setUserName(d.userName);
+        if (d.avatarId)            setAvatarId(d.avatarId);
+        if (d.darkMode !== undefined) setDarkMode(d.darkMode);
+      }
+      // Až teraz povolíme ukladanie
+      dataLoaded.current = true;
+    });
+    return () => unsub();
+  }, []);
+
+  // Ukladaj do Firestore — len ak sú dáta načítané
+  useEffect(() => {
+    if (!dataLoaded.current) return;
+    const saveData = async () => {
+      const user = auth.currentUser;
+      if (!user) return;
+      const { getFirestore, doc, setDoc } = await import("firebase/firestore");
+      const db = getFirestore();
+      await setDoc(doc(db, "users", user.uid), {
+        colorA: appliedA,
+        colorB: appliedB,
+        userName,
+        avatarId,
+        darkMode,
+      }, { merge: true });
+    };
+    saveData();
+  }, [appliedA, appliedB, userName, avatarId, darkMode]);
 
   const grad = `linear-gradient(135deg, ${appliedA}, ${appliedB})`;
 
@@ -369,11 +374,11 @@ useEffect(() => {
         {activePage === "home" && (
           <>
             <div style={{ fontSize: 22, fontWeight: 900, display: "flex", alignItems: "center", gap: 12 }}>
-  <div style={{ width: 44, height: 44, borderRadius: "50%", background: grad, padding: 3, flexShrink: 0 }}>
-    {currentAvatar.svg(appliedA, appliedB)}
-  </div>
-  Vitaj{userName ? `, ${userName}` : ""}
-</div>
+              <div style={{ width: 44, height: 44, borderRadius: "50%", background: grad, padding: 3, flexShrink: 0 }}>
+                {currentAvatar.svg(appliedA, appliedB)}
+              </div>
+              Vitaj{userName ? `, ${userName}` : ""}
+            </div>
 
             <div style={{ fontSize: 11, fontWeight: 800, color: theme.muted, textTransform: "uppercase", letterSpacing: "1.2px" }}>
               Naposledy otvorené
@@ -389,12 +394,12 @@ useEffect(() => {
                   boxShadow: `0 6px 22px ${p.shadow}`,
                 }}>
                   <div style={{
-  width: 40, height: 40, borderRadius: 11, flexShrink: 0,
-  background: "rgba(255,255,255,0.15)",
-  display: "flex", alignItems: "center", justifyContent: "center",
-}}>
-  {p.svg}
-</div>
+                    width: 40, height: 40, borderRadius: 11, flexShrink: 0,
+                    background: "rgba(255,255,255,0.15)",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}>
+                    {p.svg}
+                  </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 800, fontSize: 14, color: "#fff" }}>{p.name}</div>
                     <div style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.55)", marginTop: 2 }}>{p.meta}</div>
@@ -484,8 +489,7 @@ useEffect(() => {
               <div style={{ position: "relative", flexShrink: 0 }}>
                 <div onClick={() => setPickingAvatar(v => !v)} style={{
                   width: 64, height: 64, borderRadius: "50%",
-                  background: grad,
-                  padding: 4,
+                  background: grad, padding: 4,
                   cursor: "pointer",
                   boxShadow: `0 4px 16px ${appliedA}55`,
                 }}>
