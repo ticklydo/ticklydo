@@ -198,16 +198,17 @@ export default function HomePage() {
 
   <div style={{ flex: 1 }} />
 
-  <button title="Odhlásiť sa"
-    style={{
-      width: 46, height: 46, borderRadius: 13,
-      display: "flex", alignItems: "center", justifyContent: "center",
-      cursor: "pointer", border: "none",
-      background: "transparent", color: theme.muted,
-      transition: "color .2s",
-    }}>
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-  </button>
+  <button title="Odhlásiť sa" onClick={() => { auth.signOut(); window.location.href = "/login"; }}
+  style={{
+    width: 60, height: 54, borderRadius: 13,
+    display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+    gap: 3, cursor: "pointer", border: "none",
+    background: "transparent", color: theme.muted,
+    transition: "color .2s", fontSize: 10, fontWeight: 700,
+  }}>
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+  Odhlásiť
+</button>
 </aside>
 
       {/* ── CONTENT ── */}
