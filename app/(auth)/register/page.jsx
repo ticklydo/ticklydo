@@ -51,8 +51,15 @@ if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) return setError("Heslo musí obsah
         <p style={{color:"rgba(200,190,255,0.6)",marginBottom:"24px",fontFamily:"sans-serif"}}>Vytvor si účet</p>
 
         <div style={{marginBottom:"16px"}}>
-          <label style={labelStyle}>Email</label>
-          <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="tvoj@email.sk" style={inputStyle} />
+          <label style={labelStyle}>Heslo</label>
+          <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" style={inputStyle} />
+          {password.length > 0 && (
+            <div style={{marginTop:"8px",fontFamily:"sans-serif",fontSize:"12px"}}>
+              <div style={{color:password.length >= 8 ? "#4ade80" : "#f87171"}}>{password.length >= 8 ? "✓" : "✗"} Minimálne 8 znakov</div>
+              <div style={{color:/[A-Z]/.test(password) ? "#4ade80" : "#f87171"}}>{/[A-Z]/.test(password) ? "✓" : "✗"} Veľké písmeno</div>
+              <div style={{color:/[!@#$%^&*(),.?":{}|<>]/.test(password) ? "#4ade80" : "#f87171"}}>{/[!@#$%^&*(),.?":{}|<>]/.test(password) ? "✓" : "✗"} Špeciálny znak</div>
+            </div>
+          )}
         </div>
 
         <div style={{marginBottom:"16px"}}>
