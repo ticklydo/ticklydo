@@ -15,6 +15,8 @@ export default function RegisterPage() {
   const handleSubmit = async () => {
     setError("");
     if (password.length < 8) return setError("Heslo musí mať aspoň 8 znakov.");
+if (!/[A-Z]/.test(password)) return setError("Heslo musí obsahovať aspoň jedno veľké písmeno.");
+if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) return setError("Heslo musí obsahovať aspoň jeden špeciálny znak (!@#$%...).");
     if (password !== password2) return setError("Heslá sa nezhodujú.");
     setLoading(true);
     try {
