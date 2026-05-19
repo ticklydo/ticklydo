@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { auth } from "../../firebase.js";
-import { createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult } from "firebase/auth";
+import { createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, getRedirectResult } from "firebase/auth";
 import { useRouter } from "next/navigation";
 
 export default function RegisterPage() {
@@ -40,15 +40,13 @@ export default function RegisterPage() {
     setError("");
     try {
       const provider = new GoogleAuthProvider();
-      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-      if (isMobile) {
-        await signInWithRedirect(auth, provider);
-      } else {
-        await signInWithPopup(auth, provider);
-        router.push("/");
-      }
+      provider.setCustomParameters({ prompt: "select_account" });
+      await signInWithPopup(auth, provider);
+      router.push("/");
     } catch (err) {
-      setError("Google prihlásenie zlyhalo.");
+      if (err.code !== "auth/popup-closed-by-user") {
+        setError("Google prihlásenie zlyhalo: " + err.code);
+      }
     }
   };
 
