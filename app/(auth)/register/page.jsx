@@ -1,7 +1,7 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { auth } from "../../firebase.js";
-import { createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, signInWithRedirect } from "firebase/auth";
+import { createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult } from "firebase/auth";
 import { useRouter } from "next/navigation";
 
 export default function RegisterPage() {
@@ -11,6 +11,12 @@ export default function RegisterPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+
+  useEffect(() => {
+    getRedirectResult(auth).then(result => {
+      if (result?.user) router.push("/");
+    }).catch(() => {});
+  }, []);
 
   const handleSubmit = async () => {
     setError("");

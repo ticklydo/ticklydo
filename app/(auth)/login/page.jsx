@@ -1,7 +1,7 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { auth } from "../../firebase.js";
-import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, signInWithRedirect, sendPasswordResetEmail } from "firebase/auth";
+import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, sendPasswordResetEmail } from "firebase/auth";
 import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
@@ -11,6 +11,12 @@ export default function LoginPage() {
   const [resetSent, setResetSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+
+  useEffect(() => {
+    getRedirectResult(auth).then(result => {
+      if (result?.user) router.push("/");
+    }).catch(() => {});
+  }, []);
 
   const handleSubmit = async () => {
     setError("");
