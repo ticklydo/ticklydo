@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { auth } from "../../firebase.js";
-import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail } from "firebase/auth";
+import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, signInWithRedirect, sendPasswordResetEmail } from "firebase/auth";
 import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
@@ -30,8 +30,13 @@ export default function LoginPage() {
     setError("");
     try {
       const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
-      router.push("/");
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      if (isMobile) {
+        await signInWithRedirect(auth, provider);
+      } else {
+        await signInWithPopup(auth, provider);
+        router.push("/");
+      }
     } catch (err) {
       setError("Google prihlásenie zlyhalo.");
     }
@@ -67,9 +72,7 @@ export default function LoginPage() {
         </div>
 
         <div style={{marginBottom:"24px",textAlign:"right"}}>
-          <span onClick={handleReset} style={{color:"#c084fc",cursor:"pointer",fontSize:"12px",fontFamily:"sans-serif"}}>
-            Zabudol si heslo?
-          </span>
+          <span onClick={handleReset} style={{color:"#c084fc",cursor:"pointer",fontSize:"12px",fontFamily:"sans-serif"}}>Zabudol si heslo?</span>
         </div>
 
         {resetSent && <p style={{color:"#4ade80",fontSize:"13px",marginBottom:"16px",fontFamily:"sans-serif"}}>Reset hesla bol odoslaný na tvoj email.</p>}
