@@ -482,11 +482,11 @@ if (checking) return (
 
       {/* NAV */}
       <nav className="landing-nav">
-  <img src="/LOGO.png" alt="TicklyDo" style={{height: "80px"}} />
-  <button className="nav-cta" onClick={() => router.push("/register")}>
-    Registrovať sa
-  </button>
-</nav>
+        <img src="/LOGO.png" alt="TicklyDo" style={{height: "80px"}} />
+        <button className="nav-cta" onClick={() => router.push("/register")}>
+          Registrovať sa
+        </button>
+      </nav>
 
       {/* HERO */}
       <section className="hero">
@@ -498,11 +498,11 @@ if (checking) return (
         <p className="hero-sub">
           Tasky, kalendár a nápady na jednom mieste. Žiadny chaos, len čistý flow.
         </p>
-        <div className="hero-actions"> 
-        <button className="btn-primary" onClick={() => router.push("/login")}>
-  Prihlásiť sa
-</button>
-</div>
+        <div className="hero-actions">
+          <button className="btn-primary" onClick={() => router.push("/login")}>
+            Prihlásiť sa
+          </button>
+        </div>
 
         {/* PREVIEW */}
         <div className="hero-preview">
@@ -590,13 +590,18 @@ if (checking) return (
         <div className="cta-inner">
           <h2>Začni organizovať<br /><span className="gradient-text">dnes, nie zajtra.</span></h2>
           <p>Registrácia je zadarmo. Žiadna kreditná karta.</p>
-                  </div>
+        </div>
       </section>
 
       {/* FOOTER */}
       <footer className="landing-footer">
         <img src="/LOGO.png" alt="TicklyDo" style={{height: "80px"}} />
         <span>© 2026 TicklyDo. Všetky práva vyhradené.</span>
+        <div style={{display:"flex",gap:"1.2rem",flexWrap:"wrap",justifyContent:"center"}}>
+          <span onClick={() => router.push("/privacy")} style={{cursor:"pointer",color:"rgba(240,238,255,0.5)",fontSize:"0.82rem"}}>Podmienky & GDPR</span>
+          <span onClick={() => router.push("/terms")} style={{cursor:"pointer",color:"rgba(240,238,255,0.5)",fontSize:"0.82rem"}}>Podmienky používania</span>
+          <a href="mailto:support@ticklydo.com" style={{color:"rgba(240,238,255,0.5)",fontSize:"0.82rem",textDecoration:"none"}}>support@ticklydo.com</a>
+        </div>
       </footer>
     </>
   );
