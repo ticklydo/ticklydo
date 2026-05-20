@@ -281,7 +281,6 @@ export default function HomePage() {
       svg: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg> },
   ] as const;
  
-  // Loading screen
   if (!loaded) return (
     <div style={{
       height: "100vh", display: "flex", flexDirection: "column",
@@ -325,7 +324,7 @@ export default function HomePage() {
       transition: "background .3s, color .3s",
     }}>
  
-      {/* ── SIDEBAR ── */}
+      {/* SIDEBAR */}
       <aside style={{
         width: 72, background: theme.card,
         borderRight: `1px solid ${theme.border}`,
@@ -397,7 +396,7 @@ export default function HomePage() {
         </button>
       </aside>
  
-      {/* ── CONTENT ── */}
+      {/* CONTENT */}
       <div style={{
         flex: 1, overflowY: "auto",
         padding: "28px 28px 60px",
@@ -513,6 +512,7 @@ export default function HomePage() {
               <span style={gradientText(grad)}>Profil & Nastavenia</span>
             </div>
  
+            {/* Avatar & meno */}
             <div style={{
               background: theme.card, border: `1px solid ${theme.border}`,
               borderRadius: 18, padding: 20,
@@ -607,6 +607,7 @@ export default function HomePage() {
               </div>
             </div>
  
+            {/* Farba */}
             <div style={{
               background: theme.card, border: `1px solid ${theme.border}`,
               borderRadius: 18, padding: 20,
@@ -663,6 +664,7 @@ export default function HomePage() {
               }}>{applyLabel}</button>
             </div>
  
+            {/* Všeobecné */}
             <div style={{
               background: theme.card, border: `1px solid ${theme.border}`,
               borderRadius: 18, padding: 20,
@@ -697,10 +699,50 @@ export default function HomePage() {
                 </div>
               ))}
             </div>
+
+            {/* Nebezpečná zóna */}
+            <div style={{
+              background: theme.card, border: `1px solid #ef4444`,
+              borderRadius: 18, padding: 20,
+              display: "flex", flexDirection: "column", gap: 12, maxWidth: 480,
+              transition: "background .3s",
+            }}>
+              <div style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase", letterSpacing: 1, color: "#ef4444" }}>⚠️ Nebezpečná zóna</div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: theme.muted }}>Po vymazaní účtu budú všetky tvoje dáta nenávratne odstránené.</div>
+              <button onClick={async () => {
+                if (!window.confirm("Naozaj chceš vymazať svoj účet? Táto akcia je nevratná.")) return;
+                const user = auth.currentUser;
+                if (!user) return;
+                try {
+                  const { getFirestore, doc, deleteDoc } = await import("firebase/firestore");
+                  const db = getFirestore();
+                  await deleteDoc(doc(db, "users", user.uid));
+                  await user.delete();
+                  window.location.href = "/";
+                } catch (err: any) {
+                  if (err.code === "auth/requires-recent-login") {
+                    alert("Z bezpečnostných dôvodov sa musíš znova prihlásiť pred vymazaním účtu.");
+                    await auth.signOut();
+                    window.location.href = "/login";
+                  } else {
+                    alert("Chyba pri mazaní účtu: " + err.message);
+                  }
+                }
+              }} style={{
+                background: "transparent", border: "1px solid #ef4444",
+                borderRadius: 13, padding: 14, color: "#ef4444",
+                fontFamily: "var(--font-geist-sans)", fontWeight: 800, fontSize: 14,
+                cursor: "pointer", width: "100%", transition: "background .2s",
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = "rgba(239,68,68,0.1)")}
+              onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+              >
+                Vymazať účet
+              </button>
+            </div>
           </>
         )}
       </div>
     </div>
   );
 }
- 
