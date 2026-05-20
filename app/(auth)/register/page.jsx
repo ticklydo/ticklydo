@@ -8,6 +8,7 @@ export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [password2, setPassword2] = useState("");
+  const [agreed, setAgreed] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -20,6 +21,7 @@ export default function RegisterPage() {
 
   const handleSubmit = async () => {
     setError("");
+    if (!agreed) return setError("Musíš súhlasiť s podmienkami.");
     if (password.length < 8) return setError("Heslo musí mať aspoň 8 znakov.");
     if (!/[A-Z]/.test(password)) return setError("Heslo musí obsahovať aspoň jedno veľké písmeno.");
     if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) return setError("Heslo musí obsahovať aspoň jeden špeciálny znak.");
@@ -38,6 +40,7 @@ export default function RegisterPage() {
 
   const handleGoogle = async () => {
     setError("");
+    if (!agreed) return setError("Musíš súhlasiť s podmienkami.");
     try {
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: "select_account" });
@@ -76,9 +79,19 @@ export default function RegisterPage() {
           )}
         </div>
 
-        <div style={{marginBottom:"24px"}}>
+        <div style={{marginBottom:"20px"}}>
           <label style={labelStyle}>Potvrd heslo</label>
           <input type="password" value={password2} onChange={e => setPassword2(e.target.value)} placeholder="••••••••" onKeyDown={e => e.key === "Enter" && handleSubmit()} style={inputStyle} />
+        </div>
+
+        <div style={{marginBottom:"20px",display:"flex",alignItems:"flex-start",gap:"10px"}}>
+          <input type="checkbox" checked={agreed} onChange={e => setAgreed(e.target.checked)} style={{marginTop:"3px",cursor:"pointer",accentColor:"#9333ea"}} />
+          <p style={{color:"rgba(200,190,255,0.6)",fontSize:"13px",fontFamily:"sans-serif",margin:0}}>
+            Súhlasím s{" "}
+            <span onClick={() => router.push("/terms")} style={{color:"#c084fc",cursor:"pointer"}}>Podmienkami používania</span>
+            {" "}a{" "}
+            <span onClick={() => router.push("/privacy")} style={{color:"#c084fc",cursor:"pointer"}}>Zásadami ochrany osobných údajov</span>
+          </p>
         </div>
 
         {error && <p style={{color:"#f87171",fontSize:"13px",marginBottom:"16px",fontFamily:"sans-serif"}}>{error}</p>}
