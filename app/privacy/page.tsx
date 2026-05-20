@@ -62,6 +62,7 @@ export default function PrivacyPage() {
           <li style={{marginBottom:"8px"}}><strong style={{color:"#f0eeff"}}>Právo na obmedzenie</strong> (čl. 18) — obmedziť spracúvanie</li>
           <li style={{marginBottom:"8px"}}><strong style={{color:"#f0eeff"}}>Právo na prenosnosť</strong> (čl. 20) — získať svoje údaje v štruktúrovanom formáte</li>
           <li style={{marginBottom:"8px"}}><strong style={{color:"#f0eeff"}}>Právo namietať</strong> (čl. 21) — namietať proti spracúvaniu</li>
+          <li style={{marginBottom:"8px"}}><strong style={{color:"#f0eeff"}}>Právo odvolať súhlas</strong> (čl. 7 ods. 3) — kedykoľvek odvolať súhlas so spracúvaním bez vplyvu na zákonnosť predchádzajúceho spracovania</li>
         </ul>
         <p style={s}>Žiadosť zašli na <a href="mailto:support@ticklydo.com" style={link}>support@ticklydo.com</a> — odpovieme do 30 dní. Ak sa domnievate že s tvojimi údajmi nenakladáme správne, môžeš podať sťažnosť na <a href="https://dataprotection.gov.sk" target="_blank" style={link}>dataprotection.gov.sk</a>.</p>
 
