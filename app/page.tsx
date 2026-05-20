@@ -7,7 +7,8 @@ import { onAuthStateChanged } from "firebase/auth";
 
 export default function LandingPage() {
   const router = useRouter();
-const [checking, setChecking] = useState(true);
+  const [checking, setChecking] = useState(true);
+  const [cookieBanner, setCookieBanner] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -16,12 +17,24 @@ const [checking, setChecking] = useState(true);
     });
     return () => unsubscribe();
   }, [router]);
-if (checking) return (
-  <div style={{minHeight:"100vh",background:"#09090f",display:"flex",alignItems:"center",justifyContent:"center"}}>
-    <img src="/IKONA.png" alt="loading" style={{width:"120px",animation:"bounce 0.8s infinite alternate"}} />
-    <style>{`@keyframes bounce { from { transform: translateY(0px) rotate(-5deg); } to { transform: translateY(-30px) rotate(5deg); } }`}</style>
-  </div>
-);
+
+  useEffect(() => {
+    const accepted = localStorage.getItem("cookies-accepted");
+    if (!accepted) setCookieBanner(true);
+  }, []);
+
+  const acceptCookies = () => {
+    localStorage.setItem("cookies-accepted", "true");
+    setCookieBanner(false);
+  };
+
+  if (checking) return (
+    <div style={{minHeight:"100vh",background:"#09090f",display:"flex",alignItems:"center",justifyContent:"center"}}>
+      <img src="/IKONA.png" alt="loading" style={{width:"120px",animation:"bounce 0.8s infinite alternate"}} />
+      <style>{`@keyframes bounce { from { transform: translateY(0px) rotate(-5deg); } to { transform: translateY(-30px) rotate(5deg); } }`}</style>
+    </div>
+  );
+
   return (
     <>
       <style>{`
@@ -65,16 +78,6 @@ if (checking) return (
           border-bottom: 1px solid var(--border);
         }
 
-        .nav-logo {
-          font-family: 'Plus Jakarta Sans', sans-serif;
-          font-size: 1.3rem;
-          font-weight: 800;
-          background: linear-gradient(90deg, var(--pink), var(--blue), var(--teal));
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-          text-decoration: none;
-        }
-
         .nav-cta {
           display: inline-flex;
           align-items: center;
@@ -89,6 +92,7 @@ if (checking) return (
           transition: opacity 0.2s, transform 0.2s;
           white-space: nowrap;
           cursor: pointer;
+          border: none;
         }
         .nav-cta:hover { opacity: 0.85; transform: scale(1.03); }
 
@@ -113,28 +117,6 @@ if (checking) return (
           top: 50%; left: 50%;
           transform: translate(-50%, -60%);
           pointer-events: none;
-        }
-
-        .hero-badge {
-          display: inline-flex;
-          align-items: center;
-          gap: 0.5rem;
-          padding: 0.35rem 1rem;
-          border-radius: 50px;
-          border: 1px solid rgba(160,102,255,0.3);
-          background: rgba(160,102,255,0.1);
-          font-size: 0.78rem;
-          color: #c9a8ff;
-          margin-bottom: 1.5rem;
-          animation: fadeUp 0.6s ease both;
-        }
-
-        .badge-dot {
-          width: 6px; height: 6px;
-          border-radius: 50%;
-          background: var(--teal);
-          display: inline-block;
-          animation: pulse 2s infinite;
         }
 
         .hero h1 {
@@ -352,15 +334,6 @@ if (checking) return (
           margin: 0 auto;
         }
 
-        .section-label {
-          font-size: 0.72rem;
-          font-weight: 600;
-          letter-spacing: 0.15em;
-          text-transform: uppercase;
-          color: var(--purple);
-          margin-bottom: 0.7rem;
-        }
-
         .section-title {
           font-family: 'Plus Jakarta Sans', sans-serif;
           font-size: clamp(1.8rem, 4vw, 2.8rem);
@@ -447,13 +420,6 @@ if (checking) return (
           font-size: 0.82rem;
           color: var(--muted);
         }
-        .footer-logo {
-          font-family: 'Plus Jakarta Sans', sans-serif;
-          font-weight: 700;
-          background: linear-gradient(90deg, var(--pink), var(--blue));
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-        }
 
         @keyframes fadeUp {
           from { opacity: 0; transform: translateY(24px); }
@@ -471,7 +437,7 @@ if (checking) return (
         @media (max-width: 600px) {
           .landing-nav { padding: 0.9rem 1.2rem; }
           .hero { padding: 8rem 1.2rem 3rem; }
-          .hero-actions { flex-direction: column; align-items: stretch; width: 100%; max-width: 300px; }
+          .hero-actions { flex-direction: column; align-items: center; width: 100%; max-width: 300px; }
           .preview-content { grid-template-columns: 1fr; }
           .preview-sidebar { display: none; }
           .preview-main { padding-left: 0; }
@@ -482,7 +448,7 @@ if (checking) return (
 
       {/* NAV */}
       <nav className="landing-nav">
-        <img src="/LOGO.png" alt="TicklyDo" style={{height: "80px"}} />
+        <img src="/LOGO.png" alt="TicklyDo" style={{height:"80px"}} />
         <button className="nav-cta" onClick={() => router.push("/register")}>
           Registrovať sa
         </button>
@@ -558,7 +524,7 @@ if (checking) return (
 
       {/* FEATURES */}
       <section className="features-section">
-        <img src="/LOGO.png" alt="TicklyDo" style={{height: "80px"}} />
+        <img src="/LOGO.png" alt="TicklyDo" style={{height:"80px"}} />
         <h2 className="section-title">Všetko čo potrebuješ,<br />nič čo nepotrebuješ.</h2>
         <div className="features-grid">
           <div className="feature-card">
@@ -595,7 +561,7 @@ if (checking) return (
 
       {/* FOOTER */}
       <footer className="landing-footer">
-        <img src="/LOGO.png" alt="TicklyDo" style={{height: "80px"}} />
+        <img src="/LOGO.png" alt="TicklyDo" style={{height:"80px"}} />
         <span>© 2026 TicklyDo. Všetky práva vyhradené.</span>
         <div style={{display:"flex",gap:"1.2rem",flexWrap:"wrap",justifyContent:"center"}}>
           <span onClick={() => router.push("/privacy")} style={{cursor:"pointer",color:"rgba(240,238,255,0.5)",fontSize:"0.82rem"}}>Podmienky & GDPR</span>
@@ -603,6 +569,19 @@ if (checking) return (
           <a href="mailto:support@ticklydo.com" style={{color:"rgba(240,238,255,0.5)",fontSize:"0.82rem",textDecoration:"none"}}>support@ticklydo.com</a>
         </div>
       </footer>
+
+      {/* COOKIE BANNER */}
+      {cookieBanner && (
+        <div style={{position:"fixed",bottom:"20px",left:"50%",transform:"translateX(-50%)",zIndex:999,background:"#13131f",border:"1px solid rgba(255,255,255,0.1)",borderRadius:"16px",padding:"16px 24px",display:"flex",alignItems:"center",gap:"16px",flexWrap:"wrap",justifyContent:"center",maxWidth:"600px",width:"calc(100% - 40px)",boxShadow:"0 8px 40px rgba(0,0,0,0.5)"}}>
+          <p style={{color:"rgba(200,190,255,0.8)",fontFamily:"sans-serif",fontSize:"13px",margin:0,flex:1,minWidth:"200px"}}>
+            Používame cookies nevyhnutné pre fungovanie prihlásenia. Viac info v{" "}
+            <span onClick={() => router.push("/privacy")} style={{color:"#c084fc",cursor:"pointer"}}>Podmienkach & GDPR</span>.
+          </p>
+          <button onClick={acceptCookies} style={{padding:"8px 20px",background:"linear-gradient(135deg,#db2777,#9333ea)",border:"none",borderRadius:"50px",color:"#fff",fontSize:"13px",fontWeight:"700",cursor:"pointer",fontFamily:"sans-serif",whiteSpace:"nowrap"}}>
+            Rozumiem
+          </button>
+        </div>
+      )}
     </>
   );
 }
