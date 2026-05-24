@@ -1,6 +1,7 @@
 "use client";
  
 import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { initializeApp, getApps } from "firebase/app";
  
@@ -177,6 +178,7 @@ const gradientText = (grad: string) => ({
 });
  
 export default function HomePage() {
+  const router = useRouter();
   const [activePage, setActivePage]         = useState<Page>("home");
   const [stars, setStars]                   = useState(PROJECTS.map((p) => p.starred));
   const [colorA, setColorA]                 = useState("#e040fb");
@@ -273,9 +275,9 @@ export default function HomePage() {
   const currentAvatar = AVATARS.find(a => a.id === avatarId) ?? AVATARS[0];
  
   const NAV = [
-    { id: "home",          label: "Domov",
+    { id: "home", label: "Domov",
       svg: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg> },
-    { id: "work",          label: "Moja práca",
+    { id: "work", label: "Moja práca",
       svg: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg> },
     { id: "notifications", label: "Notifikácie",
       svg: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg> },
@@ -419,7 +421,7 @@ export default function HomePage() {
  
             <div style={{ display: "flex", flexDirection: "column", gap: 10, maxWidth: 480 }}>
               {PROJECTS.map((p, i) => (
-                <div key={i} style={{
+                <div key={i} onClick={() => router.push(`/project-${i + 1}`)} style={{
                   borderRadius: 18, padding: "16px 18px",
                   display: "flex", alignItems: "center", gap: 14,
                   cursor: "pointer", position: "relative", overflow: "hidden",
