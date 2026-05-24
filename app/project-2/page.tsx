@@ -1,13 +1,33 @@
 "use client";
+
+import React from "react";
 import { useRouter } from "next/navigation";
+import { useTheme } from "../context/ThemeContext";
+
+const NAMES: Record<number, string> = {
+  1: "Môj prvý projekt",
+  2: "Dashboard a reporty",
+  3: "Nápady na Q3",
+  4: "Spustenie produktu",
+};
 
 export default function Project2() {
   const router = useRouter();
+  const { theme, appliedA } = useTheme();
   return (
-    <div style={{minHeight:"100vh",background:"#0b0c13",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:"sans-serif"}}>
-      <h1 style={{color:"#f0f0f8",fontSize:"24px",marginBottom:"8px"}}>Dashboard a reporty</h1>
-      <p style={{color:"#6b6c80",fontSize:"14px",marginBottom:"32px"}}>Zatiaľ prázdne. Čoskoro tu pribudne obsah.</p>
-      <button onClick={() => router.push("/home")} style={{background:"none",border:"1px solid #22233a",borderRadius:"10px",padding:"10px 20px",color:"#6b6c80",cursor:"pointer",fontSize:"14px"}}>← Späť</button>
+    <div style={{
+      flex: 1, overflowY: "auto", padding: "28px 28px 60px",
+      display: "flex", flexDirection: "column", gap: 16,
+      background: theme.bg, color: theme.text,
+      fontFamily: "var(--font-geist-sans)", transition: "background .3s, color .3s",
+    }}>
+      <div style={{ fontSize: 22, fontWeight: 900 }}>{NAMES[2]}</div>
+      <p style={{ color: theme.muted, fontWeight: 700 }}>Zatiaľ prázdne. Čoskoro tu pribudne obsah.</p>
+      <button onClick={() => router.push("/home")} style={{
+        background: "none", border: `1px solid ${theme.border}`,
+        borderRadius: 10, padding: "10px 20px", color: theme.muted,
+        cursor: "pointer", fontSize: 14, width: "fit-content",
+      }}>← Späť</button>
     </div>
   );
 }
