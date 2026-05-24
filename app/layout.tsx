@@ -15,6 +15,10 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "TicklyDo",
   description: "Organizuj nápady po svojom.",
+  metadataBase: new URL("https://ticklydo.com"),
+  alternates: {
+    canonical: "https://ticklydo.com",
+  },
   icons: {
     icon: "/IKONA.png?v=2",
     shortcut: "/IKONA.png?v=2",
