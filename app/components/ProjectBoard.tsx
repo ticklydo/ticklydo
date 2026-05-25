@@ -257,44 +257,123 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
 
   const DateCell = ({ cellKey, val, onChange }: { cellKey: string; val: string; onChange: (v: string) => void }) => {
     const over = isOverdue(val);
-    const isEditing = editingCell?.id === cellKey;
-    // Convert stored value to YYYY-MM-DD for input
-    const inputVal = toISODate(val);
-    if (isEditing) return (
-      <input
-        autoFocus
-        type="date"
-        value={inputVal}
-        onChange={e => {
-          const raw = e.target.value; // YYYY-MM-DD from input
-          onChange(raw); // always store as YYYY-MM-DD
-          setEditingCell(null);
-        }}
-        onBlur={() => setEditingCell(null)}
-        style={{
-          background: headerBg, border: `1.5px solid ${appliedA}`,
-          borderRadius: 6, padding: "3px 8px", color: theme.text,
-          fontFamily: "var(--font-geist-sans)", fontSize: 12,
-          outline: "none", cursor: "pointer",
-        }}
-      />
-    );
+    const isOpen = editingCell?.id === cellKey;
+    const isoVal = toISODate(val);
+
+    const [pickerMonth, setPickerMonth] = useState(() => {
+      if (isoVal && /^\d{4}-\d{2}-\d{2}$/.test(isoVal)) {
+        const parts = isoVal.split("-");
+        return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, 1);
+      }
+      return new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    });
+
+    const py = pickerMonth.getFullYear();
+    const pm = pickerMonth.getMonth();
+    const firstDay = new Date(py, pm, 1).getDay();
+    const daysInMonth = new Date(py, pm + 1, 0).getDate();
+    const offset = firstDay === 0 ? 6 : firstDay - 1;
+    const cells = Array.from({ length: Math.ceil((offset + daysInMonth) / 7) * 7 }, (_, i) => {
+      const d = i - offset + 1;
+      return d >= 1 && d <= daysInMonth ? d : null;
+    });
+    const monthNames = ["Jan","Feb","Mar","Apr","Máj","Jún","Júl","Aug","Sep","Okt","Nov","Dec"];
+    const dayNames = ["Po","Ut","St","Št","Pi","So","Ne"];
+    const today = new Date();
+    const selectedDay = isoVal ? parseInt(isoVal.split("-")[2], 10) : null;
+    const selectedMonth = isoVal ? parseInt(isoVal.split("-")[1], 10) - 1 : null;
+    const selectedYear = isoVal ? parseInt(isoVal.split("-")[0], 10) : null;
+
     return (
-      <div
-        onClick={() => setEditingCell({ id: cellKey, field: "dueDate" })}
-        style={{
-          display: "inline-flex", alignItems: "center", gap: 4,
-          background: over && val ? (darkMode ? "#fee2e222" : "#fee2e2") : headerBg,
-          border: `1px solid ${over && val ? "#ef444433" : theme.border}`,
-          borderRadius: 6, padding: "3px 8px", cursor: "pointer",
-          color: over && val ? "#dc2626" : theme.muted,
-          fontSize: 11, fontWeight: 600, transition: "border-color .15s",
-        }}
-        onMouseEnter={e => { if (!isEditing) e.currentTarget.style.borderColor = appliedA; }}
-        onMouseLeave={e => { if (!isEditing) e.currentTarget.style.borderColor = over && val ? "#ef444433" : theme.border; }}
-      >
-        <span style={{ color: over && val ? "#dc2626" : appliedA }}>{Icons.calendar}</span>
-        {val ? formatDate(val) : <span>Pridaj</span>}
+      <div style={{ position: "relative", display: "inline-block" }}>
+        {/* Trigger button */}
+        <div onClick={() => setEditingCell(isOpen ? null : { id: cellKey, field: "dueDate" })}
+          style={{
+            display: "inline-flex", alignItems: "center", gap: 4,
+            background: over && val ? (darkMode ? "#fee2e222" : "#fee2e2") : headerBg,
+            border: `1px solid ${over && val ? "#ef444433" : isOpen ? appliedA : theme.border}`,
+            borderRadius: 6, padding: "3px 8px", cursor: "pointer",
+            color: over && val ? "#dc2626" : val ? theme.text : theme.muted,
+            fontSize: 11, fontWeight: 600, transition: "border-color .15s",
+            userSelect: "none",
+          }}
+          onMouseEnter={e => { if (!isOpen) e.currentTarget.style.borderColor = appliedA; }}
+          onMouseLeave={e => { if (!isOpen) e.currentTarget.style.borderColor = over && val ? "#ef444433" : theme.border; }}
+        >
+          <span style={{ color: over && val ? "#dc2626" : appliedA }}>{Icons.calendar}</span>
+          {val ? formatDate(val) : <span>Pridaj</span>}
+        </div>
+
+        {/* Popup picker */}
+        {isOpen && (
+          <>
+            {/* Backdrop */}
+            <div onClick={() => setEditingCell(null)} style={{ position: "fixed", inset: 0, zIndex: 98 }} />
+            <div style={{
+              position: "absolute", top: "calc(100% + 6px)", left: 0,
+              background: surface, border: `1.5px solid ${appliedA}33`,
+              borderRadius: 14, boxShadow: `0 8px 32px rgba(0,0,0,0.15)`,
+              zIndex: 99, padding: 12, width: 240,
+              animation: "fadeIn .15s ease",
+            }}>
+              {/* Picker header */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                <button onClick={() => setPickerMonth(new Date(py, pm - 1, 1))} style={{ width: 26, height: 26, borderRadius: 7, border: `1px solid ${theme.border}`, background: "transparent", color: theme.muted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>{Icons.navLeft}</button>
+                <div style={{ fontWeight: 800, fontSize: 13 }}>{monthNames[pm]} {py}</div>
+                <button onClick={() => setPickerMonth(new Date(py, pm + 1, 1))} style={{ width: 26, height: 26, borderRadius: 7, border: `1px solid ${theme.border}`, background: "transparent", color: theme.muted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>{Icons.navRight}</button>
+              </div>
+
+              {/* Day names */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", marginBottom: 4 }}>
+                {dayNames.map(d => (
+                  <div key={d} style={{ textAlign: "center", fontSize: 9, fontWeight: 700, color: theme.muted, padding: "2px 0", textTransform: "uppercase" }}>{d}</div>
+                ))}
+              </div>
+
+              {/* Days grid */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 1 }}>
+                {cells.map((day, i) => {
+                  const isSelected = day !== null && day === selectedDay && pm === selectedMonth && py === selectedYear;
+                  const isCurrentDay = day !== null && day === today.getDate() && pm === today.getMonth() && py === today.getFullYear();
+                  const isWeekend = i % 7 >= 5;
+                  return (
+                    <div key={i} onClick={() => {
+                      if (!day) return;
+                      const iso = `${py}-${String(pm + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+                      onChange(iso);
+                      setEditingCell(null);
+                    }} style={{
+                      height: 28, borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: 12, fontWeight: isSelected ? 800 : 500,
+                      cursor: day ? "pointer" : "default",
+                      background: isSelected ? grad : isCurrentDay ? appliedA + "18" : "transparent",
+                      color: isSelected ? "#fff" : isCurrentDay ? appliedA : isWeekend ? appliedA + "99" : day ? theme.text : "transparent",
+                      transition: "all .1s",
+                      outline: isCurrentDay && !isSelected ? `1.5px solid ${appliedA}44` : "none",
+                    }}
+                    onMouseEnter={e => { if (day && !isSelected) e.currentTarget.style.background = appliedA + "18"; }}
+                    onMouseLeave={e => { if (day && !isSelected) e.currentTarget.style.background = isCurrentDay ? appliedA + "18" : "transparent"; }}
+                    >{day || ""}</div>
+                  );
+                })}
+              </div>
+
+              {/* Clear button */}
+              {val && (
+                <button onClick={() => { onChange(""); setEditingCell(null); }} style={{
+                  marginTop: 8, width: "100%", background: "transparent",
+                  border: `1px solid ${theme.border}`, borderRadius: 8,
+                  padding: "5px", color: theme.muted, fontSize: 11, fontWeight: 600,
+                  cursor: "pointer", fontFamily: "var(--font-geist-sans)",
+                  transition: "all .15s",
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = "#fee2e2"; e.currentTarget.style.color = "#dc2626"; e.currentTarget.style.borderColor = "#dc262633"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = theme.muted; e.currentTarget.style.borderColor = theme.border; }}
+                >Vymazať dátum</button>
+              )}
+            </div>
+          </>
+        )}
       </div>
     );
   };
