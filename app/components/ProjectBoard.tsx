@@ -32,6 +32,18 @@ type Task = {
   dueDate: string; owner: string; notes: string; subtasks: SubTask[];
 };
 
+type CalEvent = {
+  id: string;
+  title: string;
+  date: string; // YYYY-MM-DD
+  endDate?: string;
+  color: string;
+  type: "event" | "task";
+  taskId?: string; // link to task if type=task
+  notes?: string;
+  time?: string; // HH:MM
+};
+
 const STATUS_CONFIG: Record<Status, { color: string; bg: string; dot: string }> = {
   "Hotovo":    { color: "#16a34a", bg: "#dcfce7", dot: "#16a34a" },
   "V procese": { color: "#b45309", bg: "#fef3c7", dot: "#f59e0b" },
@@ -134,6 +146,13 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1);
   });
+  const [events, setEvents] = useState<CalEvent[]>([]);
+  const [calModal, setCalModal] = useState<{ date: string; event?: CalEvent } | null>(null);
+  const [quickName, setQuickName] = useState("");
+  const [quickType, setQuickType] = useState<"event" | "task">("event");
+  const [quickTime, setQuickTime] = useState("");
+  const [quickColor, setQuickColor] = useState("#6366f1");
+  const [selectedDayEvents, setSelectedDayEvents] = useState<{ date: string; items: (CalEvent | Task)[] } | null>(null);
 
   const surface = darkMode ? theme.card : "#ffffff";
   const surfaceHover = darkMode ? theme.card2 : "#f9fafb";
@@ -169,13 +188,14 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
             dueDate: s.dueDate ?? "", owner: s.owner ?? "", notes: s.notes ?? "",
           }))
         })));
+        setEvents(data.events ?? []);
       }
       setLoading(false);
     });
     return () => unsub();
   }, [projectId]);
 
-  const saveAll = async (newTasks: Task[], newName?: string) => {
+  const saveAll = async (newTasks: Task[], newName?: string, newEvents?: CalEvent[]) => {
     const user = auth.currentUser;
     if (!user) return;
     const { getFirestore, doc, setDoc } = await import("firebase/firestore");
@@ -183,7 +203,13 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
     await setDoc(doc(db, "projects", `${user.uid}_${projectId}`), {
       tasks: newTasks,
       projectName: newName ?? projectName,
+      events: newEvents ?? events,
     }, { merge: true });
+  };
+
+  const saveEvents = async (newEvents: CalEvent[]) => {
+    setEvents(newEvents);
+    await saveAll(tasks, projectName, newEvents);
   };
 
   function saveName(name: string) {
@@ -666,150 +692,152 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
           const dayNames = isMobile ? ["P","U","S","Š","P","S","N"] : ["Pondelok","Utorok","Streda","Štvrtok","Piatok","Sobota","Nedeľa"];
           const today = new Date();
           const isToday = (d: number) => d === today.getDate() && month === today.getMonth() && year === today.getFullYear();
-          const getTasksForDay = (day: number) => {
-            const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-            return tasks.filter(t => t.dueDate === dateStr);
-          };
-          const totalTasks = tasks.filter(t => t.dueDate && t.dueDate.startsWith(`${year}-${String(month + 1).padStart(2, "0")}`)).length;
-          const doneTasks = tasks.filter(t => t.dueDate && t.dueDate.startsWith(`${year}-${String(month + 1).padStart(2, "0")}`) && t.status === "Hotovo").length;
 
-          // Pastel day colors for weekdays - subtle, warm
-          const weekendBg = darkMode ? `${appliedA}06` : `${appliedA}06`;
-          const emptyBg = darkMode ? theme.card2 + "40" : "#f7f8fc";
+          const getDateStr = (day: number) => `${year}-${String(month + 1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+
+          const getItemsForDay = (day: number) => {
+            const dateStr = getDateStr(day);
+            const dayTasks = tasks.filter(t => t.dueDate === dateStr);
+            const dayEvents = events.filter(e => e.date === dateStr);
+            return { tasks: dayTasks, events: dayEvents, all: [...dayEvents, ...dayTasks] };
+          };
+
+          const totalTasks = tasks.filter(t => t.dueDate?.startsWith(`${year}-${String(month+1).padStart(2,"0")}`)).length;
+          const doneTasks = tasks.filter(t => t.dueDate?.startsWith(`${year}-${String(month+1).padStart(2,"0")}`) && t.status === "Hotovo").length;
+          const totalEvents = events.filter(e => e.date?.startsWith(`${year}-${String(month+1).padStart(2,"0")}`)).length;
+
+          const EVENT_COLORS = ["#6366f1","#ec4899","#f59e0b","#10b981","#3b82f6","#ef4444","#8b5cf6","#06b6d4"];
+
+          const addQuickItem = () => {
+            if (!quickName.trim() || !calModal) return;
+            if (quickType === "event") {
+              const ev: CalEvent = { id: genId(), title: quickName.trim(), date: calModal.date, color: quickColor, type: "event", time: quickTime, notes: "" };
+              saveEvents([...events, ev]);
+            } else {
+              const t: Task = { id: genId(), name: quickName.trim(), status: "Nezačaté", priority: "", dueDate: calModal.date, owner: "", notes: "", subtasks: [] };
+              const updated = [...tasks, t];
+              setTasks(updated);
+              saveAll(updated);
+            }
+            setQuickName(""); setQuickTime(""); setCalModal(null);
+          };
 
           return (
             <div style={{ borderRadius: 20, overflow: "hidden", boxShadow: shadow, animation: "fadeIn .25s ease" }}>
 
-              {/* ── HEADER with gradient ── */}
-              <div style={{
-                background: grad,
-                padding: isMobile ? "18px 16px 20px" : "24px 28px 28px",
-                position: "relative", overflow: "hidden",
-              }}>
-                {/* Decorative circles */}
+              {/* HEADER */}
+              <div style={{ background: grad, padding: isMobile ? "18px 16px 20px" : "22px 28px 24px", position: "relative", overflow: "hidden" }}>
                 <div style={{ position: "absolute", top: -20, right: -20, width: 120, height: 120, borderRadius: "50%", background: "rgba(255,255,255,0.08)" }} />
                 <div style={{ position: "absolute", bottom: -30, right: 60, width: 80, height: 80, borderRadius: "50%", background: "rgba(255,255,255,0.06)" }} />
-                <div style={{ position: "absolute", top: 10, right: 100, width: 40, height: 40, borderRadius: "50%", background: "rgba(255,255,255,0.1)" }} />
-
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", position: "relative", zIndex: 1 }}>
                   <div>
-                    <div style={{ fontSize: isMobile ? 22 : 30, fontWeight: 900, color: "#fff", letterSpacing: "-0.5px", lineHeight: 1 }}>{monthNames[month]}</div>
-                    <div style={{ fontSize: 14, color: "rgba(255,255,255,0.7)", fontWeight: 600, marginTop: 2 }}>{year}</div>
+                    <div style={{ fontSize: isMobile ? 22 : 28, fontWeight: 900, color: "#fff", letterSpacing: "-0.5px", lineHeight: 1 }}>{monthNames[month]}</div>
+                    <div style={{ fontSize: 13, color: "rgba(255,255,255,0.7)", fontWeight: 600, marginTop: 2 }}>{year} · {totalTasks} úloh · {totalEvents} udalostí</div>
                   </div>
                   <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                     {totalTasks > 0 && (
-                      <div style={{ background: "rgba(255,255,255,0.18)", backdropFilter: "blur(8px)", borderRadius: 12, padding: "8px 14px", color: "#fff", fontSize: 12, fontWeight: 700, marginRight: 4 }}>
-                        {doneTasks}/{totalTasks} úloh
+                      <div style={{ background: "rgba(255,255,255,0.18)", backdropFilter: "blur(8px)", borderRadius: 10, padding: "6px 12px", color: "#fff", fontSize: 11, fontWeight: 700 }}>
+                        {doneTasks}/{totalTasks} ✓
                       </div>
                     )}
-                    <button onClick={() => setCalMonth(new Date(year, month - 1, 1))} style={{ width: 36, height: 36, borderRadius: 10, border: "2px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.15)", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all .15s", backdropFilter: "blur(4px)" }}
-                      onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.25)"}
+                    <button onClick={() => setCalMonth(new Date(year, month - 1, 1))} style={{ width: 34, height: 34, borderRadius: 10, border: "2px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.15)", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                      onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.28)"}
                       onMouseLeave={e => e.currentTarget.style.background = "rgba(255,255,255,0.15)"}
                     >{Icons.navLeft}</button>
-                    <button onClick={() => setCalMonth(new Date(year, month + 1, 1))} style={{ width: 36, height: 36, borderRadius: 10, border: "2px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.15)", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all .15s", backdropFilter: "blur(4px)" }}
-                      onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.25)"}
+                    <button onClick={() => setCalMonth(new Date(year, month + 1, 1))} style={{ width: 34, height: 34, borderRadius: 10, border: "2px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.15)", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                      onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.28)"}
                       onMouseLeave={e => e.currentTarget.style.background = "rgba(255,255,255,0.15)"}
                     >{Icons.navRight}</button>
+                    <button onClick={() => setCalMonth(new Date(today.getFullYear(), today.getMonth(), 1))} style={{ height: 34, borderRadius: 10, border: "2px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.15)", color: "#fff", cursor: "pointer", padding: "0 12px", fontSize: 11, fontWeight: 700 }}>Dnes</button>
                   </div>
                 </div>
-
-                {/* Progress bar */}
                 {totalTasks > 0 && (
-                  <div style={{ marginTop: 16, position: "relative", zIndex: 1 }}>
-                    <div style={{ height: 4, borderRadius: 2, background: "rgba(255,255,255,0.2)", overflow: "hidden" }}>
+                  <div style={{ marginTop: 14, position: "relative", zIndex: 1 }}>
+                    <div style={{ height: 3, borderRadius: 2, background: "rgba(255,255,255,0.2)", overflow: "hidden" }}>
                       <div style={{ height: "100%", width: `${(doneTasks / totalTasks) * 100}%`, background: "#fff", borderRadius: 2, transition: "width .5s ease" }} />
                     </div>
                   </div>
                 )}
               </div>
 
-              {/* ── DAY NAMES ── */}
+              {/* DAY NAMES */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", background: surface, borderBottom: `1px solid ${theme.border}` }}>
                 {dayNames.map((d, i) => (
-                  <div key={d} style={{
-                    padding: isMobile ? "6px 2px" : "10px 8px",
-                    textAlign: "center",
-                    fontSize: isMobile ? 10 : 11,
-                    fontWeight: 800,
-                    color: i >= 5 ? appliedA : theme.muted,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.6px",
-                  }}>{d}</div>
+                  <div key={i} style={{ padding: isMobile ? "6px 2px" : "10px 8px", textAlign: "center", fontSize: isMobile ? 9 : 11, fontWeight: 800, color: i >= 5 ? appliedA : theme.muted, textTransform: "uppercase", letterSpacing: "0.6px" }}>{d}</div>
                 ))}
               </div>
 
-              {/* ── GRID ── */}
+              {/* GRID */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", background: surface }}>
                 {cells.map((day, i) => {
-                  const dayTasks = day ? getTasksForDay(day) : [];
+                  const { tasks: dTasks, events: dEvents, all } = day ? getItemsForDay(day) : { tasks: [], events: [], all: [] };
                   const isCurrentDay = day ? isToday(day) : false;
                   const isWeekend = i % 7 >= 5;
-                  const hasTasks = dayTasks.length > 0;
-                  const maxVisible = isMobile ? 2 : 3;
+                  const maxVisible = isMobile ? 1 : 3;
+                  const dateStr = day ? getDateStr(day) : "";
 
                   return (
                     <div key={i} style={{
-                      minHeight: isMobile ? 64 : 100,
+                      minHeight: isMobile ? 70 : 110,
                       borderRight: (i + 1) % 7 !== 0 ? `1px solid ${theme.border}` : "none",
                       borderBottom: i < cells.length - 7 ? `1px solid ${theme.border}` : "none",
-                      padding: isMobile ? "6px 4px" : "8px",
-                      background: !day ? emptyBg : isWeekend ? weekendBg : surface,
+                      padding: isMobile ? "5px 3px" : "6px",
+                      background: !day ? (darkMode ? theme.card2 + "40" : "#f7f8fc") : isWeekend ? (darkMode ? appliedA + "06" : appliedA + "05") : surface,
                       transition: "background .15s",
+                      cursor: day ? "pointer" : "default",
                       position: "relative",
                     }}
-                    onMouseEnter={e => { if (day) e.currentTarget.style.background = darkMode ? appliedA + "0e" : appliedA + "08"; }}
-                    onMouseLeave={e => { if (day) e.currentTarget.style.background = !day ? emptyBg : isWeekend ? weekendBg : surface; }}
+                    onClick={() => { if (day) setCalModal({ date: dateStr }); }}
+                    onMouseEnter={e => { if (day) e.currentTarget.style.background = darkMode ? appliedA + "12" : appliedA + "08"; }}
+                    onMouseLeave={e => { if (day) e.currentTarget.style.background = !day ? (darkMode ? theme.card2 + "40" : "#f7f8fc") : isWeekend ? (darkMode ? appliedA + "06" : appliedA + "05") : surface; }}
                     >
                       {day && (
                         <>
-                          {/* Day number */}
-                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: hasTasks ? 5 : 0 }}>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: all.length ? 4 : 0 }}>
                             <div style={{
-                              width: isMobile ? 22 : 28, height: isMobile ? 22 : 28,
-                              borderRadius: "50%",
+                              width: isMobile ? 22 : 26, height: isMobile ? 22 : 26, borderRadius: "50%",
                               background: isCurrentDay ? grad : "transparent",
                               boxShadow: isCurrentDay ? `0 2px 8px ${appliedA}55` : "none",
                               display: "flex", alignItems: "center", justifyContent: "center",
-                              fontSize: isMobile ? 11 : 13,
-                              fontWeight: isCurrentDay ? 900 : isWeekend ? 600 : 500,
+                              fontSize: isMobile ? 10 : 12, fontWeight: isCurrentDay ? 900 : isWeekend ? 600 : 400,
                               color: isCurrentDay ? "#fff" : isWeekend ? appliedA : theme.text,
-                              flexShrink: 0,
                             }}>{day}</div>
-                            {hasTasks && !isMobile && (
-                              <div style={{ width: 5, height: 5, borderRadius: "50%", background: appliedA, opacity: 0.5 }} />
+                            {all.length > 0 && !isMobile && (
+                              <div style={{ width: 5, height: 5, borderRadius: "50%", background: appliedA, opacity: 0.4 }} />
                             )}
                           </div>
 
-                          {/* Task pills */}
-                          <div style={{ display: "flex", flexDirection: "column", gap: isMobile ? 2 : 3 }}>
-                            {dayTasks.slice(0, maxVisible).map(task => {
-                              const cfg = STATUS_CONFIG[task.status];
+                          <div style={{ display: "flex", flexDirection: "column", gap: 2 }} onClick={e => e.stopPropagation()}>
+                            {all.slice(0, maxVisible).map((item, idx) => {
+                              const isEvent = "title" in item;
+                              const color = isEvent ? (item as CalEvent).color : STATUS_CONFIG[(item as Task).status].color;
+                              const bg = isEvent ? (item as CalEvent).color + "22" : (darkMode ? STATUS_CONFIG[(item as Task).status].color + "22" : STATUS_CONFIG[(item as Task).status].bg);
+                              const label = isEvent ? (item as CalEvent).title : (item as Task).name;
+                              const time = isEvent ? (item as CalEvent).time : "";
                               return (
-                                <div key={task.id} onClick={() => setDetailTask(task)} style={{
-                                  background: darkMode ? cfg.color + "28" : cfg.bg,
-                                  color: cfg.color,
-                                  borderRadius: isMobile ? 4 : 6,
-                                  padding: isMobile ? "2px 5px" : "3px 7px",
-                                  fontSize: isMobile ? 9 : 11,
-                                  fontWeight: 700,
-                                  overflow: "hidden",
-                                  textOverflow: "ellipsis",
-                                  whiteSpace: "nowrap",
-                                  cursor: "pointer",
-                                  borderLeft: `2.5px solid ${cfg.color}`,
-                                  transition: "all .15s",
-                                  lineHeight: 1.3,
-                                }}
-                                onMouseEnter={e => { e.currentTarget.style.transform = "scale(1.01)"; e.currentTarget.style.boxShadow = `0 2px 6px ${cfg.color}33`; }}
-                                onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.boxShadow = "none"; }}
-                                >{task.name}</div>
+                                <div key={idx} onClick={e => { e.stopPropagation(); if (isEvent) setCalModal({ date: dateStr, event: item as CalEvent }); else setDetailTask(item as Task); }}
+                                  style={{
+                                    background: bg, color, borderRadius: 4,
+                                    padding: isMobile ? "1px 4px" : "2px 6px",
+                                    fontSize: isMobile ? 8 : 10, fontWeight: 700,
+                                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                                    cursor: "pointer", borderLeft: `2.5px solid ${color}`,
+                                    display: "flex", alignItems: "center", gap: 3,
+                                  }}
+                                  onMouseEnter={e => e.currentTarget.style.opacity = "0.8"}
+                                  onMouseLeave={e => e.currentTarget.style.opacity = "1"}
+                                >
+                                  {time && !isMobile && <span style={{ opacity: 0.7, fontWeight: 600, fontSize: 9 }}>{time}</span>}
+                                  {!isEvent && <span style={{ opacity: 0.6, fontSize: 8 }}>✓</span>}
+                                  {label}
+                                </div>
                               );
                             })}
-                            {dayTasks.length > maxVisible && (
-                              <div style={{
-                                fontSize: isMobile ? 9 : 10, color: appliedA, fontWeight: 700,
-                                paddingLeft: isMobile ? 4 : 6, cursor: "pointer",
-                              }}>+{dayTasks.length - maxVisible} ďalšie</div>
+                            {all.length > maxVisible && (
+                              <div onClick={e => { e.stopPropagation(); setSelectedDayEvents({ date: dateStr, items: all }); }}
+                                style={{ fontSize: isMobile ? 8 : 10, color: appliedA, fontWeight: 700, paddingLeft: 4, cursor: "pointer" }}>
+                                +{all.length - maxVisible} ďalšie
+                              </div>
                             )}
                           </div>
                         </>
@@ -819,26 +847,188 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
                 })}
               </div>
 
-              {/* ── LEGEND ── */}
-              <div style={{
-                padding: "12px 20px",
-                borderTop: `1px solid ${theme.border}`,
-                background: surface,
-                display: "flex", gap: 16, flexWrap: "wrap", alignItems: "center",
-              }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.6px" }}>Status:</span>
+              {/* LEGEND */}
+              <div style={{ padding: "10px 16px", borderTop: `1px solid ${theme.border}`, background: surface, display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <div style={{ width: 10, height: 10, borderRadius: 2, background: "#6366f1" }} />
+                  <span style={{ fontSize: 10, fontWeight: 600, color: theme.muted }}>Udalosť</span>
+                </div>
                 {(Object.keys(STATUS_CONFIG) as Status[]).map(s => {
                   const cfg = STATUS_CONFIG[s];
-                  const count = tasks.filter(t => t.status === s && t.dueDate && t.dueDate.startsWith(`${year}-${String(month + 1).padStart(2, "0")}`)).length;
                   return (
-                    <div key={s} style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                      <div style={{ width: 10, height: 10, borderRadius: 3, background: darkMode ? cfg.color + "44" : cfg.bg, border: `2px solid ${cfg.color}` }} />
-                      <span style={{ fontSize: 11, fontWeight: 600, color: cfg.color }}>{s}</span>
-                      {count > 0 && <span style={{ fontSize: 10, fontWeight: 800, background: cfg.bg, color: cfg.color, borderRadius: 10, padding: "0 5px" }}>{count}</span>}
+                    <div key={s} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      <div style={{ width: 10, height: 10, borderRadius: 2, background: darkMode ? cfg.color + "44" : cfg.bg, border: `2px solid ${cfg.color}` }} />
+                      <span style={{ fontSize: 10, fontWeight: 600, color: cfg.color }}>{s}</span>
                     </div>
                   );
                 })}
               </div>
+
+              {/* ── QUICK ADD / EDIT MODAL ── */}
+              {calModal && (
+                <div style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)" }}
+                  onClick={() => { setCalModal(null); setQuickName(""); setQuickTime(""); }}>
+                  <div onClick={e => e.stopPropagation()} style={{
+                    background: surface, borderRadius: 20, padding: 24, width: isMobile ? "90vw" : 400,
+                    boxShadow: "0 20px 60px rgba(0,0,0,0.3)", animation: "fadeIn .2s ease",
+                    border: `1px solid ${theme.border}`,
+                  }}>
+                    {/* Modal header */}
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+                      <div>
+                        <div style={{ fontSize: 16, fontWeight: 800 }}>
+                          {calModal.event ? "Upraviť udalosť" : "Pridať na deň"}
+                        </div>
+                        <div style={{ fontSize: 12, color: theme.muted, marginTop: 2 }}>
+                          {formatDate(calModal.date)} {calModal.date.split("-")[0]}
+                        </div>
+                      </div>
+                      <button onClick={() => { setCalModal(null); setQuickName(""); setQuickTime(""); }} style={{ background: "none", border: "none", cursor: "pointer", color: theme.muted, display: "flex", alignItems: "center" }}>{Icons.close}</button>
+                    </div>
+
+                    {/* Type selector (only for new) */}
+                    {!calModal.event && (
+                      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+                        {(["event","task"] as const).map(t => (
+                          <button key={t} onClick={() => setQuickType(t)} style={{
+                            flex: 1, padding: "8px", borderRadius: 10, border: `2px solid ${quickType === t ? appliedA : theme.border}`,
+                            background: quickType === t ? appliedA + "18" : "transparent",
+                            color: quickType === t ? appliedA : theme.muted, fontWeight: 700, fontSize: 12, cursor: "pointer",
+                            fontFamily: "var(--font-geist-sans)",
+                          }}>
+                            {t === "event" ? "📅 Udalosť" : "✅ Úloha"}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Name input */}
+                    <input
+                      autoFocus
+                      value={calModal.event ? calModal.event.title : quickName}
+                      onChange={e => {
+                        if (calModal.event) setCalModal({ ...calModal, event: { ...calModal.event!, title: e.target.value } });
+                        else setQuickName(e.target.value);
+                      }}
+                      placeholder={quickType === "event" ? "Názov udalosti..." : "Názov úlohy..."}
+                      onKeyDown={e => { if (e.key === "Enter") addQuickItem(); }}
+                      style={{ width: "100%", background: headerBg, border: `1.5px solid ${theme.border}`, borderRadius: 10, padding: "10px 14px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontSize: 14, fontWeight: 600, outline: "none", boxSizing: "border-box", marginBottom: 12 }}
+                      onFocus={e => e.target.style.borderColor = appliedA}
+                      onBlur={e => e.target.style.borderColor = theme.border}
+                    />
+
+                    {/* Time (events only) */}
+                    {(quickType === "event" || calModal.event) && (
+                      <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: theme.muted, marginBottom: 5 }}>ČAS</div>
+                          <input type="time" value={calModal.event ? calModal.event.time || "" : quickTime}
+                            onChange={e => {
+                              if (calModal.event) setCalModal({ ...calModal, event: { ...calModal.event!, time: e.target.value } });
+                              else setQuickTime(e.target.value);
+                            }}
+                            style={{ width: "100%", background: headerBg, border: `1.5px solid ${theme.border}`, borderRadius: 8, padding: "7px 10px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontSize: 13, outline: "none", boxSizing: "border-box" }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Color picker (events only) */}
+                    {(quickType === "event" || calModal.event) && (
+                      <div style={{ marginBottom: 16 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: theme.muted, marginBottom: 8 }}>FARBA</div>
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                          {EVENT_COLORS.map(c => (
+                            <div key={c} onClick={() => {
+                              if (calModal.event) setCalModal({ ...calModal, event: { ...calModal.event!, color: c } });
+                              else setQuickColor(c);
+                            }} style={{
+                              width: 28, height: 28, borderRadius: "50%", background: c, cursor: "pointer",
+                              border: `3px solid ${(calModal.event ? calModal.event.color : quickColor) === c ? theme.text : "transparent"}`,
+                              boxShadow: (calModal.event ? calModal.event.color : quickColor) === c ? `0 0 0 2px ${c}` : "none",
+                              transition: "all .15s",
+                            }} />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Notes */}
+                    <textarea
+                      value={calModal.event ? calModal.event.notes || "" : ""}
+                      onChange={e => { if (calModal.event) setCalModal({ ...calModal, event: { ...calModal.event!, notes: e.target.value } }); }}
+                      placeholder="Poznámky (voliteľné)..."
+                      rows={2}
+                      style={{ width: "100%", background: headerBg, border: `1.5px solid ${theme.border}`, borderRadius: 8, padding: "8px 10px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontSize: 12, outline: "none", resize: "none", boxSizing: "border-box", marginBottom: 16 }}
+                      onFocus={e => e.target.style.borderColor = appliedA}
+                      onBlur={e => e.target.style.borderColor = theme.border}
+                    />
+
+                    {/* Buttons */}
+                    <div style={{ display: "flex", gap: 8 }}>
+                      {calModal.event && (
+                        <button onClick={() => {
+                          const updated = events.filter(e => e.id !== calModal.event!.id);
+                          saveEvents(updated);
+                          setCalModal(null);
+                        }} style={{ background: "#fee2e2", border: "none", borderRadius: 10, padding: "10px 16px", color: "#dc2626", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}>Vymazať</button>
+                      )}
+                      <div style={{ flex: 1 }} />
+                      <button onClick={() => { setCalModal(null); setQuickName(""); setQuickTime(""); }} style={{ background: "none", border: `1px solid ${theme.border}`, borderRadius: 10, padding: "10px 16px", color: theme.muted, fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}>Zrušiť</button>
+                      <button onClick={() => {
+                        if (calModal.event) {
+                          const updated = events.map(e => e.id === calModal.event!.id ? calModal.event! : e);
+                          saveEvents(updated);
+                          setCalModal(null);
+                        } else {
+                          addQuickItem();
+                        }
+                      }} style={{ background: grad, border: "none", borderRadius: 10, padding: "10px 20px", color: "#fff", fontWeight: 800, fontSize: 12, cursor: "pointer", fontFamily: "var(--font-geist-sans)", boxShadow: `0 4px 12px ${appliedA}44` }}>
+                        {calModal.event ? "Uložiť" : "Pridať"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ── DAY DETAIL MODAL ("+X ďalšie") ── */}
+              {selectedDayEvents && (
+                <div style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)" }}
+                  onClick={() => setSelectedDayEvents(null)}>
+                  <div onClick={e => e.stopPropagation()} style={{
+                    background: surface, borderRadius: 20, padding: 20, width: isMobile ? "90vw" : 360,
+                    boxShadow: "0 20px 60px rgba(0,0,0,0.3)", animation: "fadeIn .2s ease",
+                    border: `1px solid ${theme.border}`, maxHeight: "70vh", overflowY: "auto",
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                      <div style={{ fontSize: 15, fontWeight: 800 }}>{formatDate(selectedDayEvents.date)}</div>
+                      <button onClick={() => setSelectedDayEvents(null)} style={{ background: "none", border: "none", cursor: "pointer", color: theme.muted }}>{Icons.close}</button>
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      {selectedDayEvents.items.map((item, idx) => {
+                        const isEvent = "title" in item;
+                        const color = isEvent ? (item as CalEvent).color : STATUS_CONFIG[(item as Task).status].color;
+                        const bg = isEvent ? (item as CalEvent).color + "18" : (darkMode ? STATUS_CONFIG[(item as Task).status].color + "18" : STATUS_CONFIG[(item as Task).status].bg);
+                        return (
+                          <div key={idx} onClick={() => { if (isEvent) { setCalModal({ date: selectedDayEvents.date, event: item as CalEvent }); setSelectedDayEvents(null); } else { setDetailTask(item as Task); setSelectedDayEvents(null); } }}
+                            style={{ background: bg, borderRadius: 10, padding: "10px 12px", cursor: "pointer", borderLeft: `3px solid ${color}`, display: "flex", alignItems: "center", gap: 8 }}>
+                            <div>
+                              <div style={{ fontSize: 13, fontWeight: 700, color }}>{isEvent ? (item as CalEvent).title : (item as Task).name}</div>
+                              {isEvent && (item as CalEvent).time && <div style={{ fontSize: 11, color: theme.muted, marginTop: 2 }}>{(item as CalEvent).time}</div>}
+                              {!isEvent && <div style={{ fontSize: 11, color: theme.muted, marginTop: 2 }}>{(item as Task).status}</div>}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <button onClick={() => { setCalModal({ date: selectedDayEvents.date }); setSelectedDayEvents(null); }} style={{
+                      marginTop: 14, width: "100%", background: grad, border: "none", borderRadius: 10,
+                      padding: "10px", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer",
+                      fontFamily: "var(--font-geist-sans)", display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                    }}>{Icons.plus} Pridať na tento deň</button>
+                  </div>
+                </div>
+              )}
             </div>
           );
         })()}
