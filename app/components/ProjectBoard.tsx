@@ -530,14 +530,27 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
                           onMouseLeave={e => e.currentTarget.style.background = "transparent"}
                         >
                           <div style={{ display: "flex", alignItems: "center", gap: 7, minWidth: 0 }}>
-                            <button onClick={() => updateSubtask(task.id, sub.id, "done", !sub.done)} style={{ width: 15, height: 15, borderRadius: 4, flexShrink: 0, border: `2px solid ${sub.done ? appliedA : theme.border}`, background: sub.done ? appliedA : "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", transition: "all .15s" }}>{sub.done && Icons.check}</button>
+                            <button onClick={() => {
+                              const newDone = !sub.done;
+                              const updated = tasks.map(t => t.id !== task.id ? t : {
+                                ...t, subtasks: t.subtasks.map(s => s.id === sub.id ? { ...s, done: newDone, status: newDone ? "Hotovo" as Status : "Nezačaté" as Status } : s)
+                              });
+                              setTasks(updated);
+                              saveAll(updated);
+                            }} style={{ width: 15, height: 15, borderRadius: 4, flexShrink: 0, border: `2px solid ${sub.done ? appliedA : theme.border}`, background: sub.done ? appliedA : "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", transition: "all .15s" }}>{sub.done && Icons.check}</button>
                             {editingCell?.id === `${task.id}-${sub.id}-name` ? (
                               <input autoFocus defaultValue={sub.name} onBlur={e => { updateSubtask(task.id, sub.id, "name", e.target.value); setEditingCell(null); }} onKeyDown={e => { if (e.key === "Enter") { updateSubtask(task.id, sub.id, "name", e.currentTarget.value); setEditingCell(null); } }} style={{ flex: 1, background: headerBg, border: `1.5px solid ${appliedA}`, borderRadius: 6, padding: "3px 8px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontWeight: 500, fontSize: 12, outline: "none" }} />
                             ) : (
                               <span onClick={() => setEditingCell({ id: `${task.id}-${sub.id}-name`, field: "name" })} style={{ fontSize: 12, fontWeight: 500, cursor: "text", textDecoration: sub.done ? "line-through" : "none", opacity: sub.done ? 0.5 : 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{sub.name}</span>
                             )}
                           </div>
-                          <StatusCell id={sub.id} val={sub.status} onChange={v => updateSubtask(task.id, sub.id, "status", v)} isSubtask />
+                          <StatusCell id={sub.id} val={sub.status} onChange={v => {
+                            const updated = tasks.map(t => t.id !== task.id ? t : {
+                              ...t, subtasks: t.subtasks.map(s => s.id === sub.id ? { ...s, status: v as Status, done: v === "Hotovo" } : s)
+                            });
+                            setTasks(updated);
+                            saveAll(updated);
+                          }} isSubtask />
                           <PriorityCell val={sub.priority} onChange={v => updateSubtask(task.id, sub.id, "priority", v)} />
                           <DateCell cellKey={`${task.id}-${sub.id}-date`} val={sub.dueDate} onChange={v => updateSubtask(task.id, sub.id, "dueDate", v)} />
                           <OwnerCell cellKey={`${task.id}-${sub.id}-owner`} val={sub.owner} onChange={v => updateSubtask(task.id, sub.id, "owner", v)} />
