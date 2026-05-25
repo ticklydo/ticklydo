@@ -203,9 +203,16 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
   });
 
   // ── Reusable cells ──
-  const StatusCell = ({ id, val, onChange }: { id: string; val: Status; onChange: (v: string) => void }) => {
+  const StatusCell = ({ id, val, onChange, isSubtask = false }: { id: string; val: Status; onChange: (v: string) => void; isSubtask?: boolean }) => {
     const cfg = STATUS_CONFIG[val];
-    return <select value={val} onChange={e => onChange(e.target.value)} style={pill(cfg.color, cfg.bg)}>{STATUSES.map(s => <option key={s} value={s}>{s}</option>)}</select>;
+    return (
+      <select value={val} onChange={e => {
+        onChange(e.target.value);
+        if (e.target.value === "Hotovo" && !isSubtask) setExpandedId(null);
+      }} style={pill(cfg.color, cfg.bg)}>
+        {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+      </select>
+    );
   };
 
   const PriorityCell = ({ val, onChange }: { val: Priority; onChange: (v: string) => void }) => {
@@ -214,30 +221,40 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
   };
 
   // ── FIXED DATE CELL ──
-  const DateCell = ({ val, onChange }: { val: string; onChange: (v: string) => void }) => {
+  const DateCell = ({ cellKey, val, onChange }: { cellKey: string; val: string; onChange: (v: string) => void }) => {
     const over = isOverdue(val);
+    const isEditing = editingCell?.id === cellKey;
+    if (isEditing) return (
+      <input
+        autoFocus
+        type="date"
+        value={val}
+        onChange={e => { onChange(e.target.value); setEditingCell(null); }}
+        onBlur={() => setEditingCell(null)}
+        style={{
+          background: headerBg, border: `1.5px solid ${appliedA}`,
+          borderRadius: 6, padding: "3px 8px", color: theme.text,
+          fontFamily: "var(--font-geist-sans)", fontSize: 12,
+          outline: "none", cursor: "pointer",
+        }}
+      />
+    );
     return (
-      <div style={{ position: "relative", display: "inline-block" }}>
-        <div style={{
+      <div
+        onClick={() => setEditingCell({ id: cellKey, field: "dueDate" })}
+        style={{
           display: "inline-flex", alignItems: "center", gap: 4,
           background: over && val ? (darkMode ? "#fee2e222" : "#fee2e2") : headerBg,
           border: `1px solid ${over && val ? "#ef444433" : theme.border}`,
-          borderRadius: 6, padding: "3px 8px",
+          borderRadius: 6, padding: "3px 8px", cursor: "pointer",
           color: over && val ? "#dc2626" : theme.muted,
-          fontSize: 11, fontWeight: 600, pointerEvents: "none",
-        }}>
-          <span style={{ color: over && val ? "#dc2626" : appliedA }}>{Icons.calendar}</span>
-          {val ? formatDate(val) : <span>Pridaj</span>}
-        </div>
-        <input
-          type="date"
-          value={val}
-          onChange={e => onChange(e.target.value)}
-          style={{
-            position: "absolute", inset: 0, opacity: 0,
-            cursor: "pointer", width: "100%", height: "100%",
-          }}
-        />
+          fontSize: 11, fontWeight: 600, transition: "border-color .15s",
+        }}
+        onMouseEnter={e => { if (!isEditing) e.currentTarget.style.borderColor = appliedA; }}
+        onMouseLeave={e => { if (!isEditing) e.currentTarget.style.borderColor = over && val ? "#ef444433" : theme.border; }}
+      >
+        <span style={{ color: over && val ? "#dc2626" : appliedA }}>{Icons.calendar}</span>
+        {val ? formatDate(val) : <span>Pridaj</span>}
       </div>
     );
   };
@@ -492,7 +509,7 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
                     </div>
                     <StatusCell id={task.id} val={task.status} onChange={v => updateTask(task.id, "status", v)} />
                     <PriorityCell val={task.priority} onChange={v => updateTask(task.id, "priority", v)} />
-                    <DateCell val={task.dueDate} onChange={v => updateTask(task.id, "dueDate", v)} />
+                    <DateCell cellKey={`${task.id}-date`} val={task.dueDate} onChange={v => updateTask(task.id, "dueDate", v)} />
                     <OwnerCell cellKey={`${task.id}-owner`} val={task.owner} onChange={v => updateTask(task.id, "owner", v)} />
                     <NotesCell cellKey={`${task.id}-notes`} val={task.notes} onChange={v => updateTask(task.id, "notes", v)} />
                     <div className="del-btn" style={{ opacity: 0, transition: "opacity .15s", display: "flex", justifyContent: "center" }}>
@@ -520,9 +537,9 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
                               <span onClick={() => setEditingCell({ id: `${task.id}-${sub.id}-name`, field: "name" })} style={{ fontSize: 12, fontWeight: 500, cursor: "text", textDecoration: sub.done ? "line-through" : "none", opacity: sub.done ? 0.5 : 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{sub.name}</span>
                             )}
                           </div>
-                          <StatusCell id={sub.id} val={sub.status} onChange={v => updateSubtask(task.id, sub.id, "status", v)} />
+                          <StatusCell id={sub.id} val={sub.status} onChange={v => updateSubtask(task.id, sub.id, "status", v)} isSubtask />
                           <PriorityCell val={sub.priority} onChange={v => updateSubtask(task.id, sub.id, "priority", v)} />
-                          <DateCell val={sub.dueDate} onChange={v => updateSubtask(task.id, sub.id, "dueDate", v)} />
+                          <DateCell cellKey={`${task.id}-${sub.id}-date`} val={sub.dueDate} onChange={v => updateSubtask(task.id, sub.id, "dueDate", v)} />
                           <OwnerCell cellKey={`${task.id}-${sub.id}-owner`} val={sub.owner} onChange={v => updateSubtask(task.id, sub.id, "owner", v)} />
                           <NotesCell cellKey={`${task.id}-${sub.id}-notes`} val={sub.notes} onChange={v => updateSubtask(task.id, sub.id, "notes", v)} />
                           <div style={{ display: "flex", justifyContent: "center" }}>
