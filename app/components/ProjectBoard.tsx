@@ -50,8 +50,12 @@ const PRIORITIES: Priority[] = ["", "Vysoká", "Stredná", "Nízka"];
 function genId() { return Math.random().toString(36).slice(2, 10); }
 function formatDate(d: string) {
   if (!d) return "";
-  const date = new Date(d + "T00:00:00");
-  return date.toLocaleDateString("sk-SK", { day: "numeric", month: "short" });
+  const months = ["jan","feb","mar","apr","máj","jún","júl","aug","sep","okt","nov","dec"];
+  const parts = d.split("-");
+  if (parts.length !== 3) return d;
+  const day = parseInt(parts[2]);
+  const month = parseInt(parts[1]) - 1;
+  return `${day}. ${months[month]}`;
 }
 function isOverdue(d: string) { return d ? new Date(d + "T00:00:00") < new Date() : false; }
 
