@@ -50,9 +50,10 @@ const PRIORITIES: Priority[] = ["", "Vysoká", "Stredná", "Nízka"];
 function genId() { return Math.random().toString(36).slice(2, 10); }
 function formatDate(d: string) {
   if (!d) return "";
-  return new Date(d).toLocaleDateString("sk-SK", { day: "numeric", month: "short" });
+  const date = new Date(d + "T00:00:00");
+  return date.toLocaleDateString("sk-SK", { day: "numeric", month: "short" });
 }
-function isOverdue(d: string) { return d ? new Date(d) < new Date() : false; }
+function isOverdue(d: string) { return d ? new Date(d + "T00:00:00") < new Date() : false; }
 
 const Icons = {
   back: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>,
