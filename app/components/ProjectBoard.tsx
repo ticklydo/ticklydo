@@ -19,7 +19,7 @@ const auth = getAuth(app);
 
 type Status = "Hotovo" | "V procese" | "Uviaznuté" | "Nezačaté";
 type Priority = "Vysoká" | "Stredná" | "Nízka" | "";
-type View = "table" | "kanban";
+type View = "table" | "kanban" | "calendar";
 
 type SubTask = {
   id: string; name: string; done: boolean;
@@ -68,6 +68,9 @@ const Icons = {
   check: <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>,
   edit: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>,
   pencil: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>,
+  calView: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><rect x="7" y="14" width="3" height="3" rx="0.5"/><rect x="14" y="14" width="3" height="3" rx="0.5"/></svg>,
+  navLeft: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>,
+  navRight: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>,
 };
 
 const COLS = "1fr 110px 95px 120px 130px 110px 36px";
@@ -89,6 +92,10 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
   const [projectName, setProjectName] = useState(initialName);
   const [editingName, setEditingName] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
+  const [calMonth, setCalMonth] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
 
   const surface = darkMode ? theme.card : "#ffffff";
   const surfaceHover = darkMode ? theme.card2 : "#f9fafb";
@@ -417,7 +424,7 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
           </div>
 
           <div style={{ display: "flex", background: headerBg, border: `1px solid ${theme.border}`, borderRadius: 9, padding: 3, gap: 2, flexShrink: 0 }}>
-            {([{ id: "table", icon: Icons.table }, { id: "kanban", icon: Icons.kanban }] as { id: View; icon: React.ReactElement }[]).map(v => (
+            {([{ id: "table", icon: Icons.table }, { id: "kanban", icon: Icons.kanban }, { id: "calendar", icon: Icons.calView }] as { id: View; icon: React.ReactElement }[]).map(v => (
               <button key={v.id} onClick={() => setView(v.id)} style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "5px 10px", borderRadius: 6, border: "none", background: view === v.id ? grad : "transparent", color: view === v.id ? "#fff" : theme.muted, cursor: "pointer", transition: "all .2s" }}>{v.icon}</button>
             ))}
           </div>
@@ -586,6 +593,133 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
             )}
           </div>
         )}
+
+        {/* ── CALENDAR VIEW ── */}
+        {view === "calendar" && (() => {
+          const year = calMonth.getFullYear();
+          const month = calMonth.getMonth();
+          const firstDay = new Date(year, month, 1).getDay();
+          const daysInMonth = new Date(year, month + 1, 0).getDate();
+          const startOffset = firstDay === 0 ? 6 : firstDay - 1;
+          const totalCells = Math.ceil((startOffset + daysInMonth) / 7) * 7;
+          const cells = Array.from({ length: totalCells }, (_, i) => {
+            const day = i - startOffset + 1;
+            return day >= 1 && day <= daysInMonth ? day : null;
+          });
+          const monthNames = ["Január","Február","Marec","Apríl","Máj","Jún","Júl","August","September","Október","November","December"];
+          const dayNames = ["Po","Ut","St","Št","Pi","So","Ne"];
+          const today = new Date();
+          const isToday = (d: number) => d === today.getDate() && month === today.getMonth() && year === today.getFullYear();
+          const getTasksForDay = (day: number) => {
+            const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+            return tasks.filter(t => t.dueDate === dateStr);
+          };
+
+          return (
+            <div style={{ background: surface, borderRadius: 14, border: `1px solid ${theme.border}`, boxShadow: shadow, overflow: "hidden", animation: "fadeIn .2s ease" }}>
+              {/* Calendar header */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", borderBottom: `1px solid ${theme.border}`, background: headerBg }}>
+                <button onClick={() => setCalMonth(new Date(year, month - 1, 1))} style={{ width: 30, height: 30, borderRadius: 8, border: `1px solid ${theme.border}`, background: "transparent", color: theme.muted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all .15s" }}
+                  onMouseEnter={e => { e.currentTarget.style.background = appliedA + "18"; e.currentTarget.style.color = appliedA; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = theme.muted; }}
+                >{Icons.navLeft}</button>
+                <div style={{ fontWeight: 800, fontSize: 16 }}>{monthNames[month]} {year}</div>
+                <button onClick={() => setCalMonth(new Date(year, month + 1, 1))} style={{ width: 30, height: 30, borderRadius: 8, border: `1px solid ${theme.border}`, background: "transparent", color: theme.muted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all .15s" }}
+                  onMouseEnter={e => { e.currentTarget.style.background = appliedA + "18"; e.currentTarget.style.color = appliedA; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = theme.muted; }}
+                >{Icons.navRight}</button>
+              </div>
+
+              {/* Day names */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", borderBottom: `1px solid ${theme.border}` }}>
+                {dayNames.map(d => (
+                  <div key={d} style={{ padding: "8px 4px", textAlign: "center", fontSize: 11, fontWeight: 700, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.5px" }}>{d}</div>
+                ))}
+              </div>
+
+              {/* Calendar grid */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)" }}>
+                {cells.map((day, i) => {
+                  const dayTasks = day ? getTasksForDay(day) : [];
+                  const isCurrentDay = day ? isToday(day) : false;
+                  const isWeekend = i % 7 >= 5;
+
+                  return (
+                    <div key={i} style={{
+                      minHeight: isMobile ? 60 : 90,
+                      borderRight: (i + 1) % 7 !== 0 ? `1px solid ${theme.border}` : "none",
+                      borderBottom: i < cells.length - 7 ? `1px solid ${theme.border}` : "none",
+                      padding: "6px",
+                      background: !day ? (darkMode ? theme.card2 + "55" : "#fafafa") : isWeekend ? (darkMode ? theme.card2 + "33" : "#fafbfc") : "transparent",
+                      transition: "background .15s",
+                      position: "relative",
+                    }}>
+                      {day && (
+                        <>
+                          {/* Day number */}
+                          <div style={{
+                            width: 24, height: 24, borderRadius: "50%",
+                            background: isCurrentDay ? grad : "transparent",
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            fontSize: 12, fontWeight: isCurrentDay ? 800 : 500,
+                            color: isCurrentDay ? "#fff" : isWeekend ? theme.muted : theme.text,
+                            marginBottom: 4,
+                          }}>{day}</div>
+
+                          {/* Tasks */}
+                          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                            {dayTasks.slice(0, isMobile ? 1 : 3).map(task => {
+                              const cfg = STATUS_CONFIG[task.status];
+                              return (
+                                <div key={task.id}
+                                  onClick={() => setDetailTask(task)}
+                                  style={{
+                                    background: darkMode ? cfg.color + "22" : cfg.bg,
+                                    color: cfg.color,
+                                    borderRadius: 4,
+                                    padding: isMobile ? "1px 4px" : "2px 6px",
+                                    fontSize: isMobile ? 9 : 10,
+                                    fontWeight: 700,
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    whiteSpace: "nowrap",
+                                    cursor: "pointer",
+                                    border: `1px solid ${cfg.color}33`,
+                                    transition: "opacity .15s",
+                                  }}
+                                  onMouseEnter={e => e.currentTarget.style.opacity = "0.8"}
+                                  onMouseLeave={e => e.currentTarget.style.opacity = "1"}
+                                >{task.name}</div>
+                              );
+                            })}
+                            {dayTasks.length > (isMobile ? 1 : 3) && (
+                              <div style={{ fontSize: 9, color: theme.muted, fontWeight: 600, paddingLeft: 4 }}>
+                                +{dayTasks.length - (isMobile ? 1 : 3)} ďalšie
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Legend */}
+              <div style={{ padding: "12px 18px", borderTop: `1px solid ${theme.border}`, display: "flex", gap: 14, flexWrap: "wrap", background: headerBg }}>
+                {(Object.keys(STATUS_CONFIG) as Status[]).map(s => {
+                  const cfg = STATUS_CONFIG[s];
+                  return (
+                    <div key={s} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                      <div style={{ width: 8, height: 8, borderRadius: "50%", background: cfg.dot }} />
+                      <span style={{ fontSize: 11, fontWeight: 600, color: theme.muted }}>{s}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* ── KANBAN ── */}
         {view === "kanban" && (
