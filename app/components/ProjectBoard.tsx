@@ -51,30 +51,27 @@ function genId() { return Math.random().toString(36).slice(2, 10); }
 function formatDate(d: string) {
   if (!d) return "";
   const months = ["jan","feb","mar","apr","máj","jún","júl","aug","sep","okt","nov","dec"];
-  // Handle YYYY-MM-DD format
-  if (d.includes("-") && d.indexOf("-") === 4) {
-    const parts = d.split("-");
-    const day = parseInt(parts[2], 10);
-    const month = parseInt(parts[1], 10) - 1;
-    if (!isNaN(day) && month >= 0 && month < 12) return `${day}. ${months[month]}`;
-  }
-  // Handle DD.MM.YYYY format
-  if (d.includes(".")) {
-    const parts = d.split(".");
-    const day = parseInt(parts[0], 10);
-    const month = parseInt(parts[1], 10) - 1;
-    if (!isNaN(day) && month >= 0 && month < 12) return `${day}. ${months[month]}`;
+  const iso = toISODate(d);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+    const day = parseInt(iso.split("-")[2], 10);
+    const month = parseInt(iso.split("-")[1], 10) - 1;
+    if (month >= 0 && month < 12) return `${day}. ${months[month]}`;
   }
   return d;
 }
 
 function toISODate(d: string) {
   if (!d) return "";
-  // Convert DD.MM.YYYY to YYYY-MM-DD if needed
+  // Already YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
+  // Convert DD.MM.YYYY or D.M.YYYY to YYYY-MM-DD
   if (d.includes(".")) {
     const parts = d.split(".");
     if (parts.length === 3) {
-      return `${parts[2].padStart(4,"0")}-${parts[1].padStart(2,"0")}-${parts[0].padStart(2,"0")}`;
+      const day = parts[0].padStart(2, "0");
+      const mon = parts[1].padStart(2, "0");
+      const yr = parts[2].length === 4 ? parts[2] : parts[2].padStart(4, "0");
+      return `${yr}-${mon}-${day}`;
     }
   }
   return d;
