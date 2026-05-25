@@ -51,13 +51,39 @@ function genId() { return Math.random().toString(36).slice(2, 10); }
 function formatDate(d: string) {
   if (!d) return "";
   const months = ["jan","feb","mar","apr","máj","jún","júl","aug","sep","okt","nov","dec"];
-  const parts = d.split("-");
-  if (parts.length !== 3) return d;
-  const day = parseInt(parts[2]);
-  const month = parseInt(parts[1]) - 1;
-  return `${day}. ${months[month]}`;
+  // Handle YYYY-MM-DD format
+  if (d.includes("-") && d.indexOf("-") === 4) {
+    const parts = d.split("-");
+    const day = parseInt(parts[2], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    if (!isNaN(day) && month >= 0 && month < 12) return `${day}. ${months[month]}`;
+  }
+  // Handle DD.MM.YYYY format
+  if (d.includes(".")) {
+    const parts = d.split(".");
+    const day = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    if (!isNaN(day) && month >= 0 && month < 12) return `${day}. ${months[month]}`;
+  }
+  return d;
 }
-function isOverdue(d: string) { return d ? new Date(d + "T00:00:00") < new Date() : false; }
+
+function toISODate(d: string) {
+  if (!d) return "";
+  // Convert DD.MM.YYYY to YYYY-MM-DD if needed
+  if (d.includes(".")) {
+    const parts = d.split(".");
+    if (parts.length === 3) {
+      return `${parts[2].padStart(4,"0")}-${parts[1].padStart(2,"0")}-${parts[0].padStart(2,"0")}`;
+    }
+  }
+  return d;
+}
+function isOverdue(d: string) {
+  if (!d) return false;
+  const iso = toISODate(d);
+  return new Date(iso + "T00:00:00") < new Date();
+}
 
 const Icons = {
   back: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>,
@@ -232,16 +258,21 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
     return <select value={val} onChange={e => onChange(e.target.value)} style={pill(val ? cfg.color : theme.muted, val ? cfg.bg : headerBg)}>{PRIORITIES.map(p => <option key={p} value={p}>{p || "—"}</option>)}</select>;
   };
 
-  // ── FIXED DATE CELL ──
   const DateCell = ({ cellKey, val, onChange }: { cellKey: string; val: string; onChange: (v: string) => void }) => {
     const over = isOverdue(val);
     const isEditing = editingCell?.id === cellKey;
+    // Convert stored value to YYYY-MM-DD for input
+    const inputVal = toISODate(val);
     if (isEditing) return (
       <input
         autoFocus
         type="date"
-        value={val}
-        onChange={e => { onChange(e.target.value); setEditingCell(null); }}
+        value={inputVal}
+        onChange={e => {
+          const raw = e.target.value; // YYYY-MM-DD from input
+          onChange(raw); // always store as YYYY-MM-DD
+          setEditingCell(null);
+        }}
         onBlur={() => setEditingCell(null)}
         style={{
           background: headerBg, border: `1.5px solid ${appliedA}`,
@@ -363,7 +394,7 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
             </div>
             <div>
               <div style={{ fontSize: 11, fontWeight: 700, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 6 }}>Termín</div>
-              <input type="date" value={task.dueDate} onChange={e => updateTask(task.id, "dueDate", e.target.value)} style={{ background: headerBg, border: `1.5px solid ${theme.border}`, borderRadius: 10, padding: "8px 12px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontSize: 13, outline: "none", width: "100%", boxSizing: "border-box" }} />
+              <input type="date" value={toISODate(task.dueDate)} onChange={e => updateTask(task.id, "dueDate", e.target.value)} style={{ background: headerBg, border: `1.5px solid ${theme.border}`, borderRadius: 10, padding: "8px 12px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontSize: 13, outline: "none", width: "100%", boxSizing: "border-box" }} />
             </div>
             <div>
               <div style={{ fontSize: 11, fontWeight: 700, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 6 }}>Zodpovedný</div>
