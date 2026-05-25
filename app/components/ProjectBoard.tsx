@@ -607,95 +607,153 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
             return day >= 1 && day <= daysInMonth ? day : null;
           });
           const monthNames = ["Január","Február","Marec","Apríl","Máj","Jún","Júl","August","September","Október","November","December"];
-          const dayNames = ["Po","Ut","St","Št","Pi","So","Ne"];
+          const dayNames = isMobile ? ["P","U","S","Š","P","S","N"] : ["Pondelok","Utorok","Streda","Štvrtok","Piatok","Sobota","Nedeľa"];
           const today = new Date();
           const isToday = (d: number) => d === today.getDate() && month === today.getMonth() && year === today.getFullYear();
           const getTasksForDay = (day: number) => {
             const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
             return tasks.filter(t => t.dueDate === dateStr);
           };
+          const totalTasks = tasks.filter(t => t.dueDate && t.dueDate.startsWith(`${year}-${String(month + 1).padStart(2, "0")}`)).length;
+          const doneTasks = tasks.filter(t => t.dueDate && t.dueDate.startsWith(`${year}-${String(month + 1).padStart(2, "0")}`) && t.status === "Hotovo").length;
+
+          // Pastel day colors for weekdays - subtle, warm
+          const weekendBg = darkMode ? `${appliedA}06` : `${appliedA}06`;
+          const emptyBg = darkMode ? theme.card2 + "40" : "#f7f8fc";
 
           return (
-            <div style={{ background: surface, borderRadius: 14, border: `1px solid ${theme.border}`, boxShadow: shadow, overflow: "hidden", animation: "fadeIn .2s ease" }}>
-              {/* Calendar header */}
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", borderBottom: `1px solid ${theme.border}`, background: headerBg }}>
-                <button onClick={() => setCalMonth(new Date(year, month - 1, 1))} style={{ width: 30, height: 30, borderRadius: 8, border: `1px solid ${theme.border}`, background: "transparent", color: theme.muted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all .15s" }}
-                  onMouseEnter={e => { e.currentTarget.style.background = appliedA + "18"; e.currentTarget.style.color = appliedA; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = theme.muted; }}
-                >{Icons.navLeft}</button>
-                <div style={{ fontWeight: 800, fontSize: 16 }}>{monthNames[month]} {year}</div>
-                <button onClick={() => setCalMonth(new Date(year, month + 1, 1))} style={{ width: 30, height: 30, borderRadius: 8, border: `1px solid ${theme.border}`, background: "transparent", color: theme.muted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all .15s" }}
-                  onMouseEnter={e => { e.currentTarget.style.background = appliedA + "18"; e.currentTarget.style.color = appliedA; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = theme.muted; }}
-                >{Icons.navRight}</button>
+            <div style={{ borderRadius: 20, overflow: "hidden", boxShadow: shadow, animation: "fadeIn .25s ease" }}>
+
+              {/* ── HEADER with gradient ── */}
+              <div style={{
+                background: grad,
+                padding: isMobile ? "18px 16px 20px" : "24px 28px 28px",
+                position: "relative", overflow: "hidden",
+              }}>
+                {/* Decorative circles */}
+                <div style={{ position: "absolute", top: -20, right: -20, width: 120, height: 120, borderRadius: "50%", background: "rgba(255,255,255,0.08)" }} />
+                <div style={{ position: "absolute", bottom: -30, right: 60, width: 80, height: 80, borderRadius: "50%", background: "rgba(255,255,255,0.06)" }} />
+                <div style={{ position: "absolute", top: 10, right: 100, width: 40, height: 40, borderRadius: "50%", background: "rgba(255,255,255,0.1)" }} />
+
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", position: "relative", zIndex: 1 }}>
+                  <div>
+                    <div style={{ fontSize: isMobile ? 22 : 30, fontWeight: 900, color: "#fff", letterSpacing: "-0.5px", lineHeight: 1 }}>{monthNames[month]}</div>
+                    <div style={{ fontSize: 14, color: "rgba(255,255,255,0.7)", fontWeight: 600, marginTop: 2 }}>{year}</div>
+                  </div>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    {totalTasks > 0 && (
+                      <div style={{ background: "rgba(255,255,255,0.18)", backdropFilter: "blur(8px)", borderRadius: 12, padding: "8px 14px", color: "#fff", fontSize: 12, fontWeight: 700, marginRight: 4 }}>
+                        {doneTasks}/{totalTasks} úloh
+                      </div>
+                    )}
+                    <button onClick={() => setCalMonth(new Date(year, month - 1, 1))} style={{ width: 36, height: 36, borderRadius: 10, border: "2px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.15)", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all .15s", backdropFilter: "blur(4px)" }}
+                      onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.25)"}
+                      onMouseLeave={e => e.currentTarget.style.background = "rgba(255,255,255,0.15)"}
+                    >{Icons.navLeft}</button>
+                    <button onClick={() => setCalMonth(new Date(year, month + 1, 1))} style={{ width: 36, height: 36, borderRadius: 10, border: "2px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.15)", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all .15s", backdropFilter: "blur(4px)" }}
+                      onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.25)"}
+                      onMouseLeave={e => e.currentTarget.style.background = "rgba(255,255,255,0.15)"}
+                    >{Icons.navRight}</button>
+                  </div>
+                </div>
+
+                {/* Progress bar */}
+                {totalTasks > 0 && (
+                  <div style={{ marginTop: 16, position: "relative", zIndex: 1 }}>
+                    <div style={{ height: 4, borderRadius: 2, background: "rgba(255,255,255,0.2)", overflow: "hidden" }}>
+                      <div style={{ height: "100%", width: `${(doneTasks / totalTasks) * 100}%`, background: "#fff", borderRadius: 2, transition: "width .5s ease" }} />
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* Day names */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", borderBottom: `1px solid ${theme.border}` }}>
-                {dayNames.map(d => (
-                  <div key={d} style={{ padding: "8px 4px", textAlign: "center", fontSize: 11, fontWeight: 700, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.5px" }}>{d}</div>
+              {/* ── DAY NAMES ── */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", background: surface, borderBottom: `1px solid ${theme.border}` }}>
+                {dayNames.map((d, i) => (
+                  <div key={d} style={{
+                    padding: isMobile ? "6px 2px" : "10px 8px",
+                    textAlign: "center",
+                    fontSize: isMobile ? 10 : 11,
+                    fontWeight: 800,
+                    color: i >= 5 ? appliedA : theme.muted,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.6px",
+                  }}>{d}</div>
                 ))}
               </div>
 
-              {/* Calendar grid */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)" }}>
+              {/* ── GRID ── */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", background: surface }}>
                 {cells.map((day, i) => {
                   const dayTasks = day ? getTasksForDay(day) : [];
                   const isCurrentDay = day ? isToday(day) : false;
                   const isWeekend = i % 7 >= 5;
+                  const hasTasks = dayTasks.length > 0;
+                  const maxVisible = isMobile ? 2 : 3;
 
                   return (
                     <div key={i} style={{
-                      minHeight: isMobile ? 60 : 90,
+                      minHeight: isMobile ? 64 : 100,
                       borderRight: (i + 1) % 7 !== 0 ? `1px solid ${theme.border}` : "none",
                       borderBottom: i < cells.length - 7 ? `1px solid ${theme.border}` : "none",
-                      padding: "6px",
-                      background: !day ? (darkMode ? theme.card2 + "55" : "#fafafa") : isWeekend ? (darkMode ? theme.card2 + "33" : "#fafbfc") : "transparent",
+                      padding: isMobile ? "6px 4px" : "8px",
+                      background: !day ? emptyBg : isWeekend ? weekendBg : surface,
                       transition: "background .15s",
                       position: "relative",
-                    }}>
+                    }}
+                    onMouseEnter={e => { if (day) e.currentTarget.style.background = darkMode ? appliedA + "0e" : appliedA + "08"; }}
+                    onMouseLeave={e => { if (day) e.currentTarget.style.background = !day ? emptyBg : isWeekend ? weekendBg : surface; }}
+                    >
                       {day && (
                         <>
                           {/* Day number */}
-                          <div style={{
-                            width: 24, height: 24, borderRadius: "50%",
-                            background: isCurrentDay ? grad : "transparent",
-                            display: "flex", alignItems: "center", justifyContent: "center",
-                            fontSize: 12, fontWeight: isCurrentDay ? 800 : 500,
-                            color: isCurrentDay ? "#fff" : isWeekend ? theme.muted : theme.text,
-                            marginBottom: 4,
-                          }}>{day}</div>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: hasTasks ? 5 : 0 }}>
+                            <div style={{
+                              width: isMobile ? 22 : 28, height: isMobile ? 22 : 28,
+                              borderRadius: "50%",
+                              background: isCurrentDay ? grad : "transparent",
+                              boxShadow: isCurrentDay ? `0 2px 8px ${appliedA}55` : "none",
+                              display: "flex", alignItems: "center", justifyContent: "center",
+                              fontSize: isMobile ? 11 : 13,
+                              fontWeight: isCurrentDay ? 900 : isWeekend ? 600 : 500,
+                              color: isCurrentDay ? "#fff" : isWeekend ? appliedA : theme.text,
+                              flexShrink: 0,
+                            }}>{day}</div>
+                            {hasTasks && !isMobile && (
+                              <div style={{ width: 5, height: 5, borderRadius: "50%", background: appliedA, opacity: 0.5 }} />
+                            )}
+                          </div>
 
-                          {/* Tasks */}
-                          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                            {dayTasks.slice(0, isMobile ? 1 : 3).map(task => {
+                          {/* Task pills */}
+                          <div style={{ display: "flex", flexDirection: "column", gap: isMobile ? 2 : 3 }}>
+                            {dayTasks.slice(0, maxVisible).map(task => {
                               const cfg = STATUS_CONFIG[task.status];
                               return (
-                                <div key={task.id}
-                                  onClick={() => setDetailTask(task)}
-                                  style={{
-                                    background: darkMode ? cfg.color + "22" : cfg.bg,
-                                    color: cfg.color,
-                                    borderRadius: 4,
-                                    padding: isMobile ? "1px 4px" : "2px 6px",
-                                    fontSize: isMobile ? 9 : 10,
-                                    fontWeight: 700,
-                                    overflow: "hidden",
-                                    textOverflow: "ellipsis",
-                                    whiteSpace: "nowrap",
-                                    cursor: "pointer",
-                                    border: `1px solid ${cfg.color}33`,
-                                    transition: "opacity .15s",
-                                  }}
-                                  onMouseEnter={e => e.currentTarget.style.opacity = "0.8"}
-                                  onMouseLeave={e => e.currentTarget.style.opacity = "1"}
+                                <div key={task.id} onClick={() => setDetailTask(task)} style={{
+                                  background: darkMode ? cfg.color + "28" : cfg.bg,
+                                  color: cfg.color,
+                                  borderRadius: isMobile ? 4 : 6,
+                                  padding: isMobile ? "2px 5px" : "3px 7px",
+                                  fontSize: isMobile ? 9 : 11,
+                                  fontWeight: 700,
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  whiteSpace: "nowrap",
+                                  cursor: "pointer",
+                                  borderLeft: `2.5px solid ${cfg.color}`,
+                                  transition: "all .15s",
+                                  lineHeight: 1.3,
+                                }}
+                                onMouseEnter={e => { e.currentTarget.style.transform = "scale(1.01)"; e.currentTarget.style.boxShadow = `0 2px 6px ${cfg.color}33`; }}
+                                onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.boxShadow = "none"; }}
                                 >{task.name}</div>
                               );
                             })}
-                            {dayTasks.length > (isMobile ? 1 : 3) && (
-                              <div style={{ fontSize: 9, color: theme.muted, fontWeight: 600, paddingLeft: 4 }}>
-                                +{dayTasks.length - (isMobile ? 1 : 3)} ďalšie
-                              </div>
+                            {dayTasks.length > maxVisible && (
+                              <div style={{
+                                fontSize: isMobile ? 9 : 10, color: appliedA, fontWeight: 700,
+                                paddingLeft: isMobile ? 4 : 6, cursor: "pointer",
+                              }}>+{dayTasks.length - maxVisible} ďalšie</div>
                             )}
                           </div>
                         </>
@@ -705,14 +763,22 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
                 })}
               </div>
 
-              {/* Legend */}
-              <div style={{ padding: "12px 18px", borderTop: `1px solid ${theme.border}`, display: "flex", gap: 14, flexWrap: "wrap", background: headerBg }}>
+              {/* ── LEGEND ── */}
+              <div style={{
+                padding: "12px 20px",
+                borderTop: `1px solid ${theme.border}`,
+                background: surface,
+                display: "flex", gap: 16, flexWrap: "wrap", alignItems: "center",
+              }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.6px" }}>Status:</span>
                 {(Object.keys(STATUS_CONFIG) as Status[]).map(s => {
                   const cfg = STATUS_CONFIG[s];
+                  const count = tasks.filter(t => t.status === s && t.dueDate && t.dueDate.startsWith(`${year}-${String(month + 1).padStart(2, "0")}`)).length;
                   return (
                     <div key={s} style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                      <div style={{ width: 8, height: 8, borderRadius: "50%", background: cfg.dot }} />
-                      <span style={{ fontSize: 11, fontWeight: 600, color: theme.muted }}>{s}</span>
+                      <div style={{ width: 10, height: 10, borderRadius: 3, background: darkMode ? cfg.color + "44" : cfg.bg, border: `2px solid ${cfg.color}` }} />
+                      <span style={{ fontSize: 11, fontWeight: 600, color: cfg.color }}>{s}</span>
+                      {count > 0 && <span style={{ fontSize: 10, fontWeight: 800, background: cfg.bg, color: cfg.color, borderRadius: 10, padding: "0 5px" }}>{count}</span>}
                     </div>
                   );
                 })}
