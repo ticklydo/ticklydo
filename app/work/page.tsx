@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "../context/ThemeContext";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
@@ -52,7 +52,65 @@ function isOverdue(d: string) {
   return new Date(d + "T00:00:00") < new Date();
 }
 
-// ── Donut Chart ──
+// ── Skeleton loader ──
+function Skeleton({ w, h, radius = 8 }: { w: string | number; h: number; radius?: number }) {
+  return (
+    <div style={{ width: w, height: h, borderRadius: radius, background: "linear-gradient(90deg, var(--sk-a) 25%, var(--sk-b) 50%, var(--sk-a) 75%)", backgroundSize: "200% 100%", animation: "skeletonShimmer 1.4s ease infinite" }} />
+  );
+}
+
+function SkeletonCard() {
+  return (
+    <div style={{ background: "var(--sk-surface)", border: "1px solid var(--sk-border)", borderRadius: 16, padding: "18px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
+      <Skeleton w={100} h={12} />
+      <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+        <Skeleton w={100} h={100} radius={50} />
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
+          <Skeleton w="80%" h={10} />
+          <Skeleton w="60%" h={10} />
+          <Skeleton w="70%" h={10} />
+          <Skeleton w="50%" h={10} />
+        </div>
+      </div>
+      <Skeleton w="100%" h={6} radius={3} />
+    </div>
+  );
+}
+
+function SkeletonRow() {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "24px 1fr auto auto auto", alignItems: "center", gap: 12, padding: "12px 16px", borderBottom: "1px solid var(--sk-border)" }}>
+      <Skeleton w={20} h={20} radius={6} />
+      <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+        <Skeleton w="55%" h={12} />
+        <Skeleton w="30%" h={9} />
+      </div>
+      <Skeleton w={50} h={20} />
+      <Skeleton w={50} h={20} />
+      <Skeleton w={70} h={24} radius={6} />
+    </div>
+  );
+}
+
+// ── Animated counter ──
+function AnimatedNumber({ target, color, suffix = "" }: { target: number; color?: string; suffix?: string }) {
+  const [val, setVal] = useState(0);
+  const ref = useRef<number>(0);
+  useEffect(() => {
+    ref.current = 0;
+    const duration = 800;
+    const start = performance.now();
+    const tick = (now: number) => {
+      const p = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - p, 3);
+      const cur = Math.round(eased * target);
+      if (cur !== ref.current) { ref.current = cur; setVal(cur); }
+      if (p < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }, [target]);
+  return <span style={{ color }}>{val}{suffix}</span>;
+}
 function DonutChart({ data, size = 120 }: { data: { value: number; color: string; label: string }[]; size?: number }) {
   const total = data.reduce((s, d) => s + d.value, 0);
   if (total === 0) return <div style={{ width: size, height: size, borderRadius: "50%", background: "#e5e7eb", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "#9ca3af" }}>0</div>;
@@ -280,15 +338,48 @@ export default function WorkPage() {
   };
 
   if (loading) return (
-    <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", background: theme.bg }}>
-      <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
-      <div style={{ width: 32, height: 32, borderRadius: "50%", border: `3px solid ${theme.border}`, borderTopColor: appliedA, animation: "spin .8s linear infinite" }} />
+    <div style={{ flex: 1, overflowY: "auto", padding: "24px 24px 60px", display: "flex", flexDirection: "column", gap: 20, background: theme.bg, fontFamily: "var(--font-geist-sans)" }}>
+      <style>{`
+        @keyframes skeletonShimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+        :root{--sk-a:${darkMode?"#ffffff0a":"#f0f0f0"};--sk-b:${darkMode?"#ffffff16":"#e0e0e0"};--sk-surface:${darkMode?theme.card:"#ffffff"};--sk-border:${theme.border};}
+      `}</style>
+      {/* Header skeleton */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <Skeleton w={22} h={22} radius={4} />
+        <Skeleton w={160} h={28} radius={8} />
+      </div>
+      {/* Charts skeleton */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 14 }}>
+        <SkeletonCard /><SkeletonCard /><SkeletonCard />
+      </div>
+      {/* Filter skeleton */}
+      <div style={{ background: darkMode ? theme.card : "#fff", border: `1px solid ${theme.border}`, borderRadius: 14, padding: "12px 16px", display: "flex", gap: 10 }}>
+        <Skeleton w="40%" h={32} radius={8} />
+        <Skeleton w={120} h={32} radius={8} />
+        <Skeleton w={120} h={32} radius={8} />
+      </div>
+      {/* Rows skeleton */}
+      <div style={{ background: darkMode ? theme.card : "#fff", border: `1px solid ${theme.border}`, borderRadius: 14, overflow: "hidden" }}>
+        {[...Array(6)].map((_, i) => <SkeletonRow key={i} />)}
+      </div>
     </div>
   );
 
   return (
     <div style={{ flex: 1, overflowY: "auto", padding: "24px 24px 60px", display: "flex", flexDirection: "column", gap: 20, background: theme.bg, color: theme.text, fontFamily: "var(--font-geist-sans)", transition: "background .3s, color .3s" }}>
-      <style>{`@keyframes fadeIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}} select{appearance:none!important;-webkit-appearance:none!important}`}</style>
+      <style>{`
+        @keyframes fadeIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes skeletonShimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+        select{appearance:none!important;-webkit-appearance:none!important}
+      `}</style>
+      <style>{`
+        :root {
+          --sk-a: ${darkMode ? "#ffffff0a" : "#f0f0f0"};
+          --sk-b: ${darkMode ? "#ffffff16" : "#e0e0e0"};
+          --sk-surface: ${darkMode ? theme.card : "#ffffff"};
+          --sk-border: ${theme.border};
+        }
+      `}</style>
 
       {/* ── HEADER ── */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
@@ -327,7 +418,7 @@ export default function WorkPage() {
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
                 <span style={{ fontSize: 10, color: theme.muted, fontWeight: 600 }}>Celkový progres</span>
-                <span style={{ fontSize: 11, fontWeight: 800, color: appliedA }}>{completionPct}%</span>
+                <span style={{ fontSize: 11, fontWeight: 800, color: appliedA }}><AnimatedNumber target={completionPct} color={appliedA} suffix="%" /></span>
               </div>
               <div style={{ height: 6, borderRadius: 3, background: theme.border, overflow: "hidden" }}>
                 <div style={{ height: "100%", width: `${completionPct}%`, background: `linear-gradient(90deg, ${appliedA}, ${appliedB})`, borderRadius: 3, transition: "width .8s ease" }} />
@@ -363,11 +454,15 @@ export default function WorkPage() {
             <WeekCalendar tasks={tasks} appliedA={appliedA} darkMode={darkMode} theme={theme} />
             <div style={{ display: "flex", gap: 8 }}>
               <div style={{ flex: 1, background: headerBg, borderRadius: 8, padding: "8px", textAlign: "center" }}>
-                <div style={{ fontSize: 18, fontWeight: 900, color: appliedA }}>{tasks.filter(t => { const d = new Date(); const d7 = new Date(); d7.setDate(d.getDate()+7); return t.dueDate >= `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}` && t.dueDate < `${d7.getFullYear()}-${String(d7.getMonth()+1).padStart(2,"0")}-${String(d7.getDate()).padStart(2,"0")}`; }).length}</div>
+                <div style={{ fontSize: 18, fontWeight: 900, color: appliedA }}>
+                  <AnimatedNumber target={tasks.filter(t => { const d = new Date(); const d7 = new Date(); d7.setDate(d.getDate()+7); return t.dueDate >= `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}` && t.dueDate < `${d7.getFullYear()}-${String(d7.getMonth()+1).padStart(2,"0")}-${String(d7.getDate()).padStart(2,"0")}`; }).length} color={appliedA} />
+                </div>
                 <div style={{ fontSize: 10, color: theme.muted, fontWeight: 600 }}>termínov</div>
               </div>
               <div style={{ flex: 1, background: "#fee2e2", borderRadius: 8, padding: "8px", textAlign: "center" }}>
-                <div style={{ fontSize: 18, fontWeight: 900, color: "#dc2626" }}>{totalOverdue}</div>
+                <div style={{ fontSize: 18, fontWeight: 900, color: "#dc2626" }}>
+                  <AnimatedNumber target={totalOverdue} color="#dc2626" />
+                </div>
                 <div style={{ fontSize: 10, color: "#dc262699", fontWeight: 600 }}>po termíne</div>
               </div>
             </div>
