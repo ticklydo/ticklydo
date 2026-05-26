@@ -181,6 +181,7 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
   const [selectedDayEvents, setSelectedDayEvents] = useState<{ date: string; items: (CalEvent | Task)[] } | null>(null);
   const [notifPermission, setNotifPermission] = useState<NotificationPermission>("default");
   const [detailTab, setDetailTab] = useState<"details" | "comments" | "activity">("details");
+  const [confirmTaskDelete, setConfirmTaskDelete] = useState<string | null>(null);
 
   const surface = darkMode ? theme.card : "#ffffff";
   const surfaceHover = darkMode ? theme.card2 : "#f9fafb";
@@ -528,7 +529,7 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
           <div style={{ padding: "8px 16px 0", borderBottom: `1px solid ${theme.border}` }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
               <div style={{ fontSize: 16, fontWeight: 800, flex: 1, marginRight: 12 }}>{task.name}</div>
-              <button onClick={() => { deleteTask(task.id); setDetailTask(null); }} style={{ background: "#fee2e2", border: "none", borderRadius: 8, padding: "6px 10px", color: "#dc2626", cursor: "pointer", display: "flex", alignItems: "center" }}>{Icons.close}</button>
+              <button onClick={() => setConfirmTaskDelete(task.id)} style={{ background: "#fee2e2", border: "none", borderRadius: 8, padding: "6px 10px", color: "#dc2626", cursor: "pointer", display: "flex", alignItems: "center" }}>{Icons.close}</button>
             </div>
             <div style={{ display: "flex", gap: 0 }}>
               {([["details", "Detaily"], ["comments", `Komentáre${comments.length > 0 ? ` (${comments.length})` : ""}`], ["activity", "Aktivita"]] as const).map(([tab, label]) => (
@@ -774,7 +775,7 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
                     <OwnerCell cellKey={`${task.id}-owner`} val={task.owner} onChange={v => updateTask(task.id, "owner", v)} />
                     <NotesCell cellKey={`${task.id}-notes`} val={task.notes} onChange={v => updateTask(task.id, "notes", v)} />
                     <div className="del-btn" style={{ opacity: 0, transition: "opacity .15s", display: "flex", justifyContent: "center" }}>
-                      <button onClick={() => deleteTask(task.id)} style={{ background: "none", border: "none", cursor: "pointer", color: theme.muted, width: 24, height: 24, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", transition: "all .15s" }} onMouseEnter={e => { e.currentTarget.style.background = "#fee2e2"; e.currentTarget.style.color = "#dc2626"; }} onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = theme.muted; }}>{Icons.close}</button>
+                      <button onClick={() => setConfirmTaskDelete(task.id)} style={{ background: "none", border: "none", cursor: "pointer", color: theme.muted, width: 24, height: 24, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", transition: "all .15s" }} onMouseEnter={e => { e.currentTarget.style.background = "#fee2e2"; e.currentTarget.style.color = "#dc2626"; }} onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = theme.muted; }}>{Icons.close}</button>
                     </div>
                   </div>
 
@@ -1346,7 +1347,7 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
                           {!isMobile && (
                             <div style={{ display: "flex", gap: 5 }}>
                               <select value={task.status} onChange={e => updateTask(task.id, "status", e.target.value)} style={{ flex: 1, background: surface, border: `1px solid ${theme.border}`, borderRadius: 7, padding: "4px 7px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontWeight: 600, fontSize: 10, cursor: "pointer", outline: "none", appearance: "none" }}>{STATUSES.map(s => <option key={s} value={s}>{s}</option>)}</select>
-                              <button onClick={() => deleteTask(task.id)} style={{ background: "none", border: `1px solid ${theme.border}`, borderRadius: 7, padding: "4px 7px", color: theme.muted, cursor: "pointer", display: "flex", alignItems: "center", transition: "all .15s" }} onMouseEnter={e => { e.currentTarget.style.background = "#fee2e2"; e.currentTarget.style.color = "#dc2626"; }} onMouseLeave={e => { e.currentTarget.style.background = "none"; e.currentTarget.style.color = theme.muted; }}>{Icons.close}</button>
+                              <button onClick={() => setConfirmTaskDelete(task.id)} style={{ background: "none", border: `1px solid ${theme.border}`, borderRadius: 7, padding: "4px 7px", color: theme.muted, cursor: "pointer", display: "flex", alignItems: "center", transition: "all .15s" }} onMouseEnter={e => { e.currentTarget.style.background = "#fee2e2"; e.currentTarget.style.color = "#dc2626"; }} onMouseLeave={e => { e.currentTarget.style.background = "none"; e.currentTarget.style.color = theme.muted; }}>{Icons.close}</button>
                             </div>
                           )}
                         </div>
@@ -1364,6 +1365,37 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
           </div>
         )}
       </div>
+
+      {/* ── CONFIRM TASK DELETE MODAL ── */}
+      {confirmTaskDelete && (() => {
+        const task = tasks.find(t => t.id === confirmTaskDelete);
+        if (!task) return null;
+        return (
+          <div style={{ position: "fixed", inset: 0, zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)" }}
+            onClick={() => setConfirmTaskDelete(null)}>
+            <div onClick={e => e.stopPropagation()} style={{
+              background: surface, borderRadius: 20, padding: "24px 24px 20px",
+              width: "min(380px, 90vw)", boxShadow: "0 24px 60px rgba(0,0,0,0.25)",
+              border: `1px solid ${theme.border}`, animation: "fadeIn .2s ease",
+              display: "flex", flexDirection: "column", gap: 14,
+            }}>
+              <div style={{ width: 44, height: 44, borderRadius: 12, background: "#fee2e2", display: "flex", alignItems: "center", justifyContent: "center", color: "#dc2626" }}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+              </div>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 5 }}>Vymazať úlohu?</div>
+                <div style={{ fontSize: 13, color: theme.muted, lineHeight: 1.5 }}>
+                  Naozaj chceš vymazať úlohu <strong style={{ color: theme.text }}>"{task.name}"</strong>? Táto akcia je nenávratná.
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 10 }}>
+                <button onClick={() => setConfirmTaskDelete(null)} style={{ flex: 1, background: "none", border: `1px solid ${theme.border}`, borderRadius: 12, padding: "10px", color: theme.muted, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}>Zrušiť</button>
+                <button onClick={() => { deleteTask(confirmTaskDelete); setDetailTask(null); setConfirmTaskDelete(null); }} style={{ flex: 1, background: "#dc2626", border: "none", borderRadius: 12, padding: "10px", color: "#fff", fontWeight: 800, fontSize: 13, cursor: "pointer", fontFamily: "var(--font-geist-sans)", boxShadow: "0 4px 12px #dc262644" }}>Vymazať</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
