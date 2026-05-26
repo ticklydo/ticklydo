@@ -826,6 +826,70 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
                         <input value={newSubtask[task.id] ?? ""} onChange={e => setNewSubtask(prev => ({ ...prev, [task.id]: e.target.value }))} placeholder="Pridaj podúlohu..." onKeyDown={e => { if (e.key === "Enter") addSubtask(task.id); }} style={{ flex: 1, background: "transparent", border: "none", borderBottom: `1.5px solid ${theme.border}`, padding: "3px 0", color: theme.text, fontSize: 12, fontFamily: "var(--font-geist-sans)", fontWeight: 500, outline: "none", transition: "border-color .15s" }} onFocus={e => e.target.style.borderBottomColor = appliedA} onBlur={e => e.target.style.borderBottomColor = theme.border} />
                         <button onClick={() => addSubtask(task.id)} style={{ background: appliedA + "18", border: "none", borderRadius: 6, padding: "4px 10px", color: appliedA, fontWeight: 700, fontSize: 11, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}>Pridať</button>
                       </div>
+
+                      {/* ── TAGS + COMMENTS INLINE ── */}
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0, borderTop: `1px solid ${theme.border}33` }}>
+                        {/* Tags */}
+                        <div style={{ padding: "10px 14px 10px 42px", borderRight: `1px solid ${theme.border}33` }}>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: appliedA, textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: 7, display: "flex", alignItems: "center", gap: 5 }}>{Icons.tag} Tagy</div>
+                          <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 7 }}>
+                            {(task.tags ?? []).length === 0 && <span style={{ fontSize: 11, color: theme.muted }}>Žiadne tagy</span>}
+                            {(task.tags ?? []).map(tag => (
+                              <div key={tag} style={{ background: appliedA + "15", color: appliedA, borderRadius: 20, padding: "2px 8px", fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", gap: 4 }}>
+                                #{tag}
+                                <button onClick={() => updateTask(task.id, "tags", (task.tags ?? []).filter(t => t !== tag))} style={{ background: "none", border: "none", cursor: "pointer", color: appliedA, padding: 0, display: "flex", alignItems: "center", fontSize: 10 }}>{Icons.close}</button>
+                              </div>
+                            ))}
+                          </div>
+                          <input placeholder="+ Pridaj tag" onKeyDown={e => {
+                            if (e.key === "Enter") {
+                              const val = (e.target as HTMLInputElement).value.trim();
+                              if (val && !(task.tags ?? []).includes(val)) updateTask(task.id, "tags", [...(task.tags ?? []), val]);
+                              (e.target as HTMLInputElement).value = "";
+                            }
+                          }} style={{ background: "transparent", border: "none", borderBottom: `1.5px solid ${theme.border}`, outline: "none", color: theme.text, fontSize: 12, fontFamily: "var(--font-geist-sans)", padding: "3px 0", width: "100%", transition: "border-color .15s" }}
+                          onFocus={e => e.target.style.borderBottomColor = appliedA}
+                          onBlur={e => e.target.style.borderBottomColor = theme.border} />
+                        </div>
+
+                        {/* Comments */}
+                        <div style={{ padding: "10px 14px" }}>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: appliedA, textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: 7, display: "flex", alignItems: "center", gap: 5 }}>
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                            Komentáre {(task.comments ?? []).length > 0 && `(${task.comments!.length})`}
+                          </div>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 5, maxHeight: 100, overflowY: "auto", marginBottom: 7 }}>
+                            {(task.comments ?? []).length === 0 && <span style={{ fontSize: 11, color: theme.muted }}>Žiadne komentáre</span>}
+                            {(task.comments ?? []).slice(-3).map(c => (
+                              <div key={c.id} style={{ display: "flex", gap: 6, alignItems: "flex-start" }}>
+                                <div style={{ width: 18, height: 18, borderRadius: "50%", background: grad, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, color: "#fff", fontWeight: 800, flexShrink: 0 }}>{c.author[0]?.toUpperCase()}</div>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <span style={{ fontSize: 10, fontWeight: 700 }}>{c.author} </span>
+                                  <span style={{ fontSize: 11, color: theme.text }}>{c.text}</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                          <div style={{ display: "flex", gap: 6 }}>
+                            <input
+                              placeholder="Napíš komentár..."
+                              onKeyDown={e => {
+                                if (e.key === "Enter") {
+                                  const val = (e.target as HTMLInputElement).value.trim();
+                                  if (!val) return;
+                                  const user = auth.currentUser;
+                                  const comment: Comment = { id: genId(), text: val, author: user?.displayName || user?.email?.split("@")[0] || "Ty", createdAt: Date.now() };
+                                  updateTask(task.id, "comments", [...(task.comments ?? []), comment]);
+                                  (e.target as HTMLInputElement).value = "";
+                                }
+                              }}
+                              style={{ flex: 1, background: "transparent", border: "none", borderBottom: `1.5px solid ${theme.border}`, outline: "none", color: theme.text, fontSize: 12, fontFamily: "var(--font-geist-sans)", padding: "3px 0", transition: "border-color .15s" }}
+                              onFocus={e => e.target.style.borderBottomColor = appliedA}
+                              onBlur={e => e.target.style.borderBottomColor = theme.border}
+                            />
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </React.Fragment>
