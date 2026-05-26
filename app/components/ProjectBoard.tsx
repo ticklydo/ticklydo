@@ -232,6 +232,7 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
         if (data.projectName) setProjectName(data.projectName);
         setTasks((data.tasks ?? []).map((t: Task) => ({
           ...t,
+          recurring: undefined,
           subtasks: (t.subtasks ?? []).map((s: SubTask) => ({
             id: s.id, name: s.name, done: s.done ?? false,
             status: s.status ?? "Nezačaté", priority: s.priority ?? "",
@@ -328,11 +329,12 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
     setNewTaskName(""); setAddingTask(false);
   }
 
-  function deleteTask(id: string) {
+  async function deleteTask(id: string) {
     const task = tasks.find(t => t.id === id);
     const updated = tasks.filter(t => t.id !== id);
     const newLog = task ? logActivity("vymazal", task.name) : activityLog;
-    setTasks(updated); saveAll(updated, undefined, undefined, newLog);
+    setTasks(updated);
+    await saveAll(updated, undefined, undefined, newLog);
     if (detailTask?.id === id) setDetailTask(null);
   }
 
@@ -564,12 +566,6 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
                 <textarea value={task.notes} onChange={e => updateTask(task.id, "notes", e.target.value)} placeholder="Pridaj poznámky..." rows={3} style={{ background: headerBg, border: `1.5px solid ${theme.border}`, borderRadius: 10, padding: "8px 12px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontSize: 13, outline: "none", width: "100%", resize: "none", lineHeight: 1.6, boxSizing: "border-box" }} onFocus={e => e.target.style.borderColor = appliedA} onBlur={e => e.target.style.borderColor = theme.border} />
               </div>
               <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 6 }}>Opakovanie</div>
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                  {(["", "daily", "weekly", "monthly"] as const).map(r => { const labels: Record<string,string> = { "": "Žiadne", daily: "Denne", weekly: "Týždenne", monthly: "Mesačne" }; const active = (task.recurring ?? "") === r; return <button key={r} onClick={() => updateTask(task.id, "recurring", r)} style={{ background: active ? appliedA + "18" : "transparent", color: active ? appliedA : theme.muted, border: `1.5px solid ${active ? appliedA + "55" : theme.border}`, borderRadius: 20, padding: "6px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)", display: "flex", alignItems: "center", gap: 5 }}>{r && Icons.recurring}{labels[r]}</button>; })}
-                </div>
-              </div>
-              <div>
                 <div style={{ fontSize: 11, fontWeight: 700, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 6 }}>Tagy</div>
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
                   {(task.tags ?? []).map(tag => <div key={tag} style={{ background: appliedA + "18", color: appliedA, border: `1px solid ${appliedA}33`, borderRadius: 20, padding: "4px 10px", fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", gap: 5 }}>{Icons.tag} {tag}<button onClick={() => updateTask(task.id, "tags", (task.tags ?? []).filter(t => t !== tag))} style={{ background: "none", border: "none", cursor: "pointer", color: appliedA, padding: 0, marginLeft: 2, display: "flex", alignItems: "center" }}>{Icons.close}</button></div>)}
@@ -754,9 +750,8 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
                       ) : (
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div onClick={() => setEditingCell({ id: `${task.id}-name`, field: "name" })} style={{ fontWeight: 600, fontSize: 13, cursor: "text", textDecoration: task.status === "Hotovo" ? "line-through" : "none", opacity: task.status === "Hotovo" ? 0.5 : 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{task.name}</div>
-                          {(task.recurring || (task.tags ?? []).length > 0) && (
+                          {(task.tags ?? []).length > 0 && (
                             <div style={{ display: "flex", gap: 4, marginTop: 3, flexWrap: "wrap" }}>
-                              {task.recurring && <span style={{ fontSize: 9, fontWeight: 700, color: appliedA, background: appliedA + "15", borderRadius: 10, padding: "1px 6px", display: "flex", alignItems: "center", gap: 2 }}>{Icons.recurring}{{ daily: "Denne", weekly: "Týžd.", monthly: "Mes." }[task.recurring]}</span>}
                               {(task.tags ?? []).slice(0, 2).map(tag => <span key={tag} style={{ fontSize: 9, fontWeight: 700, color: appliedA, background: appliedA + "15", borderRadius: 10, padding: "1px 6px" }}>#{tag}</span>)}
                             </div>
                           )}
