@@ -67,8 +67,22 @@ export default function NotificationsPage() {
       const db = getFirestore();
 
       const userSnap = await getDoc(doc(db, "users", user.uid));
-      if (!userSnap.exists()) { setLoading(false); return; }
-      const projects = (userSnap.data().projects ?? []).filter((p: any) => !p.archived);
+      const dynamicProjects = userSnap.exists()
+        ? (userSnap.data().projects ?? []).filter((p: any) => !p.archived)
+        : [];
+
+      // Also check old static project IDs (project-1 to project-4)
+      const staticIds = ["project-1", "project-2", "project-3", "project-4"];
+      const staticProjects: any[] = [];
+      await Promise.all(staticIds.map(async (id) => {
+        const snap = await getDoc(doc(db, "projects", `${user.uid}_${id}`));
+        if (snap.exists()) {
+          const data = snap.data();
+          staticProjects.push({ id, name: data.projectName || id, color1: "#6366f1", color2: "#8b5cf6" });
+        }
+      }));
+
+      const projects = [...dynamicProjects, ...staticProjects];
 
       const today = new Date();
       today.setHours(0, 0, 0, 0);
