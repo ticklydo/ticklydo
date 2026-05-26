@@ -220,15 +220,21 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
       if (snap.exists()) {
         const data = snap.data();
         if (data.projectName) setProjectName(data.projectName);
-        setTasks((data.tasks ?? []).map((t: Task) => ({
-          ...t,
-          recurring: undefined,
-          subtasks: (t.subtasks ?? []).map((s: SubTask) => ({
-            id: s.id, name: s.name, done: s.done ?? false,
-            status: s.status ?? "Nezačaté", priority: s.priority ?? "",
-            dueDate: s.dueDate ?? "", owner: s.owner ?? "", notes: s.notes ?? "",
-          }))
-        })));
+        setTasks((data.tasks ?? []).map((t: Task) => {
+          const task: Task = {
+            id: t.id, name: t.name, status: t.status ?? "Nezačaté",
+            priority: t.priority ?? "", dueDate: t.dueDate ?? "",
+            owner: t.owner ?? "", notes: t.notes ?? "",
+            subtasks: (t.subtasks ?? []).map((s: SubTask) => ({
+              id: s.id, name: s.name, done: s.done ?? false,
+              status: s.status ?? "Nezačaté", priority: s.priority ?? "",
+              dueDate: s.dueDate ?? "", owner: s.owner ?? "", notes: s.notes ?? "",
+            })),
+          };
+          if (t.tags) task.tags = t.tags;
+          if (t.comments) task.comments = t.comments;
+          return task;
+        }));
         setEvents(data.events ?? []);
         setActivityLog(data.activityLog ?? []);
       }
@@ -253,8 +259,19 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
     if (!user) return;
     const { getFirestore, doc, setDoc } = await import("firebase/firestore");
     const db = getFirestore();
+    // Strip undefined fields from tasks before saving
+    const cleanTasks = newTasks.map(t => {
+      const clean: any = { ...t };
+      Object.keys(clean).forEach(k => { if (clean[k] === undefined) delete clean[k]; });
+      if (clean.subtasks) clean.subtasks = clean.subtasks.map((s: any) => {
+        const cs = { ...s };
+        Object.keys(cs).forEach(k => { if (cs[k] === undefined) delete cs[k]; });
+        return cs;
+      });
+      return clean;
+    });
     await setDoc(doc(db, "projects", `${user.uid}_${projectId}`), {
-      tasks: newTasks,
+      tasks: cleanTasks,
       projectName: newName ?? projectNameRef.current,
       events: newEvents ?? eventsRef.current,
       activityLog: (newLog ?? activityLogRef.current).slice(0, 100),
