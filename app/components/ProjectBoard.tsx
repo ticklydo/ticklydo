@@ -27,11 +27,30 @@ type SubTask = {
   dueDate: string; owner: string; notes: string;
 };
 
+type Comment = {
+  id: string;
+  text: string;
+  author: string;
+  createdAt: number;
+};
+
+type ActivityEntry = {
+  id: string;
+  action: string;
+  taskName: string;
+  field?: string;
+  oldVal?: string;
+  newVal?: string;
+  author: string;
+  createdAt: number;
+};
+
 type Task = {
   id: string; name: string; status: Status; priority: Priority;
   dueDate: string; owner: string; notes: string; subtasks: SubTask[];
   recurring?: "daily" | "weekly" | "monthly" | "";
   tags?: string[];
+  comments?: Comment[];
 };
 
 type CalEvent = {
@@ -151,12 +170,17 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
     return new Date(now.getFullYear(), now.getMonth(), 1);
   });
   const [events, setEvents] = useState<CalEvent[]>([]);
+  const [activityLog, setActivityLog] = useState<ActivityEntry[]>([]);
+  const [showActivity, setShowActivity] = useState(false);
+  const [newComment, setNewComment] = useState("");
   const [calModal, setCalModal] = useState<{ date: string; event?: CalEvent } | null>(null);
   const [quickName, setQuickName] = useState("");
   const [quickType, setQuickType] = useState<"event" | "task">("event");
   const [quickTime, setQuickTime] = useState("");
   const [quickColor, setQuickColor] = useState("#6366f1");
   const [selectedDayEvents, setSelectedDayEvents] = useState<{ date: string; items: (CalEvent | Task)[] } | null>(null);
+  const [notifPermission, setNotifPermission] = useState<NotificationPermission>("default");
+  const [detailTab, setDetailTab] = useState<"details" | "comments" | "activity">("details");
 
   const surface = darkMode ? theme.card : "#ffffff";
   const surfaceHover = darkMode ? theme.card2 : "#f9fafb";
@@ -170,6 +194,27 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
     window.addEventListener("resize", check);
     return () => window.removeEventListener("resize", check);
   }, []);
+
+  // ── NOTIFICATIONS ──
+  useEffect(() => {
+    if (!("Notification" in window)) return;
+    if (Notification.permission === "default") Notification.requestPermission();
+  }, []);
+
+  useEffect(() => {
+    if (!tasks.length || Notification.permission !== "granted") return;
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-${String(today.getDate()).padStart(2,"0")}`;
+    const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
+    const tomorrowStr = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth()+1).padStart(2,"0")}-${String(tomorrow.getDate()).padStart(2,"0")}`;
+    const dueTomorrow = tasks.filter(t => t.dueDate === tomorrowStr && t.status !== "Hotovo");
+    const dueToday = tasks.filter(t => t.dueDate === todayStr && t.status !== "Hotovo");
+    if (dueToday.length > 0) {
+      new Notification(`Ticklydo — ${projectName}`, { body: `Dnes máš termín: ${dueToday.map(t => t.name).join(", ")}`, icon: "/favicon.ico" });
+    } else if (dueTomorrow.length > 0) {
+      new Notification(`Ticklydo — ${projectName}`, { body: `Zajtra máš termín: ${dueTomorrow.map(t => t.name).join(", ")}`, icon: "/favicon.ico" });
+    }
+  }, [tasks.length, projectName]);
 
   useEffect(() => {
     if (editingName && nameInputRef.current) nameInputRef.current.focus();
@@ -193,13 +238,14 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
           }))
         })));
         setEvents(data.events ?? []);
+        setActivityLog(data.activityLog ?? []);
       }
       setLoading(false);
     });
     return () => unsub();
   }, [projectId]);
 
-  const saveAll = async (newTasks: Task[], newName?: string, newEvents?: CalEvent[]) => {
+  const saveAll = async (newTasks: Task[], newName?: string, newEvents?: CalEvent[], newLog?: ActivityEntry[]) => {
     const user = auth.currentUser;
     if (!user) return;
     const { getFirestore, doc, setDoc } = await import("firebase/firestore");
@@ -208,7 +254,21 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
       tasks: newTasks,
       projectName: newName ?? projectName,
       events: newEvents ?? events,
+      activityLog: (newLog ?? activityLog).slice(0, 100),
     }, { merge: true });
+  };
+
+  const logActivity = (action: string, taskName: string, field?: string, oldVal?: string, newVal?: string): ActivityEntry[] => {
+    const user = auth.currentUser;
+    const entry: ActivityEntry = {
+      id: genId(), action, taskName,
+      field, oldVal, newVal,
+      author: user?.displayName || user?.email?.split("@")[0] || "Ty",
+      createdAt: Date.now(),
+    };
+    const updated = [entry, ...activityLog].slice(0, 100);
+    setActivityLog(updated);
+    return updated;
   };
 
   const saveEvents = async (newEvents: CalEvent[]) => {
@@ -236,30 +296,33 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
   }
 
   function updateTask(id: string, field: keyof Task, value: any) {
+    const task = tasks.find(t => t.id === id);
     const updated = tasks.map(t => {
       if (t.id !== id) return t;
       const newTask = { ...t, [field]: value };
-      // Auto-advance recurring task when marked Hotovo
       if (field === "status" && value === "Hotovo" && t.recurring && t.dueDate) {
         const next = new Date(t.dueDate + "T00:00:00");
         if (t.recurring === "daily") next.setDate(next.getDate() + 1);
         if (t.recurring === "weekly") next.setDate(next.getDate() + 7);
         if (t.recurring === "monthly") next.setMonth(next.getMonth() + 1);
         const iso = `${next.getFullYear()}-${String(next.getMonth()+1).padStart(2,"0")}-${String(next.getDate()).padStart(2,"0")}`;
-        // Add new occurrence
         const newOccurrence: Task = { ...t, id: genId(), status: "Nezačaté", dueDate: iso };
         setTimeout(() => {
-          setTasks(prev => {
-            const withNew = [...prev, newOccurrence];
-            saveAll(withNew);
-            return withNew;
-          });
+          setTasks(prev => { const withNew = [...prev, newOccurrence]; saveAll(withNew); return withNew; });
         }, 300);
       }
       return newTask;
     });
-    setTasks(updated);
-    saveAll(updated);
+    // Log activity
+    const fieldLabels: Partial<Record<keyof Task, string>> = { status: "Status", priority: "Priorita", dueDate: "Termín", owner: "Zodpovedný", name: "Názov" };
+    if (task && fieldLabels[field]) {
+      const newLog = logActivity("upravil", task.name, fieldLabels[field], String(task[field] || "—"), String(value || "—"));
+      setTasks(updated);
+      saveAll(updated, undefined, undefined, newLog);
+    } else {
+      setTasks(updated);
+      saveAll(updated);
+    }
     if (detailTask?.id === id) setDetailTask(prev => prev ? { ...prev, [field]: value } : null);
   }
 
@@ -275,13 +338,16 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
     if (!newTaskName.trim()) return;
     const t: Task = { id: genId(), name: newTaskName.trim(), status: "Nezačaté", priority: "", dueDate: "", owner: "", notes: "", subtasks: [] };
     const updated = [...tasks, t];
-    setTasks(updated); saveAll(updated);
+    const newLog = logActivity("vytvoril", t.name);
+    setTasks(updated); saveAll(updated, undefined, undefined, newLog);
     setNewTaskName(""); setAddingTask(false);
   }
 
   function deleteTask(id: string) {
+    const task = tasks.find(t => t.id === id);
     const updated = tasks.filter(t => t.id !== id);
-    setTasks(updated); saveAll(updated);
+    const newLog = task ? logActivity("vymazal", task.name) : activityLog;
+    setTasks(updated); saveAll(updated, undefined, undefined, newLog);
     if (detailTask?.id === id) setDetailTask(null);
   }
 
@@ -439,108 +505,149 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
   );
 
   // ── MOBILE DETAIL MODAL ──
+  const addComment = (task: Task) => {
+    if (!newComment.trim()) return;
+    const user = auth.currentUser;
+    const comment: Comment = {
+      id: genId(), text: newComment.trim(),
+      author: user?.displayName || user?.email?.split("@")[0] || "Ty",
+      createdAt: Date.now(),
+    };
+    const updated = tasks.map(t => t.id === task.id ? { ...t, comments: [...(t.comments ?? []), comment] } : t);
+    setTasks(updated);
+    saveAll(updated);
+    setNewComment("");
+    logActivity("komentoval", task.name);
+  };
+
   const renderMobileDetail = () => {
     if (!detailTask) return null;
     const task = tasks.find(t => t.id === detailTask.id) ?? detailTask;
+    const comments = task.comments ?? [];
+    const timeAgo = (ts: number) => {
+      const diff = Date.now() - ts;
+      const m = Math.floor(diff / 60000);
+      const h = Math.floor(m / 60);
+      const d = Math.floor(h / 24);
+      if (m < 1) return "práve teraz";
+      if (m < 60) return `pred ${m} min`;
+      if (h < 24) return `pred ${h} hod`;
+      return `pred ${d} dňami`;
+    };
     return (
-      <div style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "flex-end" }} onClick={() => setDetailTask(null)}>
-        <div onClick={e => e.stopPropagation()} style={{ width: "100%", background: surface, borderRadius: "20px 20px 0 0", maxHeight: "88vh", overflowY: "auto", paddingBottom: 40 }}>
+      <div style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "flex-end" }} onClick={() => { setDetailTask(null); setDetailTab("details"); }}>
+        <div onClick={e => e.stopPropagation()} style={{ width: "100%", background: surface, borderRadius: "20px 20px 0 0", maxHeight: "90vh", overflowY: "auto", paddingBottom: 40 }}>
           <div style={{ display: "flex", justifyContent: "center", padding: "10px 0 4px" }}>
             <div style={{ width: 36, height: 4, borderRadius: 2, background: theme.border }} />
           </div>
-          <div style={{ padding: "8px 16px 12px", borderBottom: `1px solid ${theme.border}` }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+          {/* Header */}
+          <div style={{ padding: "8px 16px 0", borderBottom: `1px solid ${theme.border}` }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
               <div style={{ fontSize: 16, fontWeight: 800, flex: 1, marginRight: 12 }}>{task.name}</div>
               <button onClick={() => { deleteTask(task.id); setDetailTask(null); }} style={{ background: "#fee2e2", border: "none", borderRadius: 8, padding: "6px 10px", color: "#dc2626", cursor: "pointer", display: "flex", alignItems: "center" }}>{Icons.close}</button>
             </div>
+            <div style={{ display: "flex", gap: 0 }}>
+              {([["details", "Detaily"], ["comments", `Komentáre${comments.length > 0 ? ` (${comments.length})` : ""}`], ["activity", "Aktivita"]] as const).map(([tab, label]) => (
+                <button key={tab} onClick={() => setDetailTab(tab)} style={{ background: "none", border: "none", borderBottom: `2px solid ${detailTab === tab ? appliedA : "transparent"}`, color: detailTab === tab ? appliedA : theme.muted, fontWeight: 700, fontSize: 12, padding: "8px 14px", cursor: "pointer", fontFamily: "var(--font-geist-sans)", transition: "all .15s" }}>{label}</button>
+              ))}
+            </div>
           </div>
-          <div style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: 14 }}>
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 6 }}>Status</div>
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                {STATUSES.map(s => {
-                  const cfg = STATUS_CONFIG[s];
-                  const active = task.status === s;
-                  return <button key={s} onClick={() => updateTask(task.id, "status", s)} style={{ background: active ? (darkMode ? cfg.color + "33" : cfg.bg) : "transparent", color: active ? cfg.color : theme.muted, border: `1.5px solid ${active ? cfg.color + "55" : theme.border}`, borderRadius: 20, padding: "6px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)", display: "flex", alignItems: "center", gap: 5 }}><div style={{ width: 6, height: 6, borderRadius: "50%", background: active ? cfg.dot : theme.muted }} />{s}</button>;
-                })}
+          {detailTab === "details" && (
+            <div style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: 14 }}>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 6 }}>Status</div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {STATUSES.map(s => { const cfg = STATUS_CONFIG[s]; const active = task.status === s; return <button key={s} onClick={() => updateTask(task.id, "status", s)} style={{ background: active ? (darkMode ? cfg.color + "33" : cfg.bg) : "transparent", color: active ? cfg.color : theme.muted, border: `1.5px solid ${active ? cfg.color + "55" : theme.border}`, borderRadius: 20, padding: "6px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)", display: "flex", alignItems: "center", gap: 5 }}><div style={{ width: 6, height: 6, borderRadius: "50%", background: active ? cfg.dot : theme.muted }} />{s}</button>; })}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 6 }}>Priorita</div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {PRIORITIES.map(p => { const cfg = PRIORITY_CONFIG[p]; const active = task.priority === p; return <button key={p} onClick={() => updateTask(task.id, "priority", p)} style={{ background: active && p ? (darkMode ? cfg.color + "33" : cfg.bg) : "transparent", color: active && p ? cfg.color : theme.muted, border: `1.5px solid ${active && p ? cfg.color + "55" : theme.border}`, borderRadius: 20, padding: "6px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}>{p || "Bez priority"}</button>; })}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 6 }}>Termín</div>
+                <input type="date" value={toISODate(task.dueDate)} onChange={e => updateTask(task.id, "dueDate", e.target.value)} style={{ background: headerBg, border: `1.5px solid ${theme.border}`, borderRadius: 10, padding: "8px 12px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontSize: 13, outline: "none", width: "100%", boxSizing: "border-box" }} />
+              </div>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 6 }}>Zodpovedný</div>
+                <input type="text" value={task.owner} onChange={e => updateTask(task.id, "owner", e.target.value)} placeholder="Meno..." style={{ background: headerBg, border: `1.5px solid ${theme.border}`, borderRadius: 10, padding: "8px 12px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontSize: 13, outline: "none", width: "100%", boxSizing: "border-box" }} onFocus={e => e.target.style.borderColor = appliedA} onBlur={e => e.target.style.borderColor = theme.border} />
+              </div>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 6 }}>Poznámky</div>
+                <textarea value={task.notes} onChange={e => updateTask(task.id, "notes", e.target.value)} placeholder="Pridaj poznámky..." rows={3} style={{ background: headerBg, border: `1.5px solid ${theme.border}`, borderRadius: 10, padding: "8px 12px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontSize: 13, outline: "none", width: "100%", resize: "none", lineHeight: 1.6, boxSizing: "border-box" }} onFocus={e => e.target.style.borderColor = appliedA} onBlur={e => e.target.style.borderColor = theme.border} />
+              </div>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 6 }}>Opakovanie</div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {(["", "daily", "weekly", "monthly"] as const).map(r => { const labels: Record<string,string> = { "": "Žiadne", daily: "Denne", weekly: "Týždenne", monthly: "Mesačne" }; const active = (task.recurring ?? "") === r; return <button key={r} onClick={() => updateTask(task.id, "recurring", r)} style={{ background: active ? appliedA + "18" : "transparent", color: active ? appliedA : theme.muted, border: `1.5px solid ${active ? appliedA + "55" : theme.border}`, borderRadius: 20, padding: "6px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)", display: "flex", alignItems: "center", gap: 5 }}>{r && Icons.recurring}{labels[r]}</button>; })}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 6 }}>Tagy</div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+                  {(task.tags ?? []).map(tag => <div key={tag} style={{ background: appliedA + "18", color: appliedA, border: `1px solid ${appliedA}33`, borderRadius: 20, padding: "4px 10px", fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", gap: 5 }}>{Icons.tag} {tag}<button onClick={() => updateTask(task.id, "tags", (task.tags ?? []).filter(t => t !== tag))} style={{ background: "none", border: "none", cursor: "pointer", color: appliedA, padding: 0, marginLeft: 2, display: "flex", alignItems: "center" }}>{Icons.close}</button></div>)}
+                </div>
+                <input placeholder="Pridaj tag + Enter" onKeyDown={e => { if (e.key === "Enter") { const val = (e.target as HTMLInputElement).value.trim(); if (val && !(task.tags ?? []).includes(val)) updateTask(task.id, "tags", [...(task.tags ?? []), val]); (e.target as HTMLInputElement).value = ""; } }} style={{ width: "100%", background: headerBg, border: `1.5px solid ${theme.border}`, borderRadius: 10, padding: "7px 12px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontSize: 13, outline: "none", boxSizing: "border-box" }} onFocus={e => e.target.style.borderColor = appliedA} onBlur={e => e.target.style.borderColor = theme.border} />
+              </div>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 8 }}>Podúlohy</div>
+                {task.subtasks.map(sub => <div key={sub.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: `1px solid ${theme.border}22` }}><button onClick={() => updateSubtask(task.id, sub.id, "done", !sub.done)} style={{ width: 20, height: 20, borderRadius: 5, flexShrink: 0, border: `2px solid ${sub.done ? appliedA : theme.border}`, background: sub.done ? appliedA : "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", transition: "all .15s" }}>{sub.done && Icons.check}</button><span style={{ flex: 1, fontSize: 13, textDecoration: sub.done ? "line-through" : "none", opacity: sub.done ? 0.5 : 1 }}>{sub.name}</span><button onClick={() => deleteSubtask(task.id, sub.id)} style={{ background: "none", border: "none", cursor: "pointer", color: theme.muted, padding: 4 }}>{Icons.close}</button></div>)}
+                <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                  <input value={newSubtask[task.id] ?? ""} onChange={e => setNewSubtask(prev => ({ ...prev, [task.id]: e.target.value }))} placeholder="Nová podúloha..." onKeyDown={e => { if (e.key === "Enter") addSubtask(task.id); }} style={{ flex: 1, background: headerBg, border: `1.5px solid ${theme.border}`, borderRadius: 10, padding: "8px 12px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontSize: 13, outline: "none" }} onFocus={e => e.target.style.borderColor = appliedA} onBlur={e => e.target.style.borderColor = theme.border} />
+                  <button onClick={() => addSubtask(task.id)} style={{ background: grad, border: "none", borderRadius: 10, padding: "8px 14px", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}>Pridať</button>
+                </div>
               </div>
             </div>
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 6 }}>Priorita</div>
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                {PRIORITIES.map(p => {
-                  const cfg = PRIORITY_CONFIG[p];
-                  const active = task.priority === p;
-                  return <button key={p} onClick={() => updateTask(task.id, "priority", p)} style={{ background: active && p ? (darkMode ? cfg.color + "33" : cfg.bg) : "transparent", color: active && p ? cfg.color : theme.muted, border: `1.5px solid ${active && p ? cfg.color + "55" : theme.border}`, borderRadius: 20, padding: "6px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}>{p || "Bez priority"}</button>;
-                })}
-              </div>
-            </div>
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 6 }}>Termín</div>
-              <input type="date" value={toISODate(task.dueDate)} onChange={e => updateTask(task.id, "dueDate", e.target.value)} style={{ background: headerBg, border: `1.5px solid ${theme.border}`, borderRadius: 10, padding: "8px 12px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontSize: 13, outline: "none", width: "100%", boxSizing: "border-box" }} />
-            </div>
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 6 }}>Zodpovedný</div>
-              <input type="text" value={task.owner} onChange={e => updateTask(task.id, "owner", e.target.value)} placeholder="Meno..." style={{ background: headerBg, border: `1.5px solid ${theme.border}`, borderRadius: 10, padding: "8px 12px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontSize: 13, outline: "none", width: "100%", boxSizing: "border-box" }} onFocus={e => e.target.style.borderColor = appliedA} onBlur={e => e.target.style.borderColor = theme.border} />
-            </div>
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 6 }}>Poznámky</div>
-              <textarea value={task.notes} onChange={e => updateTask(task.id, "notes", e.target.value)} placeholder="Pridaj poznámky..." rows={3} style={{ background: headerBg, border: `1.5px solid ${theme.border}`, borderRadius: 10, padding: "8px 12px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontSize: 13, outline: "none", width: "100%", resize: "none", lineHeight: 1.6, boxSizing: "border-box" }} onFocus={e => e.target.style.borderColor = appliedA} onBlur={e => e.target.style.borderColor = theme.border} />
-            </div>
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 6 }}>Opakovanie</div>
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                {(["", "daily", "weekly", "monthly"] as const).map(r => {
-                  const labels = { "": "Žiadne", daily: "Denne", weekly: "Týždenne", monthly: "Mesačne" };
-                  const active = (task.recurring ?? "") === r;
-                  return (
-                    <button key={r} onClick={() => updateTask(task.id, "recurring", r)} style={{ background: active ? appliedA + "18" : "transparent", color: active ? appliedA : theme.muted, border: `1.5px solid ${active ? appliedA + "55" : theme.border}`, borderRadius: 20, padding: "6px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)", display: "flex", alignItems: "center", gap: 5 }}>
-                      {r && Icons.recurring}{labels[r]}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 6 }}>Tagy</div>
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
-                {(task.tags ?? []).map(tag => (
-                  <div key={tag} style={{ background: appliedA + "18", color: appliedA, border: `1px solid ${appliedA}33`, borderRadius: 20, padding: "4px 10px", fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", gap: 5 }}>
-                    {Icons.tag} {tag}
-                    <button onClick={() => updateTask(task.id, "tags", (task.tags ?? []).filter(t => t !== tag))} style={{ background: "none", border: "none", cursor: "pointer", color: appliedA, padding: 0, display: "flex", alignItems: "center", marginLeft: 2 }}>{Icons.close}</button>
+          )}
+
+          {/* Comments tab */}
+          {detailTab === "comments" && (
+            <div style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
+              {comments.length === 0 && <div style={{ textAlign: "center", padding: "24px 0", color: theme.muted, fontSize: 13 }}>Zatiaľ žiadne komentáre</div>}
+              {comments.map(c => (
+                <div key={c.id} style={{ background: headerBg, borderRadius: 12, padding: "10px 12px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 5 }}>
+                    <div style={{ width: 22, height: 22, borderRadius: "50%", background: grad, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, color: "#fff", fontWeight: 800, flexShrink: 0 }}>{c.author[0]?.toUpperCase()}</div>
+                    <span style={{ fontSize: 12, fontWeight: 700 }}>{c.author}</span>
+                    <span style={{ fontSize: 10, color: theme.muted, marginLeft: "auto" }}>{timeAgo(c.createdAt)}</span>
                   </div>
-                ))}
-              </div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <input id={`tag-input-${task.id}`} placeholder="Pridaj tag..." onKeyDown={e => {
-                  if (e.key === "Enter") {
-                    const val = (e.target as HTMLInputElement).value.trim();
-                    if (val && !(task.tags ?? []).includes(val)) { updateTask(task.id, "tags", [...(task.tags ?? []), val]); }
-                    (e.target as HTMLInputElement).value = "";
-                  }
-                }} style={{ flex: 1, background: headerBg, border: `1.5px solid ${theme.border}`, borderRadius: 10, padding: "7px 12px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontSize: 13, outline: "none" }} onFocus={e => e.target.style.borderColor = appliedA} onBlur={e => e.target.style.borderColor = theme.border} />
-              </div>
-            </div>
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 8 }}>Podúlohy</div>
-              {task.subtasks.map(sub => (
-                <div key={sub.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: `1px solid ${theme.border}22` }}>
-                  <button onClick={() => updateSubtask(task.id, sub.id, "done", !sub.done)} style={{ width: 20, height: 20, borderRadius: 5, flexShrink: 0, border: `2px solid ${sub.done ? appliedA : theme.border}`, background: sub.done ? appliedA : "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", transition: "all .15s" }}>{sub.done && Icons.check}</button>
-                  <span style={{ flex: 1, fontSize: 13, textDecoration: sub.done ? "line-through" : "none", opacity: sub.done ? 0.5 : 1 }}>{sub.name}</span>
-                  <button onClick={() => deleteSubtask(task.id, sub.id)} style={{ background: "none", border: "none", cursor: "pointer", color: theme.muted, padding: 4 }}>{Icons.close}</button>
+                  <div style={{ fontSize: 13, lineHeight: 1.5, paddingLeft: 29 }}>{c.text}</div>
                 </div>
               ))}
-              <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-                <input value={newSubtask[task.id] ?? ""} onChange={e => setNewSubtask(prev => ({ ...prev, [task.id]: e.target.value }))} placeholder="Nová podúloha..." onKeyDown={e => { if (e.key === "Enter") addSubtask(task.id); }} style={{ flex: 1, background: headerBg, border: `1.5px solid ${theme.border}`, borderRadius: 10, padding: "8px 12px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontSize: 13, outline: "none" }} onFocus={e => e.target.style.borderColor = appliedA} onBlur={e => e.target.style.borderColor = theme.border} />
-                <button onClick={() => addSubtask(task.id)} style={{ background: grad, border: "none", borderRadius: 10, padding: "8px 14px", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}>Pridať</button>
+              <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+                <input value={newComment} onChange={e => setNewComment(e.target.value)} placeholder="Napíš komentár..." onKeyDown={e => { if (e.key === "Enter") addComment(task); }} style={{ flex: 1, background: headerBg, border: `1.5px solid ${theme.border}`, borderRadius: 10, padding: "9px 12px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontSize: 13, outline: "none" }} onFocus={e => e.target.style.borderColor = appliedA} onBlur={e => e.target.style.borderColor = theme.border} />
+                <button onClick={() => addComment(task)} style={{ background: grad, border: "none", borderRadius: 10, padding: "8px 14px", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}>Odoslať</button>
               </div>
             </div>
-          </div>
+          )}
+
+          {/* Activity tab */}
+          {detailTab === "activity" && (
+            <div style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
+              {activityLog.filter(l => l.taskName === task.name).length === 0 && (
+                <div style={{ textAlign: "center", padding: "24px 0", color: theme.muted, fontSize: 13 }}>Žiadna aktivita</div>
+              )}
+              {activityLog.filter(l => l.taskName === task.name).map(log => (
+                <div key={log.id} style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "6px 0", borderBottom: `1px solid ${theme.border}22` }}>
+                  <div style={{ width: 22, height: 22, borderRadius: "50%", background: appliedA + "18", display: "flex", alignItems: "center", justifyContent: "center", color: appliedA, flexShrink: 0 }}>
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700 }}>{log.author} </span>
+                    <span style={{ fontSize: 12, color: theme.muted }}>{log.action}</span>
+                    {log.field && <span style={{ fontSize: 12, color: theme.muted }}> · {log.field}: <span style={{ color: "#dc2626" }}>{log.oldVal}</span> → <span style={{ color: "#16a34a" }}>{log.newVal}</span></span>}
+                    <div style={{ fontSize: 10, color: theme.muted, marginTop: 2 }}>{timeAgo(log.createdAt)}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     );
   };
-
   return (
     <div style={{ flex: 1, overflowY: "auto", background: theme.bg, color: theme.text, fontFamily: "var(--font-geist-sans)", minHeight: "100vh", transition: "background .3s, color .3s" }}>
       <style>{`
@@ -581,6 +688,11 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
               <button key={v.id} onClick={() => setView(v.id)} style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "5px 10px", borderRadius: 6, border: "none", background: view === v.id ? grad : "transparent", color: view === v.id ? "#fff" : theme.muted, cursor: "pointer", transition: "all .2s" }}>{v.icon}</button>
             ))}
           </div>
+          {/* Activity log button */}
+          <button onClick={() => setShowActivity(v => !v)} style={{ position: "relative", width: 30, height: 30, borderRadius: 8, background: showActivity ? appliedA + "18" : "transparent", border: `1px solid ${showActivity ? appliedA + "55" : theme.border}`, color: showActivity ? appliedA : theme.muted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            {activityLog.length > 0 && <div style={{ position: "absolute", top: -4, right: -4, width: 14, height: 14, borderRadius: "50%", background: appliedA, fontSize: 8, fontWeight: 800, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>{Math.min(activityLog.length, 9)}</div>}
+          </button>
           <button onClick={() => setAddingTask(true)} style={{ display: "flex", alignItems: "center", gap: 5, background: grad, border: "none", borderRadius: 9, padding: isMobile ? "7px 10px" : "7px 14px", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "var(--font-geist-sans)", boxShadow: `0 4px 12px ${appliedA}44`, flexShrink: 0 }}>{Icons.plus}{!isMobile && <span> Nová úloha</span>}</button>
         </div>
 
@@ -1114,6 +1226,44 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
             </div>
           );
         })()}
+
+        {/* ── ACTIVITY LOG PANEL ── */}
+        {showActivity && (
+          <div style={{ background: surface, border: `1px solid ${theme.border}`, borderRadius: 14, padding: "16px 18px", boxShadow: shadow, animation: "fadeIn .2s ease", marginBottom: 4 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+              <div style={{ fontSize: 13, fontWeight: 800, display: "flex", alignItems: "center", gap: 6 }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={appliedA} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                Aktivita projektu
+              </div>
+              <button onClick={() => setShowActivity(false)} style={{ background: "none", border: "none", cursor: "pointer", color: theme.muted }}>{Icons.close}</button>
+            </div>
+            {activityLog.length === 0 ? (
+              <div style={{ fontSize: 12, color: theme.muted, textAlign: "center", padding: "20px 0" }}>Zatiaľ žiadna aktivita</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+                {activityLog.slice(0, 20).map((entry, i) => (
+                  <div key={entry.id} style={{ display: "flex", gap: 10, padding: "8px 0", borderBottom: i < Math.min(activityLog.length, 20) - 1 ? `1px solid ${theme.border}` : "none" }}>
+                    <div style={{ width: 28, height: 28, borderRadius: "50%", background: grad, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#fff", fontWeight: 800, flexShrink: 0 }}>{entry.author[0]?.toUpperCase()}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, lineHeight: 1.4 }}>
+                        <span style={{ fontWeight: 700 }}>{entry.author}</span>
+                        <span style={{ color: theme.muted }}> {entry.action} </span>
+                        <span style={{ fontWeight: 600 }}>„{entry.taskName}"</span>
+                        {entry.field && <span style={{ color: theme.muted }}> · {entry.field}: </span>}
+                        {entry.oldVal && entry.newVal && (
+                          <><span style={{ textDecoration: "line-through", color: theme.muted, fontSize: 11 }}>{entry.oldVal}</span> <span style={{ color: appliedA, fontWeight: 700, fontSize: 11 }}>→ {entry.newVal}</span></>
+                        )}
+                      </div>
+                      <div style={{ fontSize: 10, color: theme.muted, marginTop: 2 }}>
+                        {new Date(entry.createdAt).toLocaleDateString("sk-SK", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ── KANBAN ── */}
         {view === "kanban" && (
