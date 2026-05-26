@@ -113,6 +113,7 @@ export default function HomePage() {
   const [showArchive, setShowArchive] = useState(false);
   const [showNewModal, setShowNewModal] = useState(false);
   const [showMenuId, setShowMenuId] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   // New project form
   const [newName, setNewName] = useState("");
@@ -188,11 +189,11 @@ export default function HomePage() {
   };
 
   const deleteProject = (id: string) => {
-    if (!window.confirm("Naozaj chceš vymazať tento projekt? Všetky dáta budú stratené.")) return;
     const updated = projects.filter(p => p.id !== id);
     setProjects(updated);
     saveProjects(updated);
     setShowMenuId(null);
+    setConfirmDelete(null);
   };
 
   const activeProjects = projects.filter(p => !p.archived);
@@ -259,7 +260,7 @@ export default function HomePage() {
               {[
                 { label: "Otvoriť", icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>, action: () => { router.push(`/project/${p.id}`); setShowMenuId(null); }, color: theme.text },
                 { label: "Archivovať", icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>, action: () => archiveProject(p.id), color: theme.muted },
-                { label: "Vymazať", icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>, action: () => deleteProject(p.id), color: "#ef4444" },
+                { label: "Vymazať", icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>, action: () => { setShowMenuId(null); setConfirmDelete(p.id); }, color: "#ef4444" },
               ].map(item => (
                 <div key={item.label} onClick={item.action} style={{
                   display: "flex", alignItems: "center", gap: 10, padding: "9px 12px",
@@ -360,7 +361,7 @@ export default function HomePage() {
                   </div>
                   <div style={{ display: "flex", gap: 6 }}>
                     <button onClick={() => unarchiveProject(p.id)} style={{ background: appliedA + "18", border: "none", borderRadius: 8, padding: "6px 12px", color: appliedA, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}>Obnoviť</button>
-                    <button onClick={() => deleteProject(p.id)} style={{ background: "#fee2e2", border: "none", borderRadius: 8, padding: "6px 10px", color: "#dc2626", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}>Vymazať</button>
+                    <button onClick={() => setConfirmDelete(p.id)} style={{ background: "#fee2e2", border: "none", borderRadius: 8, padding: "6px 10px", color: "#dc2626", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}>Vymazať</button>
                   </div>
                 </div>
               );
@@ -477,6 +478,44 @@ export default function HomePage() {
           </div>
         </div>
       )}
+      {/* ── CONFIRM DELETE MODAL ── */}
+      {confirmDelete && (() => {
+        const p = projects.find(pr => pr.id === confirmDelete);
+        if (!p) return null;
+        return (
+          <div style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)" }}
+            onClick={() => setConfirmDelete(null)}>
+            <div onClick={e => e.stopPropagation()} style={{
+              background: theme.card, borderRadius: 20, padding: "28px 28px 24px",
+              width: "min(400px, 90vw)", boxShadow: "0 24px 60px rgba(0,0,0,0.25)",
+              border: `1px solid ${theme.border}`, animation: "fadeIn .2s ease",
+              display: "flex", flexDirection: "column", gap: 16,
+            }}>
+              {/* Icon */}
+              <div style={{ width: 48, height: 48, borderRadius: 14, background: "#fee2e2", display: "flex", alignItems: "center", justifyContent: "center", color: "#dc2626" }}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+              </div>
+              {/* Text */}
+              <div>
+                <div style={{ fontSize: 17, fontWeight: 800, marginBottom: 6 }}>Vymazať projekt?</div>
+                <div style={{ fontSize: 13, color: theme.muted, lineHeight: 1.5 }}>
+                  Naozaj chceš vymazať projekt <strong style={{ color: theme.text }}>"{p.name}"</strong>? Všetky úlohy, komentáre a dáta budú nenávratne stratené.
+                </div>
+              </div>
+              {/* Project preview */}
+              <div style={{ borderRadius: 12, padding: "10px 14px", background: `linear-gradient(135deg, ${p.color1}22, ${p.color2}11)`, border: `1px solid ${p.color1}33`, display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 10, height: 10, borderRadius: 3, background: `linear-gradient(135deg, ${p.color1}, ${p.color2})` }} />
+                <span style={{ fontSize: 13, fontWeight: 700 }}>{p.name}</span>
+              </div>
+              {/* Buttons */}
+              <div style={{ display: "flex", gap: 10 }}>
+                <button onClick={() => setConfirmDelete(null)} style={{ flex: 1, background: "none", border: `1px solid ${theme.border}`, borderRadius: 12, padding: "11px", color: theme.muted, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}>Zrušiť</button>
+                <button onClick={() => deleteProject(confirmDelete)} style={{ flex: 1, background: "#dc2626", border: "none", borderRadius: 12, padding: "11px", color: "#fff", fontWeight: 800, fontSize: 13, cursor: "pointer", fontFamily: "var(--font-geist-sans)", boxShadow: "0 4px 12px #dc262644" }}>Áno, vymazať</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
