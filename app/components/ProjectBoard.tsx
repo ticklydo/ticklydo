@@ -297,31 +297,15 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
 
   function updateTask(id: string, field: keyof Task, value: any) {
     const task = tasks.find(t => t.id === id);
-    let newOccurrence: Task | null = null;
-
-    const updated = tasks.map(t => {
-      if (t.id !== id) return t;
-      if (field === "status" && value === "Hotovo" && t.recurring && t.dueDate) {
-        const next = new Date(t.dueDate + "T00:00:00");
-        if (t.recurring === "daily") next.setDate(next.getDate() + 1);
-        if (t.recurring === "weekly") next.setDate(next.getDate() + 7);
-        if (t.recurring === "monthly") next.setMonth(next.getMonth() + 1);
-        const iso = `${next.getFullYear()}-${String(next.getMonth()+1).padStart(2,"0")}-${String(next.getDate()).padStart(2,"0")}`;
-        newOccurrence = { ...t, id: genId(), status: "Nezačaté", dueDate: iso };
-      }
-      return { ...t, [field]: value };
-    });
-
-    const withOccurrence = newOccurrence ? [...updated, newOccurrence] : updated;
-
+    const updated = tasks.map(t => t.id !== id ? t : { ...t, [field]: value });
     const fieldLabels: Partial<Record<keyof Task, string>> = { status: "Status", priority: "Priorita", dueDate: "Termín", owner: "Zodpovedný", name: "Názov" };
     if (task && fieldLabels[field]) {
       const newLog = logActivity("upravil", task.name, fieldLabels[field], String(task[field] || "—"), String(value || "—"));
-      setTasks(withOccurrence);
-      saveAll(withOccurrence, undefined, undefined, newLog);
+      setTasks(updated);
+      saveAll(updated, undefined, undefined, newLog);
     } else {
-      setTasks(withOccurrence);
-      saveAll(withOccurrence);
+      setTasks(updated);
+      saveAll(updated);
     }
     if (detailTask?.id === id) setDetailTask(prev => prev ? { ...prev, [field]: value } : null);
   }
