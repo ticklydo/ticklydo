@@ -552,7 +552,7 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
     };
     return (
       <div style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "flex-end" }} onClick={() => { setDetailTask(null); setDetailTab("details"); }}>
-        <div onClick={e => e.stopPropagation()} style={{ width: "100%", background: surface, borderRadius: "20px 20px 0 0", maxHeight: "90vh", overflowY: "auto", paddingBottom: 40 }}>
+        <div onClick={e => e.stopPropagation()} style={{ width: "100%", background: surface, borderRadius: "20px 20px 0 0", maxHeight: "90vh", overflowY: "auto", paddingBottom: 0 }}>
           <div style={{ display: "flex", justifyContent: "center", padding: "10px 0 4px" }}>
             <div style={{ width: 36, height: 4, borderRadius: 2, background: theme.border }} />
           </div>
@@ -654,6 +654,20 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
               ))}
             </div>
           )}
+
+          {/* ── STICKY CLOSE BUTTON ── */}
+          <div style={{ position: "sticky", bottom: 0, background: surface, borderTop: `1px solid ${theme.border}`, padding: "12px 16px", display: "flex", gap: 10 }}>
+            <button onClick={() => { setDetailTask(null); setDetailTab("details"); }} style={{
+              flex: 1, background: grad, border: "none", borderRadius: 12,
+              padding: "13px", color: "#fff", fontWeight: 800, fontSize: 14,
+              cursor: "pointer", fontFamily: "var(--font-geist-sans)",
+              boxShadow: `0 4px 14px ${appliedA}44`,
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+            }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              Uložiť a zavrieť
+            </button>
+          </div>
         </div>
       </div>
     );
