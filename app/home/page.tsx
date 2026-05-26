@@ -128,10 +128,40 @@ export default function HomePage() {
       if (!user) { setLoading(false); return; }
       const { getFirestore, doc, getDoc } = await import("firebase/firestore");
       const db = getFirestore();
+
+      // Load dynamic projects from users collection
       const snap = await getDoc(doc(db, "users", user.uid));
-      if (snap.exists() && snap.data().projects) {
-        setProjects(snap.data().projects);
+      const dynamicProjects: Project[] = snap.exists() && snap.data().projects
+        ? snap.data().projects
+        : [];
+
+      // Load old static projects (project-1 to project-4)
+      const staticIds = ["project-1", "project-2", "project-3", "project-4"];
+      const staticProjects: Project[] = [];
+      await Promise.all(staticIds.map(async (id) => {
+        // Skip if already in dynamic projects
+        if (dynamicProjects.some(p => p.id === id)) return;
+        const pSnap = await getDoc(doc(db, "projects", `${user.uid}_${id}`));
+        if (pSnap.exists()) {
+          const data = pSnap.data();
+          staticProjects.push({
+            id, name: data.projectName || id,
+            color1: "#6366f1", color2: "#8b5cf6",
+            iconId: "doc", starred: false, archived: false,
+            createdAt: 0, updatedAt: 0,
+          });
+        }
+      }));
+
+      const all = [...dynamicProjects, ...staticProjects];
+      setProjects(all);
+
+      // If we found static projects not yet in Firebase, save them
+      if (staticProjects.length > 0) {
+        const { setDoc } = await import("firebase/firestore");
+        await setDoc(doc(db, "users", user.uid), { projects: all }, { merge: true });
       }
+
       setLoading(false);
     });
     return () => unsub();
@@ -169,29 +199,29 @@ export default function HomePage() {
     router.push(`/project/${p.id}`);
   };
 
-  const toggleStar = (id: string) => {
+  const toggleStar = async (id: string) => {
     const updated = projects.map(p => p.id === id ? { ...p, starred: !p.starred } : p);
     setProjects(updated);
-    saveProjects(updated);
+    await saveProjects(updated);
   };
 
-  const archiveProject = (id: string) => {
+  const archiveProject = async (id: string) => {
     const updated = projects.map(p => p.id === id ? { ...p, archived: true } : p);
     setProjects(updated);
-    saveProjects(updated);
+    await saveProjects(updated);
     setShowMenuId(null);
   };
 
-  const unarchiveProject = (id: string) => {
+  const unarchiveProject = async (id: string) => {
     const updated = projects.map(p => p.id === id ? { ...p, archived: false } : p);
     setProjects(updated);
-    saveProjects(updated);
+    await saveProjects(updated);
   };
 
-  const deleteProject = (id: string) => {
+  const deleteProject = async (id: string) => {
     const updated = projects.filter(p => p.id !== id);
     setProjects(updated);
-    saveProjects(updated);
+    await saveProjects(updated);
     setShowMenuId(null);
     setConfirmDelete(null);
   };
