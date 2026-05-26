@@ -237,6 +237,17 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
     return () => unsub();
   }, [projectId]);
 
+  const tasksRef = useRef<Task[]>([]);
+  const eventsRef = useRef<CalEvent[]>([]);
+  const activityLogRef = useRef<ActivityEntry[]>([]);
+  const projectNameRef = useRef<string>(initialName || "Projekt");
+
+  // Keep refs in sync
+  useEffect(() => { tasksRef.current = tasks; }, [tasks]);
+  useEffect(() => { eventsRef.current = events; }, [events]);
+  useEffect(() => { activityLogRef.current = activityLog; }, [activityLog]);
+  useEffect(() => { projectNameRef.current = projectName; }, [projectName]);
+
   const saveAll = async (newTasks: Task[], newName?: string, newEvents?: CalEvent[], newLog?: ActivityEntry[]) => {
     const user = auth.currentUser;
     if (!user) return;
@@ -244,9 +255,9 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
     const db = getFirestore();
     await setDoc(doc(db, "projects", `${user.uid}_${projectId}`), {
       tasks: newTasks,
-      projectName: newName ?? projectName,
-      events: newEvents ?? events,
-      activityLog: (newLog ?? activityLog).slice(0, 100),
+      projectName: newName ?? projectNameRef.current,
+      events: newEvents ?? eventsRef.current,
+      activityLog: (newLog ?? activityLogRef.current).slice(0, 100),
     }, { merge: true });
   };
 
@@ -265,7 +276,8 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
 
   const saveEvents = async (newEvents: CalEvent[]) => {
     setEvents(newEvents);
-    await saveAll(tasks, projectName, newEvents);
+    eventsRef.current = newEvents;
+    await saveAll(tasksRef.current, projectNameRef.current, newEvents);
   };
 
   function saveName(name: string) {
@@ -320,23 +332,21 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
   }
 
   async function deleteTask(id: string) {
-    const task = tasks.find(t => t.id === id);
-    const updated = tasks.filter(t => t.id !== id);
-    console.log("deleteTask: removing", id, "remaining:", updated.length, updated.map(t => t.name));
-    const newLog = task ? logActivity("vymazal", task.name) : activityLog;
+    const task = tasksRef.current.find(t => t.id === id);
+    const updated = tasksRef.current.filter(t => t.id !== id);
+    const newLog = task ? logActivity("vymazal", task.name) : activityLogRef.current;
     setTasks(updated);
+    tasksRef.current = updated;
     const user = auth.currentUser;
     if (!user) return;
     const { getFirestore, doc, setDoc } = await import("firebase/firestore");
     const db = getFirestore();
-    console.log("saveAll tasks:", updated.length);
     await setDoc(doc(db, "projects", `${user.uid}_${projectId}`), {
       tasks: updated,
-      projectName,
-      events,
-      activityLog: newLog.slice(0, 100),
+      projectName: projectNameRef.current,
+      events: eventsRef.current,
+      activityLog: (Array.isArray(newLog) ? newLog : activityLogRef.current).slice(0, 100),
     }, { merge: true });
-    console.log("deleteTask: saved to Firebase successfully");
     if (detailTask?.id === id) setDetailTask(null);
   }
 
