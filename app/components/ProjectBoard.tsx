@@ -317,24 +317,25 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
   }
 
   function updateTask(id: string, field: keyof Task, value: any) {
-    const task = tasks.find(t => t.id === id);
-    const updated = tasks.map(t => t.id !== id ? t : { ...t, [field]: value });
+    const task = tasksRef.current.find(t => t.id === id);
+    const updated = tasksRef.current.map(t => t.id !== id ? t : { ...t, [field]: value });
+    tasksRef.current = updated;
+    setTasks(updated);
     const fieldLabels: Partial<Record<keyof Task, string>> = { status: "Status", priority: "Priorita", dueDate: "Termín", owner: "Zodpovedný", name: "Názov" };
     if (task && fieldLabels[field]) {
       const newLog = logActivity("upravil", task.name, fieldLabels[field], String(task[field] || "—"), String(value || "—"));
-      setTasks(updated);
       saveAll(updated, undefined, undefined, newLog);
     } else {
-      setTasks(updated);
       saveAll(updated);
     }
     if (detailTask?.id === id) setDetailTask(prev => prev ? { ...prev, [field]: value } : null);
   }
 
   function updateSubtask(taskId: string, subId: string, field: keyof SubTask, value: any) {
-    const updated = tasks.map(t => t.id !== taskId ? t : {
+    const updated = tasksRef.current.map(t => t.id !== taskId ? t : {
       ...t, subtasks: t.subtasks.map(s => s.id === subId ? { ...s, [field]: value } : s)
     });
+    tasksRef.current = updated;
     setTasks(updated);
     saveAll(updated);
   }
@@ -342,9 +343,11 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
   function addTask() {
     if (!newTaskName.trim()) return;
     const t: Task = { id: genId(), name: newTaskName.trim(), status: "Nezačaté", priority: "", dueDate: "", owner: "", notes: "", subtasks: [] };
-    const updated = [...tasks, t];
+    const updated = [...tasksRef.current, t];
+    tasksRef.current = updated;
     const newLog = logActivity("vytvoril", t.name);
-    setTasks(updated); saveAll(updated, undefined, undefined, newLog);
+    setTasks(updated);
+    saveAll(updated, undefined, undefined, newLog);
     setNewTaskName(""); setAddingTask(false);
   }
 
@@ -370,7 +373,7 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
   function addSubtask(taskId: string) {
     const name = newSubtask[taskId]?.trim();
     if (!name) return;
-    const task = tasks.find(t => t.id === taskId);
+    const task = tasksRef.current.find(t => t.id === taskId);
     if (!task) return;
     const sub: SubTask = { id: genId(), name, done: false, status: "Nezačaté", priority: "", dueDate: "", owner: "", notes: "" };
     updateTask(taskId, "subtasks", [...task.subtasks, sub]);
@@ -378,7 +381,7 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
   }
 
   function deleteSubtask(taskId: string, subId: string) {
-    const task = tasks.find(t => t.id === taskId);
+    const task = tasksRef.current.find(t => t.id === taskId);
     if (!task) return;
     updateTask(taskId, "subtasks", task.subtasks.filter(s => s.id !== subId));
   }
@@ -837,9 +840,10 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
                           <div style={{ display: "flex", alignItems: "center", gap: 7, minWidth: 0 }}>
                             <button onClick={() => {
                               const newDone = !sub.done;
-                              const updated = tasks.map(t => t.id !== task.id ? t : {
+                              const updated = tasksRef.current.map(t => t.id !== task.id ? t : {
                                 ...t, subtasks: t.subtasks.map(s => s.id === sub.id ? { ...s, done: newDone, status: newDone ? "Hotovo" as Status : "Nezačaté" as Status } : s)
                               });
+                              tasksRef.current = updated;
                               setTasks(updated);
                               saveAll(updated);
                             }} style={{ width: 15, height: 15, borderRadius: 4, flexShrink: 0, border: `2px solid ${sub.done ? appliedA : theme.border}`, background: sub.done ? appliedA : "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", transition: "all .15s" }}>{sub.done && Icons.check}</button>
@@ -850,9 +854,10 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
                             )}
                           </div>
                           <StatusCell id={sub.id} val={sub.status} onChange={v => {
-                            const updated = tasks.map(t => t.id !== task.id ? t : {
+                            const updated = tasksRef.current.map(t => t.id !== task.id ? t : {
                               ...t, subtasks: t.subtasks.map(s => s.id === sub.id ? { ...s, status: v as Status, done: v === "Hotovo" } : s)
                             });
+                            tasksRef.current = updated;
                             setTasks(updated);
                             saveAll(updated);
                           }} isSubtask />
@@ -996,7 +1001,7 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
                         </div>
                       );
                     })}
-                    <button onClick={() => { const name = prompt("Názov úlohy:"); if (!name?.trim()) return; const t: Task = { id: genId(), name: name.trim(), status, priority: "", dueDate: "", owner: "", notes: "", subtasks: [] }; const updated = [...tasks, t]; setTasks(updated); saveAll(updated); }}
+                    <button onClick={() => { const name = prompt("Názov úlohy:"); if (!name?.trim()) return; const t: Task = { id: genId(), name: name.trim(), status, priority: "", dueDate: "", owner: "", notes: "", subtasks: [] }; const updated = [...tasksRef.current, t]; tasksRef.current = updated; setTasks(updated); saveAll(updated); }}
                       style={{ background: "none", border: `1.5px dashed ${theme.border}`, borderRadius: 9, padding: "8px", color: theme.muted, cursor: "pointer", fontSize: 11, fontWeight: 600, width: "100%", fontFamily: "var(--font-geist-sans)", display: "flex", alignItems: "center", justifyContent: "center", gap: 5, transition: "all .15s" }}
                       onMouseEnter={e => { e.currentTarget.style.borderColor = appliedA; e.currentTarget.style.color = appliedA; e.currentTarget.style.background = appliedA + "08"; }}
                       onMouseLeave={e => { e.currentTarget.style.borderColor = theme.border; e.currentTarget.style.color = theme.muted; e.currentTarget.style.background = "none"; }}
