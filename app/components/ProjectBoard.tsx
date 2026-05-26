@@ -297,31 +297,31 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
 
   function updateTask(id: string, field: keyof Task, value: any) {
     const task = tasks.find(t => t.id === id);
+    let newOccurrence: Task | null = null;
+
     const updated = tasks.map(t => {
       if (t.id !== id) return t;
-      const newTask = { ...t, [field]: value };
       if (field === "status" && value === "Hotovo" && t.recurring && t.dueDate) {
         const next = new Date(t.dueDate + "T00:00:00");
         if (t.recurring === "daily") next.setDate(next.getDate() + 1);
         if (t.recurring === "weekly") next.setDate(next.getDate() + 7);
         if (t.recurring === "monthly") next.setMonth(next.getMonth() + 1);
         const iso = `${next.getFullYear()}-${String(next.getMonth()+1).padStart(2,"0")}-${String(next.getDate()).padStart(2,"0")}`;
-        const newOccurrence: Task = { ...t, id: genId(), status: "Nezačaté", dueDate: iso };
-        setTimeout(() => {
-          setTasks(prev => { const withNew = [...prev, newOccurrence]; saveAll(withNew); return withNew; });
-        }, 300);
+        newOccurrence = { ...t, id: genId(), status: "Nezačaté", dueDate: iso };
       }
-      return newTask;
+      return { ...t, [field]: value };
     });
-    // Log activity
+
+    const withOccurrence = newOccurrence ? [...updated, newOccurrence] : updated;
+
     const fieldLabels: Partial<Record<keyof Task, string>> = { status: "Status", priority: "Priorita", dueDate: "Termín", owner: "Zodpovedný", name: "Názov" };
     if (task && fieldLabels[field]) {
       const newLog = logActivity("upravil", task.name, fieldLabels[field], String(task[field] || "—"), String(value || "—"));
-      setTasks(updated);
-      saveAll(updated, undefined, undefined, newLog);
+      setTasks(withOccurrence);
+      saveAll(withOccurrence, undefined, undefined, newLog);
     } else {
-      setTasks(updated);
-      saveAll(updated);
+      setTasks(withOccurrence);
+      saveAll(withOccurrence);
     }
     if (detailTask?.id === id) setDetailTask(prev => prev ? { ...prev, [field]: value } : null);
   }
