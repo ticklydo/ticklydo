@@ -332,9 +332,21 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
   async function deleteTask(id: string) {
     const task = tasks.find(t => t.id === id);
     const updated = tasks.filter(t => t.id !== id);
+    console.log("deleteTask: removing", id, "remaining:", updated.length, updated.map(t => t.name));
     const newLog = task ? logActivity("vymazal", task.name) : activityLog;
     setTasks(updated);
-    await saveAll(updated, undefined, undefined, newLog);
+    const user = auth.currentUser;
+    if (!user) return;
+    const { getFirestore, doc, setDoc } = await import("firebase/firestore");
+    const db = getFirestore();
+    console.log("saveAll tasks:", updated.length);
+    await setDoc(doc(db, "projects", `${user.uid}_${projectId}`), {
+      tasks: updated,
+      projectName,
+      events,
+      activityLog: newLog.slice(0, 100),
+    }, { merge: true });
+    console.log("deleteTask: saved to Firebase successfully");
     if (detailTask?.id === id) setDetailTask(null);
   }
 
