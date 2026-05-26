@@ -222,6 +222,13 @@ export default function HomePage() {
     const updated = projects.filter(p => p.id !== id);
     setProjects(updated);
     await saveProjects(updated);
+    // Also delete project data from Firebase
+    const user = auth.currentUser;
+    if (user) {
+      const { getFirestore, doc, deleteDoc } = await import("firebase/firestore");
+      const db = getFirestore();
+      try { await deleteDoc(doc(db, "projects", `${user.uid}_${id}`)); } catch {}
+    }
     setShowMenuId(null);
     setConfirmDelete(null);
   };
