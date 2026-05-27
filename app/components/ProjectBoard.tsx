@@ -282,11 +282,14 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
     const user = auth.currentUser;
     const entry: ActivityEntry = {
       id: genId(), action, taskName,
-      field, oldVal, newVal,
       author: user?.displayName || user?.email?.split("@")[0] || "Ty",
       createdAt: Date.now(),
     };
-    const updated = [entry, ...activityLog].slice(0, 100);
+    if (field !== undefined) entry.field = field;
+    if (oldVal !== undefined) entry.oldVal = oldVal;
+    if (newVal !== undefined) entry.newVal = newVal;
+    const updated = [entry, ...activityLogRef.current].slice(0, 100);
+    activityLogRef.current = updated;
     setActivityLog(updated);
     return updated;
   };
