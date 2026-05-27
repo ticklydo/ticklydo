@@ -21,6 +21,24 @@ type Status = "Hotovo" | "V procese" | "Uviaznuté" | "Nezačaté";
 type Priority = "Vysoká" | "Stredná" | "Nízka" | "";
 type View = "table" | "kanban";
 
+type Role = "admin" | "member" | "guest";
+
+type Member = {
+  uid: string;
+  email: string;
+  name?: string;
+  role: Role;
+  joinedAt: number;
+};
+
+type Invite = {
+  token: string;
+  email?: string;
+  role: Role;
+  createdAt: number;
+  createdBy: string;
+};
+
 type SubTask = {
   id: string; name: string; done: boolean;
   status: Status; priority: Priority;
@@ -142,6 +160,7 @@ const Icons = {
   calView: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><rect x="7" y="14" width="3" height="3" rx="0.5"/><rect x="14" y="14" width="3" height="3" rx="0.5"/></svg>,
   navLeft: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>,
   navRight: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>,
+  share: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>,
   recurring: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>,
   tag: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>,
 };
@@ -172,6 +191,15 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
   const [notifPermission, setNotifPermission] = useState<NotificationPermission>("default");
   const [detailTab, setDetailTab] = useState<"details" | "comments" | "activity">("details");
   const [confirmTaskDelete, setConfirmTaskDelete] = useState<string | null>(null);
+  const [showShare, setShowShare] = useState(false);
+  const [members, setMembers] = useState<Member[]>([]);
+  const [invites, setInvites] = useState<Invite[]>([]);
+  const [myRole, setMyRole] = useState<Role>("admin");
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<Role>("member");
+  const [shareLink, setShareLink] = useState("");
+  const [shareLinkRole, setShareLinkRole] = useState<Role>("member");
+  const [copySuccess, setCopySuccess] = useState(false);
 
   const surface = darkMode ? theme.card : "#ffffff";
   const surfaceHover = darkMode ? theme.card2 : "#f9fafb";
@@ -237,6 +265,12 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
         }));
         setEvents(data.events ?? []);
         setActivityLog(data.activityLog ?? []);
+        setMembers(data.members ?? []);
+        setInvites(data.invites ?? []);
+        // Check current user role
+        const currentMember = (data.members ?? []).find((m: Member) => m.uid === user.uid);
+        if (currentMember) setMyRole(currentMember.role);
+        else setMyRole("admin"); // owner is always admin
       }
       setLoading(false);
     });
@@ -275,6 +309,8 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
       projectName: newName ?? projectNameRef.current,
       events: newEvents ?? eventsRef.current,
       activityLog: (newLog ?? activityLogRef.current).slice(0, 100),
+      members: members,
+      invites: invites,
     }, { merge: true });
   };
 
@@ -388,6 +424,102 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
     if (!task) return;
     updateTask(taskId, "subtasks", task.subtasks.filter(s => s.id !== subId));
   }
+
+  const saveSharing = async (newMembers: Member[], newInvites: Invite[]) => {
+    const user = auth.currentUser;
+    if (!user) return;
+    const { getFirestore, doc, setDoc } = await import("firebase/firestore");
+    const db = getFirestore();
+    await setDoc(doc(db, "projects", `${user.uid}_${projectId}`), {
+      members: newMembers,
+      invites: newInvites,
+    }, { merge: true });
+  };
+
+  const inviteByEmail = async () => {
+    if (!inviteEmail.trim()) return;
+    const user = auth.currentUser;
+    if (!user) return;
+    const { getFirestore, collection, query, where, getDocs, doc, setDoc } = await import("firebase/firestore");
+    const db = getFirestore();
+    // Check if user exists
+    const q = query(collection(db, "users"), where("email", "==", inviteEmail.trim()));
+    const snap = await getDocs(q);
+    const newInvite: Invite = {
+      token: genId() + genId(),
+      email: inviteEmail.trim(),
+      role: inviteRole,
+      createdAt: Date.now(),
+      createdBy: user.email ?? user.uid,
+    };
+    // Save invite to invitee's pending invites if they exist
+    if (!snap.empty) {
+      const inviteeDoc = snap.docs[0];
+      const pending = inviteeDoc.data().pendingInvites ?? [];
+      await setDoc(doc(db, "users", inviteeDoc.id), {
+        pendingInvites: [...pending, {
+          ...newInvite,
+          projectId,
+          projectName,
+          ownerUid: user.uid,
+        }]
+      }, { merge: true });
+    }
+    const newInvites = [...invites, newInvite];
+    setInvites(newInvites);
+    await saveSharing(members, newInvites);
+    setInviteEmail("");
+  };
+
+  const generateShareLink = async () => {
+    const token = genId() + genId() + genId();
+    const user = auth.currentUser;
+    if (!user) return;
+    const newInvite: Invite = {
+      token,
+      role: shareLinkRole,
+      createdAt: Date.now(),
+      createdBy: user.email ?? user.uid,
+    };
+    const newInvites = [...invites, newInvite];
+    setInvites(newInvites);
+    await saveSharing(members, newInvites);
+    const link = `${window.location.origin}/join/${user.uid}_${projectId}?token=${token}`;
+    setShareLink(link);
+  };
+
+  const copyLink = () => {
+    navigator.clipboard.writeText(shareLink);
+    setCopySuccess(true);
+    setTimeout(() => setCopySuccess(false), 2000);
+  };
+
+  const removeMember = async (uid: string) => {
+    const newMembers = members.filter(m => m.uid !== uid);
+    setMembers(newMembers);
+    await saveSharing(newMembers, invites);
+  };
+
+  const changeRole = async (uid: string, role: Role) => {
+    const newMembers = members.map(m => m.uid === uid ? { ...m, role } : m);
+    setMembers(newMembers);
+    await saveSharing(newMembers, invites);
+  };
+
+  const removeInvite = async (token: string) => {
+    const newInvites = invites.filter(i => i.token !== token);
+    setInvites(newInvites);
+    await saveSharing(members, newInvites);
+  };
+
+  const ROLE_CONFIG: Record<Role, { label: string; color: string; bg: string; desc: string }> = {
+    admin: { label: "Admin", color: "#7c3aed", bg: "#ede9fe", desc: "Plný prístup + správa členov" },
+    member: { label: "Člen", color: "#2563eb", bg: "#dbeafe", desc: "Edituje úlohy a komentáre" },
+    guest: { label: "Host", color: "#6b7280", bg: "#f3f4f6", desc: "Len čítanie" },
+  };
+
+  const canEdit = myRole === "admin" || myRole === "member";
+  const isAdmin = myRole === "admin";
 
   const pill = (color: string, bg: string, small = false) => ({
     background: darkMode ? color + "22" : bg,
@@ -727,6 +859,11 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
           <button onClick={() => setShowActivity(v => !v)} style={{ position: "relative", width: 30, height: 30, borderRadius: 8, background: showActivity ? appliedA + "18" : "transparent", border: `1px solid ${showActivity ? appliedA + "55" : theme.border}`, color: showActivity ? appliedA : theme.muted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
           </button>
+          {/* Share button */}
+          <button onClick={() => setShowShare(true)} style={{ display: "flex", alignItems: "center", gap: 5, height: 30, borderRadius: 8, background: members.length > 0 ? appliedA + "18" : "transparent", border: `1px solid ${members.length > 0 ? appliedA + "55" : theme.border}`, color: members.length > 0 ? appliedA : theme.muted, cursor: "pointer", padding: "0 10px", fontSize: 11, fontWeight: 700, fontFamily: "var(--font-geist-sans)", flexShrink: 0, transition: "all .15s" }}>
+            {Icons.share}
+            {!isMobile && <span>Zdieľať{members.length > 0 ? ` (${members.length + 1})` : ""}</span>}
+          </button>
           <button onClick={() => setAddingTask(true)} style={{ display: "flex", alignItems: "center", gap: 5, background: grad, border: "none", borderRadius: 9, padding: isMobile ? "7px 10px" : "7px 14px", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "var(--font-geist-sans)", boxShadow: `0 4px 12px ${appliedA}44`, flexShrink: 0 }}>{Icons.plus}{!isMobile && <span> Nová úloha</span>}</button>
         </div>
 
@@ -1016,6 +1153,153 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
           </div>
         )}
       </div>
+
+      {/* ── SHARE MODAL ── */}
+      {showShare && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)" }}
+          onClick={() => setShowShare(false)}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background: surface, borderRadius: 20, padding: 24,
+            width: "min(520px, 94vw)", maxHeight: "85vh", overflowY: "auto",
+            boxShadow: "0 24px 60px rgba(0,0,0,0.25)", border: `1px solid ${theme.border}`,
+            animation: "fadeIn .2s ease", display: "flex", flexDirection: "column", gap: 20,
+          }}>
+            {/* Header */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div>
+                <div style={{ fontSize: 17, fontWeight: 800 }}>Zdieľať projekt</div>
+                <div style={{ fontSize: 12, color: theme.muted, marginTop: 2 }}>{projectName}</div>
+              </div>
+              <button onClick={() => setShowShare(false)} style={{ background: "none", border: "none", cursor: "pointer", color: theme.muted, padding: 4 }}>{Icons.close}</button>
+            </div>
+
+            {/* Current members */}
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 800, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 10 }}>Členovia ({members.length + 1})</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {/* Owner (current user) */}
+                {(() => {
+                  const user = auth.currentUser;
+                  return (
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: headerBg, borderRadius: 10 }}>
+                      <div style={{ width: 36, height: 36, borderRadius: "50%", background: grad, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, color: "#fff", fontWeight: 800, flexShrink: 0 }}>
+                        {(user?.displayName || user?.email || "T")[0].toUpperCase()}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700 }}>{user?.displayName || user?.email}</div>
+                        <div style={{ fontSize: 11, color: theme.muted }}>Vlastník</div>
+                      </div>
+                      <span style={{ background: ROLE_CONFIG.admin.bg, color: ROLE_CONFIG.admin.color, borderRadius: 6, padding: "3px 8px", fontSize: 11, fontWeight: 700 }}>Admin</span>
+                    </div>
+                  );
+                })()}
+                {/* Other members */}
+                {members.map(m => (
+                  <div key={m.uid} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: headerBg, borderRadius: 10 }}>
+                    <div style={{ width: 36, height: 36, borderRadius: "50%", background: appliedA + "22", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, color: appliedA, fontWeight: 800, flexShrink: 0 }}>
+                      {(m.name || m.email || "?")[0].toUpperCase()}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.name || m.email}</div>
+                      <div style={{ fontSize: 11, color: theme.muted }}>{m.email}</div>
+                    </div>
+                    {isAdmin ? (
+                      <select value={m.role} onChange={e => changeRole(m.uid, e.target.value as Role)} style={{ background: ROLE_CONFIG[m.role].bg, color: ROLE_CONFIG[m.role].color, border: "none", borderRadius: 6, padding: "3px 8px", fontSize: 11, fontWeight: 700, cursor: "pointer", outline: "none", fontFamily: "var(--font-geist-sans)" }}>
+                        <option value="admin">Admin</option>
+                        <option value="member">Člen</option>
+                        <option value="guest">Host</option>
+                      </select>
+                    ) : (
+                      <span style={{ background: ROLE_CONFIG[m.role].bg, color: ROLE_CONFIG[m.role].color, borderRadius: 6, padding: "3px 8px", fontSize: 11, fontWeight: 700 }}>{ROLE_CONFIG[m.role].label}</span>
+                    )}
+                    {isAdmin && <button onClick={() => removeMember(m.uid)} style={{ background: "none", border: "none", cursor: "pointer", color: theme.muted, padding: 4, display: "flex", alignItems: "center" }}>{Icons.close}</button>}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Invite by email */}
+            {isAdmin && (
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 800, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 10 }}>Pozvať emailom</div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <input value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="email@priklad.sk" onKeyDown={e => { if (e.key === "Enter") inviteByEmail(); }}
+                    style={{ flex: "1 1 200px", background: headerBg, border: `1.5px solid ${theme.border}`, borderRadius: 10, padding: "9px 12px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontSize: 13, outline: "none" }}
+                    onFocus={e => e.target.style.borderColor = appliedA} onBlur={e => e.target.style.borderColor = theme.border} />
+                  <select value={inviteRole} onChange={e => setInviteRole(e.target.value as Role)} style={{ background: ROLE_CONFIG[inviteRole].bg, color: ROLE_CONFIG[inviteRole].color, border: "none", borderRadius: 10, padding: "9px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer", outline: "none", fontFamily: "var(--font-geist-sans)" }}>
+                    <option value="admin">Admin</option>
+                    <option value="member">Člen</option>
+                    <option value="guest">Host</option>
+                  </select>
+                  <button onClick={inviteByEmail} style={{ background: grad, border: "none", borderRadius: 10, padding: "9px 16px", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "var(--font-geist-sans)", boxShadow: `0 4px 12px ${appliedA}44` }}>Pozvať</button>
+                </div>
+                {/* Pending invites */}
+                {invites.filter(i => i.email).length > 0 && (
+                  <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 4 }}>
+                    {invites.filter(i => i.email).map(inv => (
+                      <div key={inv.token} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", background: headerBg, borderRadius: 8, opacity: 0.7 }}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={theme.muted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                        <span style={{ fontSize: 12, color: theme.muted, flex: 1 }}>{inv.email}</span>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: ROLE_CONFIG[inv.role].color, background: ROLE_CONFIG[inv.role].bg, borderRadius: 4, padding: "1px 6px" }}>{ROLE_CONFIG[inv.role].label}</span>
+                        <span style={{ fontSize: 10, color: theme.muted }}>Čaká</span>
+                        <button onClick={() => removeInvite(inv.token)} style={{ background: "none", border: "none", cursor: "pointer", color: theme.muted, padding: 2 }}>{Icons.close}</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Share link */}
+            {isAdmin && (
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 800, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 10 }}>Zdieľací link</div>
+                <div style={{ display: "flex", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
+                  <select value={shareLinkRole} onChange={e => setShareLinkRole(e.target.value as Role)} style={{ background: ROLE_CONFIG[shareLinkRole].bg, color: ROLE_CONFIG[shareLinkRole].color, border: "none", borderRadius: 10, padding: "9px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer", outline: "none", fontFamily: "var(--font-geist-sans)" }}>
+                    <option value="member">Člen</option>
+                    <option value="guest">Host</option>
+                  </select>
+                  <button onClick={generateShareLink} style={{ flex: 1, background: headerBg, border: `1px solid ${theme.border}`, borderRadius: 10, padding: "9px 14px", color: theme.text, fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "var(--font-geist-sans)", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                    {Icons.share} Vygenerovať link
+                  </button>
+                </div>
+                {shareLink && (
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <div style={{ flex: 1, background: headerBg, border: `1px solid ${theme.border}`, borderRadius: 10, padding: "9px 12px", fontSize: 11, color: theme.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{shareLink}</div>
+                    <button onClick={copyLink} style={{ background: copySuccess ? "#16a34a" : grad, border: "none", borderRadius: 10, padding: "9px 14px", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "var(--font-geist-sans)", transition: "background .3s", flexShrink: 0, display: "flex", alignItems: "center", gap: 5 }}>
+                      {copySuccess ? <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Skopírované</> : "Kopírovať"}
+                    </button>
+                  </div>
+                )}
+                {/* Active link invites */}
+                {invites.filter(i => !i.email).length > 0 && (
+                  <div style={{ marginTop: 8 }}>
+                    <div style={{ fontSize: 10, color: theme.muted, marginBottom: 4 }}>Aktívne linky:</div>
+                    {invites.filter(i => !i.email).map(inv => (
+                      <div key={inv.token} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", background: headerBg, borderRadius: 8, marginBottom: 4 }}>
+                        <span style={{ fontSize: 11, color: theme.muted, flex: 1 }}>Link · {ROLE_CONFIG[inv.role].label}</span>
+                        <span style={{ fontSize: 10, color: theme.muted }}>od {inv.createdBy}</span>
+                        <button onClick={() => removeInvite(inv.token)} style={{ background: "none", border: "none", cursor: "pointer", color: "#dc2626", fontSize: 10, fontWeight: 700, fontFamily: "var(--font-geist-sans)" }}>Zrušiť</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Role descriptions */}
+            <div style={{ background: headerBg, borderRadius: 10, padding: "12px 14px" }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: theme.muted, marginBottom: 8 }}>Popis rôl</div>
+              {(Object.entries(ROLE_CONFIG) as [Role, typeof ROLE_CONFIG[Role]][]).map(([role, cfg]) => (
+                <div key={role} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5 }}>
+                  <span style={{ background: cfg.bg, color: cfg.color, borderRadius: 5, padding: "2px 7px", fontSize: 11, fontWeight: 700, flexShrink: 0 }}>{cfg.label}</span>
+                  <span style={{ fontSize: 12, color: theme.muted }}>{cfg.desc}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── CONFIRM TASK DELETE MODAL ── */}
       {confirmTaskDelete && (() => {
