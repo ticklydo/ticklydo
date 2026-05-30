@@ -302,10 +302,11 @@ export default function CalendarPage() {
 
               return (
                 <div key={i} style={{
-                  minHeight: 110,
+                  minHeight: isMobile ? 52 : 110,
                   borderRight: (i + 1) % 7 !== 0 ? `1px solid ${theme.border}` : "none",
                   borderBottom: i < cells.length - 7 ? `1px solid ${theme.border}` : "none",
-                  padding: "6px",
+                  padding: isMobile ? "4px 3px" : "6px",
+                  overflow: "hidden",
                   background: !day ? (darkMode ? theme.card2 + "40" : "#f7f8fc") : isWeekend ? (darkMode ? appliedA + "06" : appliedA + "04") : surface,
                   cursor: day ? "pointer" : "default",
                   transition: "background .15s",
@@ -317,31 +318,45 @@ export default function CalendarPage() {
                   {day && (
                     <>
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: all.length ? 4 : 0 }}>
-                        <div style={{ width: 26, height: 26, borderRadius: "50%", background: isCurrentDay ? grad : "transparent", boxShadow: isCurrentDay ? `0 2px 8px ${appliedA}55` : "none", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: isCurrentDay ? 900 : isWeekend ? 600 : 400, color: isCurrentDay ? "#fff" : isWeekend ? appliedA : theme.text }}>
+                        <div style={{ width: isMobile ? 20 : 26, height: isMobile ? 20 : 26, borderRadius: "50%", background: isCurrentDay ? grad : "transparent", boxShadow: isCurrentDay ? `0 2px 8px ${appliedA}55` : "none", display: "flex", alignItems: "center", justifyContent: "center", fontSize: isMobile ? 10 : 12, fontWeight: isCurrentDay ? 900 : isWeekend ? 600 : 400, color: isCurrentDay ? "#fff" : isWeekend ? appliedA : theme.text, flexShrink: 0 }}>
                           {day}
                         </div>
                         {all.length > 0 && <div style={{ width: 5, height: 5, borderRadius: "50%", background: appliedA, opacity: 0.4 }} />}
                       </div>
                       <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                        {all.slice(0, maxVisible).map((item, idx) => {
-                          const isEvent = "title" in item;
-                          const color = isEvent ? (item as CalEvent).color : STATUS_CONFIG[(item as CalTask).status].color;
-                          const bg = isEvent ? (item as CalEvent).color + "22" : (darkMode ? STATUS_CONFIG[(item as CalTask).status].color + "22" : STATUS_CONFIG[(item as CalTask).status].bg);
-                          const label = isEvent ? (item as CalEvent).title : (item as CalTask).name;
-                          return (
-                            <div key={idx} onClick={e => { e.stopPropagation(); const d = getItemsForDay(dateStr); setDayModal({ date: dateStr, ...d }); }}
-                              style={{ background: bg, color, borderRadius: 4, padding: "2px 5px", fontSize: 10, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "pointer", borderLeft: `2.5px solid ${color}`, display: "flex", alignItems: "center", gap: 3 }}
-                              onMouseEnter={e => e.currentTarget.style.opacity = "0.8"}
-                              onMouseLeave={e => e.currentTarget.style.opacity = "1"}
-                            >
-                              {!isEvent && <svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><polyline points="20 6 9 17 4 12"/></svg>}
-                              <div style={{ width: 6, height: 6, borderRadius: "50%", background: `linear-gradient(135deg, ${(item as any).projectColor1}, ${(item as any).projectColor2})`, flexShrink: 0 }} />
-                              {label}
-                            </div>
-                          );
-                        })}
-                        {all.length > maxVisible && (
-                          <div style={{ fontSize: 10, color: appliedA, fontWeight: 700, paddingLeft: 4, cursor: "pointer" }}>+{all.length - maxVisible} ďalšie</div>
+                        {isMobile ? (
+                          // Mobile: show just colored dots
+                          <div style={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
+                            {all.slice(0, 3).map((item, idx) => {
+                              const isEvent = "title" in item;
+                              const color = isEvent ? (item as CalEvent).color : STATUS_CONFIG[(item as CalTask).status].color;
+                              return <div key={idx} style={{ width: 6, height: 6, borderRadius: "50%", background: color, flexShrink: 0 }} />;
+                            })}
+                            {all.length > 3 && <div style={{ fontSize: 8, color: appliedA, fontWeight: 700 }}>+{all.length - 3}</div>}
+                          </div>
+                        ) : (
+                          <>
+                            {all.slice(0, maxVisible).map((item, idx) => {
+                              const isEvent = "title" in item;
+                              const color = isEvent ? (item as CalEvent).color : STATUS_CONFIG[(item as CalTask).status].color;
+                              const bg = isEvent ? (item as CalEvent).color + "22" : (darkMode ? STATUS_CONFIG[(item as CalTask).status].color + "22" : STATUS_CONFIG[(item as CalTask).status].bg);
+                              const label = isEvent ? (item as CalEvent).title : (item as CalTask).name;
+                              return (
+                                <div key={idx} onClick={e => { e.stopPropagation(); const d = getItemsForDay(dateStr); setDayModal({ date: dateStr, ...d }); }}
+                                  style={{ background: bg, color, borderRadius: 4, padding: "2px 5px", fontSize: 10, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "pointer", borderLeft: `2.5px solid ${color}`, display: "flex", alignItems: "center", gap: 3 }}
+                                  onMouseEnter={e => e.currentTarget.style.opacity = "0.8"}
+                                  onMouseLeave={e => e.currentTarget.style.opacity = "1"}
+                                >
+                                  {!isEvent && <svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><polyline points="20 6 9 17 4 12"/></svg>}
+                                  <div style={{ width: 6, height: 6, borderRadius: "50%", background: `linear-gradient(135deg, ${(item as any).projectColor1}, ${(item as any).projectColor2})`, flexShrink: 0 }} />
+                                  {label}
+                                </div>
+                              );
+                            })}
+                            {all.length > maxVisible && (
+                              <div style={{ fontSize: 10, color: appliedA, fontWeight: 700, paddingLeft: 4, cursor: "pointer" }}>+{all.length - maxVisible} ďalšie</div>
+                            )}
+                          </>
                         )}
                       </div>
                     </>

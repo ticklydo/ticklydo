@@ -842,7 +842,7 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
                 <span style={{ color: theme.muted, flexShrink: 0, opacity: 0.6 }}>{Icons.pencil}</span>
               </div>
             )}
-            <div style={{ fontSize: 11, color: theme.muted, marginTop: 1 }}>{tasks.length} úloh · {tasks.filter(t => t.status === "Hotovo").length} dokončených</div>
+            {!isMobile && <div style={{ fontSize: 11, color: theme.muted, marginTop: 1, whiteSpace: "nowrap" }}>{tasks.length} úloh · {tasks.filter(t => t.status === "Hotovo").length} dokončených</div>}
           </div>
 
           <div style={{ display: "flex", background: headerBg, border: `1px solid ${theme.border}`, borderRadius: 9, padding: 3, gap: 2, flexShrink: 0 }}>
@@ -865,6 +865,10 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
           </button>
           <button onClick={() => setAddingTask(true)} style={{ display: "flex", alignItems: "center", gap: 5, background: grad, border: "none", borderRadius: 9, padding: isMobile ? "7px 10px" : "7px 14px", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "var(--font-geist-sans)", boxShadow: `0 4px 12px ${appliedA}44`, flexShrink: 0 }}>{Icons.plus}{!isMobile && <span> Nová úloha</span>}</button>
         </div>
+
+        {isMobile && (
+          <div style={{ fontSize: 11, color: theme.muted, marginBottom: 4, paddingLeft: 2 }}>{tasks.length} úloh · {tasks.filter(t => t.status === "Hotovo").length} dokončených</div>
+        )}
 
         <div style={{ display: "flex", gap: 6, paddingBottom: 10, overflowX: "auto" }}>
           {STATUSES.map(s => {
