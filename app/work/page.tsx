@@ -206,10 +206,190 @@ const gradientText = (grad: string) => ({
 type FilterStatus = Status | "Všetky";
 type SortBy = "dueDate" | "priority" | "status" | "project" | "name";
 
+function Heatmap({ data, appliedA, darkMode, theme }: { data: Record<string, number>; appliedA: string; darkMode: boolean; theme: any }) {
+  const today = new Date();
+  const weeks = 26; // 6 months
+  const days: { date: string; count: number }[] = [];
+
+  for (let i = weeks * 7 - 1; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    const key = d.toISOString().split("T")[0];
+    days.push({ date: key, count: data[key] || 0 });
+  }
+
+  const maxCount = Math.max(...days.map(d => d.count), 1);
+  const cols: { date: string; count: number }[][] = [];
+  for (let i = 0; i < days.length; i += 7) cols.push(days.slice(i, i + 7));
+
+  const getColor = (count: number) => {
+    if (count === 0) return darkMode ? "#ffffff0a" : "#f0f0f0";
+    const intensity = count / maxCount;
+    if (intensity < 0.25) return appliedA + "44";
+    if (intensity < 0.5) return appliedA + "77";
+    if (intensity < 0.75) return appliedA + "aa";
+    return appliedA;
+  };
+
+  const MONTHS = ["Jan","Feb","Mar","Apr","Máj","Jún","Júl","Aug","Sep","Okt","Nov","Dec"];
+  const monthLabels: { label: string; col: number }[] = [];
+  cols.forEach((col, ci) => {
+    const d = new Date(col[0].date);
+    if (ci === 0 || new Date(cols[ci-1][0].date).getMonth() !== d.getMonth()) {
+      monthLabels.push({ label: MONTHS[d.getMonth()], col: ci });
+    }
+  });
+
+  return (
+    <div style={{ overflowX: "auto" }}>
+      <div style={{ position: "relative", paddingTop: 18, minWidth: cols.length * 13 }}>
+        {/* Month labels */}
+        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 16 }}>
+          {monthLabels.map((m, i) => (
+            <span key={i} style={{ position: "absolute", left: m.col * 13, fontSize: 9, color: theme.muted, fontWeight: 700 }}>{m.label}</span>
+          ))}
+        </div>
+        {/* Grid */}
+        <div style={{ display: "flex", gap: 2 }}>
+          {cols.map((col, ci) => (
+            <div key={ci} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              {col.map((day, di) => (
+                <div key={di} title={`${day.date}: ${day.count} akcií`} style={{ width: 11, height: 11, borderRadius: 2, background: getColor(day.count), transition: "transform .1s", cursor: day.count > 0 ? "pointer" : "default" }}
+                  onMouseEnter={e => { (e.target as HTMLElement).style.transform = "scale(1.3)"; }}
+                  onMouseLeave={e => { (e.target as HTMLElement).style.transform = "scale(1)"; }}
+                />
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 6, justifyContent: "flex-end" }}>
+        <span style={{ fontSize: 9, color: theme.muted }}>Menej</span>
+        {[0, 0.25, 0.5, 0.75, 1].map((v, i) => (
+          <div key={i} style={{ width: 10, height: 10, borderRadius: 2, background: v === 0 ? (darkMode ? "#ffffff0a" : "#f0f0f0") : appliedA + Math.round(v * 255).toString(16).padStart(2,"0") }} />
+        ))}
+        <span style={{ fontSize: 9, color: theme.muted }}>Viac</span>
+      </div>
+    </div>
+  );
+}
+
+function TrendChart({ tasks, appliedA, darkMode, theme }: { tasks: any[]; appliedA: string; darkMode: boolean; theme: any }) {
+  // Last 8 weeks - tasks with dueDate grouped by week
+  const weeks: { label: string; total: number; done: number }[] = [];
+  const today = new Date();
+
+  for (let w = 7; w >= 0; w--) {
+    const weekStart = new Date(today);
+    weekStart.setDate(today.getDate() - w * 7 - today.getDay() + 1);
+    weekStart.setHours(0,0,0,0);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+
+    const startStr = weekStart.toISOString().split("T")[0];
+    const endStr = weekEnd.toISOString().split("T")[0];
+
+    const weekTasks = tasks.filter(t => t.dueDate >= startStr && t.dueDate <= endStr);
+    weeks.push({
+      label: `${weekStart.getDate()}.${weekStart.getMonth()+1}`,
+      total: weekTasks.length,
+      done: weekTasks.filter(t => t.status === "Hotovo").length,
+    });
+  }
+
+  const maxVal = Math.max(...weeks.map(w => w.total), 1);
+  const chartH = 80;
+
+  return (
+    <div style={{ display: "flex", alignItems: "flex-end", gap: 6, height: chartH + 24 }}>
+      {weeks.map((w, i) => (
+        <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+          <div style={{ width: "100%", display: "flex", flexDirection: "column", justifyContent: "flex-end", height: chartH, gap: 2 }}>
+            {w.total > 0 && (
+              <div style={{ width: "100%", borderRadius: "4px 4px 0 0", overflow: "hidden", display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
+                <div style={{ width: "100%", height: Math.max((w.total / maxVal) * chartH, 4), background: darkMode ? appliedA + "33" : appliedA + "22", borderRadius: "4px 4px 0 0", position: "relative", display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
+                  <div style={{ width: "100%", height: Math.max((w.done / maxVal) * chartH, w.done > 0 ? 4 : 0), background: appliedA, borderRadius: w.done === w.total ? "4px 4px 0 0" : "0 0 0 0", transition: "height .4s ease" }} />
+                </div>
+              </div>
+            )}
+            {w.total === 0 && <div style={{ width: "100%", height: 3, background: darkMode ? "#ffffff0a" : "#f0f0f0", borderRadius: 2 }} />}
+          </div>
+          <div style={{ fontSize: 9, color: theme.muted, fontWeight: 600, whiteSpace: "nowrap" }}>{w.label}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function BurndownChart({ tasks, appliedA, darkMode, theme }: { tasks: any[]; appliedA: string; darkMode: boolean; theme: any }) {
+  const today = new Date();
+  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+  const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+  const daysInMonth = monthEnd.getDate();
+
+  const totalTasks = tasks.filter(t => {
+    if (!t.dueDate) return false;
+    const d = new Date(t.dueDate);
+    return d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
+  }).length;
+
+  if (totalTasks === 0) return (
+    <div style={{ textAlign: "center", padding: "20px 0", color: theme.muted, fontSize: 12 }}>Žiadne úlohy s termínom tento mesiac</div>
+  );
+
+  const points: { day: number; remaining: number }[] = [];
+  for (let d = 1; d <= Math.min(today.getDate(), daysInMonth); d++) {
+    const dayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+    const completed = tasks.filter(t => t.dueDate === dayStr && t.status === "Hotovo").length;
+    const prev = points.length > 0 ? points[points.length-1].remaining : totalTasks;
+    points.push({ day: d, remaining: Math.max(0, prev - completed) });
+  }
+
+  const idealLine: { day: number; ideal: number }[] = Array.from({ length: daysInMonth }, (_, i) => ({
+    day: i + 1,
+    ideal: Math.round(totalTasks * (1 - (i + 1) / daysInMonth)),
+  }));
+
+  const chartH = 80;
+  const chartW = 100;
+
+  const toX = (day: number) => ((day - 1) / (daysInMonth - 1)) * chartW;
+  const toY = (val: number) => chartH - (val / totalTasks) * chartH;
+
+  const actualPath = points.map((p, i) => `${i === 0 ? "M" : "L"} ${toX(p.day)} ${toY(p.remaining)}`).join(" ");
+  const idealPath = idealLine.map((p, i) => `${i === 0 ? "M" : "L"} ${toX(p.day)} ${toY(p.ideal)}`).join(" ");
+
+  const remaining = points.length > 0 ? points[points.length-1].remaining : totalTasks;
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 11 }}>
+        <span style={{ color: theme.muted }}>Zostáva: <strong style={{ color: remaining > 0 ? "#dc2626" : "#16a34a" }}>{remaining}</strong> úloh</span>
+        <span style={{ color: theme.muted }}>Celkom: {totalTasks}</span>
+      </div>
+      <svg viewBox={`0 0 ${chartW} ${chartH}`} style={{ width: "100%", height: chartH * 2, overflow: "visible" }}>
+        {/* Ideal line */}
+        <path d={idealPath} fill="none" stroke={darkMode ? "#ffffff22" : "#00000015"} strokeWidth="0.8" strokeDasharray="2,2" />
+        {/* Actual line */}
+        <path d={actualPath} fill="none" stroke={appliedA} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        {/* Current point */}
+        {points.length > 0 && (
+          <circle cx={toX(points[points.length-1].day)} cy={toY(points[points.length-1].remaining)} r="2.5" fill={appliedA} />
+        )}
+      </svg>
+      <div style={{ display: "flex", gap: 12, fontSize: 10, color: theme.muted, marginTop: 4 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 12, height: 2, background: appliedA, borderRadius: 1 }} /> Skutočnosť</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 12, height: 2, background: darkMode ? "#ffffff33" : "#00000020", borderRadius: 1 }} /> Ideál</div>
+      </div>
+    </div>
+  );
+}
+
 export default function WorkPage() {
   const router = useRouter();
   const { grad, theme, appliedA, appliedB, darkMode } = useTheme();
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [activityHeatmap, setActivityHeatmap] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("Všetky");
   const [sortBy, setSortBy] = useState<SortBy>("dueDate");
@@ -229,10 +409,14 @@ export default function WorkPage() {
       if (!userSnap.exists()) { setLoading(false); return; }
       const projects = userSnap.data().projects ?? [];
       const allTasks: Task[] = [];
+      const allActivity: { date: string; count: number }[] = [];
+      const activityByDay: Record<string, number> = {};
+
       await Promise.all(projects.filter((p: any) => !p.archived).map(async (project: any) => {
         const snap = await getDoc(doc(db, "projects", `${user.uid}_${project.id}`));
         if (!snap.exists()) return;
-        (snap.data().tasks ?? []).forEach((t: any) => {
+        const data = snap.data();
+        (data.tasks ?? []).forEach((t: any) => {
           allTasks.push({
             id: t.id, name: t.name, status: t.status ?? "Nezačaté",
             priority: t.priority ?? "", dueDate: t.dueDate ?? "",
@@ -242,8 +426,15 @@ export default function WorkPage() {
             projectColor2: project.color2 ?? appliedB,
           });
         });
+        // Collect activity for heatmap
+        (data.activityLog ?? []).forEach((entry: any) => {
+          const date = new Date(entry.createdAt).toISOString().split("T")[0];
+          activityByDay[date] = (activityByDay[date] || 0) + 1;
+        });
       }));
+
       setTasks(allTasks);
+      setActivityHeatmap(activityByDay);
       setLoading(false);
     });
     return () => unsub();
@@ -499,6 +690,34 @@ export default function WorkPage() {
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
           Podľa projektu
         </button>
+      </div>
+
+      {/* ── ANALYTIKA ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 14 }}>
+        {/* Heatmap */}
+        <div style={{ background: surface, border: `1px solid ${theme.border}`, borderRadius: 16, padding: "18px 20px", boxShadow: shadow, gridColumn: "1 / -1" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+            <div style={{ fontSize: 11, fontWeight: 800, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.7px" }}>Aktivita za posledných 6 mesiacov</div>
+            <div style={{ fontSize: 11, color: theme.muted }}>{Object.values(activityHeatmap).reduce((a, b) => a + b, 0)} akcií celkom</div>
+          </div>
+          <Heatmap data={activityHeatmap} appliedA={appliedA} darkMode={darkMode} theme={theme} />
+        </div>
+
+        {/* Trend chart */}
+        <div style={{ background: surface, border: `1px solid ${theme.border}`, borderRadius: 16, padding: "18px 20px", boxShadow: shadow }}>
+          <div style={{ fontSize: 11, fontWeight: 800, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 14 }}>Úlohy podľa týždňa</div>
+          <TrendChart tasks={tasks} appliedA={appliedA} darkMode={darkMode} theme={theme} />
+          <div style={{ display: "flex", gap: 10, marginTop: 10, fontSize: 11 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 5 }}><div style={{ width: 10, height: 10, borderRadius: 2, background: darkMode ? appliedA + "33" : appliedA + "22" }} /><span style={{ color: theme.muted }}>Celkom</span></div>
+            <div style={{ display: "flex", alignItems: "center", gap: 5 }}><div style={{ width: 10, height: 10, borderRadius: 2, background: appliedA }} /><span style={{ color: theme.muted }}>Hotovo</span></div>
+          </div>
+        </div>
+
+        {/* Burndown */}
+        <div style={{ background: surface, border: `1px solid ${theme.border}`, borderRadius: 16, padding: "18px 20px", boxShadow: shadow }}>
+          <div style={{ fontSize: 11, fontWeight: 800, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 14 }}>Burndown — tento mesiac</div>
+          <BurndownChart tasks={tasks} appliedA={appliedA} darkMode={darkMode} theme={theme} />
+        </div>
       </div>
 
       {/* ── TASK LIST ── */}
