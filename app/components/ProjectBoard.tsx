@@ -823,7 +823,7 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
 
       {/* ── HEADER ── */}
       <div style={{ position: "sticky", top: 0, zIndex: 20, background: surface, borderBottom: `1px solid ${theme.border}`, padding: isMobile ? "12px 14px 0" : "14px 20px 0" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 6 : 10, marginBottom: 10, flexWrap: "nowrap", minWidth: 0 }}>
           <button onClick={() => router.push("/home")} style={{ width: 30, height: 30, borderRadius: 8, background: "transparent", border: `1px solid ${theme.border}`, color: theme.muted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{Icons.back}</button>
 
           {/* ── EDITABLE PROJECT NAME ── */}
@@ -860,9 +860,8 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
           </button>
           {/* Share button */}
-          <button onClick={() => setShowShare(true)} style={{ display: "flex", alignItems: "center", gap: 5, height: 30, borderRadius: 8, background: members.length > 0 ? appliedA + "18" : "transparent", border: `1px solid ${members.length > 0 ? appliedA + "55" : theme.border}`, color: members.length > 0 ? appliedA : theme.muted, cursor: "pointer", padding: "0 10px", fontSize: 11, fontWeight: 700, fontFamily: "var(--font-geist-sans)", flexShrink: 0, transition: "all .15s" }}>
+          <button onClick={() => setShowShare(true)} style={{ display: "flex", alignItems: "center", gap: 5, height: 30, borderRadius: 8, background: members.length > 0 ? appliedA + "18" : "transparent", border: `1px solid ${members.length > 0 ? appliedA + "55" : theme.border}`, color: members.length > 0 ? appliedA : theme.muted, cursor: "pointer", padding: "0 8px", fontSize: 11, fontWeight: 700, fontFamily: "var(--font-geist-sans)", flexShrink: 0, transition: "all .15s" }}>
             {Icons.share}
-            {!isMobile && <span>Zdieľať{members.length > 0 ? ` (${members.length + 1})` : ""}</span>}
           </button>
           <button onClick={() => setAddingTask(true)} style={{ display: "flex", alignItems: "center", gap: 5, background: grad, border: "none", borderRadius: 9, padding: isMobile ? "7px 10px" : "7px 14px", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "var(--font-geist-sans)", boxShadow: `0 4px 12px ${appliedA}44`, flexShrink: 0 }}>{Icons.plus}{!isMobile && <span> Nová úloha</span>}</button>
         </div>

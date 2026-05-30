@@ -69,6 +69,14 @@ export default function CalendarPage() {
   const [newEventTitle, setNewEventTitle] = useState("");
   const [newEventColor, setNewEventColor] = useState("#6366f1");
   const [newEventTime, setNewEventTime] = useState("");
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
 
   const surface = darkMode ? theme.card : "#ffffff";
   const headerBg = darkMode ? theme.card2 : "#f8f9fb";
@@ -196,11 +204,11 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "220px 1fr", gap: 16, alignItems: "start" }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "220px 1fr", gap: 16, alignItems: "start" }}>
         {/* ── SIDEBAR ── */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ display: "flex", flexDirection: isMobile ? "row" : "column", gap: 10, overflowX: isMobile ? "auto" : "visible", flexWrap: isMobile ? "nowrap" : "nowrap" }}>
           {/* Type filter */}
-          <div style={{ background: surface, border: `1px solid ${theme.border}`, borderRadius: 14, padding: "14px", boxShadow: shadow }}>
+          <div style={{ background: surface, border: `1px solid ${theme.border}`, borderRadius: 14, padding: isMobile ? "10px 12px" : "14px", boxShadow: shadow, flexShrink: 0 }}>
             <div style={{ fontSize: 10, fontWeight: 800, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 10 }}>Zobraziť</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {[
@@ -222,7 +230,7 @@ export default function CalendarPage() {
           </div>
 
           {/* Project filter */}
-          <div style={{ background: surface, border: `1px solid ${theme.border}`, borderRadius: 14, padding: "14px", boxShadow: shadow }}>
+          <div style={{ background: surface, border: `1px solid ${theme.border}`, borderRadius: 14, padding: isMobile ? "10px 12px" : "14px", boxShadow: shadow, flexShrink: 0 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
               <div style={{ fontSize: 10, fontWeight: 800, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.7px" }}>Projekty</div>
               <button onClick={() => setSelectedProjects(selectedProjects.size === projects.length ? new Set() : new Set(projects.map(p => p.id)))}
@@ -248,19 +256,21 @@ export default function CalendarPage() {
             </div>
           </div>
 
-          {/* Mini month nav */}
-          <div style={{ background: surface, border: `1px solid ${theme.border}`, borderRadius: 14, padding: "14px", boxShadow: shadow }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-              <button onClick={() => setCalMonth(new Date(year, month - 1, 1))} style={{ width: 26, height: 26, borderRadius: 6, border: `1px solid ${theme.border}`, background: "transparent", color: theme.muted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
-              </button>
-              <span style={{ fontSize: 12, fontWeight: 800 }}>{MONTH_NAMES[month]} {year}</span>
-              <button onClick={() => setCalMonth(new Date(year, month + 1, 1))} style={{ width: 26, height: 26, borderRadius: 6, border: `1px solid ${theme.border}`, background: "transparent", color: theme.muted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
-              </button>
+          {/* Mini month nav - hidden on mobile */}
+          {!isMobile && (
+            <div style={{ background: surface, border: `1px solid ${theme.border}`, borderRadius: 14, padding: "14px", boxShadow: shadow, flexShrink: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                <button onClick={() => setCalMonth(new Date(year, month - 1, 1))} style={{ width: 26, height: 26, borderRadius: 6, border: `1px solid ${theme.border}`, background: "transparent", color: theme.muted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+                </button>
+                <span style={{ fontSize: 12, fontWeight: 800 }}>{MONTH_NAMES[month]} {year}</span>
+                <button onClick={() => setCalMonth(new Date(year, month + 1, 1))} style={{ width: 26, height: 26, borderRadius: 6, border: `1px solid ${theme.border}`, background: "transparent", color: theme.muted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+                </button>
+              </div>
+              <button onClick={() => setCalMonth(new Date(today.getFullYear(), today.getMonth(), 1))} style={{ width: "100%", background: grad, border: "none", borderRadius: 8, padding: "7px", color: "#fff", fontWeight: 700, fontSize: 11, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}>Dnes</button>
             </div>
-            <button onClick={() => setCalMonth(new Date(today.getFullYear(), today.getMonth(), 1))} style={{ width: "100%", background: grad, border: "none", borderRadius: 8, padding: "7px", color: "#fff", fontWeight: 700, fontSize: 11, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}>Dnes</button>
-          </div>
+          )}
         </div>
 
         {/* ── CALENDAR GRID ── */}
