@@ -550,12 +550,10 @@ Dáta projektu:
 - Úlohy: ${tasks.map(t => `${t.name} (${t.status}${t.dueDate ? ", termín: " + t.dueDate : ""})`).join("; ")}`;
 
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
+      const res = await fetch("/api/ai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1000,
           messages: [{ role: "user", content: prompt }],
         }),
       });
@@ -589,12 +587,10 @@ Pravidlá:
 - name: vyčisti z príkazu, bez slov ako "pridaj úlohu", "vytvor", "nová úloha"`;
 
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
+      const res = await fetch("/api/ai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1000,
           messages: [{ role: "user", content: prompt }],
         }),
       });
