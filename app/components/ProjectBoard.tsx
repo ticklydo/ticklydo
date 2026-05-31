@@ -161,6 +161,7 @@ const Icons = {
   navLeft: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>,
   navRight: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>,
   share: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>,
+  ai: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2z"/><circle cx="9" cy="13" r="1"/><circle cx="15" cy="13" r="1"/></svg>,
   recurring: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>,
   tag: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>,
 };
@@ -187,6 +188,11 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
   const [events, setEvents] = useState<CalEvent[]>([]);
   const [activityLog, setActivityLog] = useState<ActivityEntry[]>([]);
   const [showActivity, setShowActivity] = useState(false);
+  const [showAI, setShowAI] = useState(false);
+  const [aiSummary, setAiSummary] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [nlInput, setNlInput] = useState("");
+  const [nlLoading, setNlLoading] = useState(false);
   const [newComment, setNewComment] = useState("");
   const [notifPermission, setNotifPermission] = useState<NotificationPermission>("default");
   const [detailTab, setDetailTab] = useState<"details" | "comments" | "activity">("details");
@@ -520,6 +526,104 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
 
   const canEdit = myRole === "admin" || myRole === "member";
   const isAdmin = myRole === "admin";
+
+  const summarizeProject = async () => {
+    setAiLoading(true);
+    setAiSummary("");
+    const done = tasks.filter(t => t.status === "Hotovo").length;
+    const inProgress = tasks.filter(t => t.status === "V procese").length;
+    const stuck = tasks.filter(t => t.status === "Uviaznuté").length;
+    const notStarted = tasks.filter(t => t.status === "Nezačaté").length;
+    const overdue = tasks.filter(t => t.dueDate && t.dueDate < new Date().toISOString().split("T")[0] && t.status !== "Hotovo");
+    const highPriority = tasks.filter(t => t.priority === "Vysoká" && t.status !== "Hotovo");
+
+    const prompt = `Si projektový asistent. Zhrň stav projektu "${projectName}" v slovenčine v 3-4 vetách. Buď konkrétny, vecný a použiteľný. Uveď čo je hotové, čo treba urobiť a aké sú riziká.
+
+Dáta projektu:
+- Celkom úloh: ${tasks.length}
+- Hotovo: ${done}
+- V procese: ${inProgress}  
+- Uviaznuté: ${stuck}
+- Nezačaté: ${notStarted}
+- Po termíne: ${overdue.map(t => t.name).join(", ") || "žiadne"}
+- Vysoká priorita (nedokončené): ${highPriority.map(t => t.name).join(", ") || "žiadne"}
+- Úlohy: ${tasks.map(t => `${t.name} (${t.status}${t.dueDate ? ", termín: " + t.dueDate : ""})`).join("; ")}`;
+
+    try {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1000,
+          messages: [{ role: "user", content: prompt }],
+        }),
+      });
+      const data = await res.json();
+      const text = data.content?.map((c: any) => c.text || "").join("") || "Nepodarilo sa získať sumarizáciu.";
+      setAiSummary(text);
+    } catch {
+      setAiSummary("Chyba pri komunikácii s AI. Skús znova.");
+    }
+    setAiLoading(false);
+  };
+
+  const addTaskFromNL = async () => {
+    if (!nlInput.trim()) return;
+    setNlLoading(true);
+    const today = new Date().toISOString().split("T")[0];
+    const todayFormatted = new Date().toLocaleDateString("sk-SK", { weekday: "long", day: "numeric", month: "long" });
+
+    const prompt = `Parsuj tento príkaz na vytvorenie úlohy a vráť IBA JSON bez markdown, bez backticks, bez vysvetlenia:
+{"name": "názov úlohy", "priority": "Vysoká|Stredná|Nízka|", "dueDate": "YYYY-MM-DD alebo prázdny string", "owner": "meno alebo prázdny string", "status": "Nezačaté"}
+
+Dnešný dátum: ${todayFormatted} (${today})
+Príkaz: "${nlInput}"
+
+Pravidlá:
+- "dnes" = ${today}
+- "zajtra" = ${new Date(Date.now() + 86400000).toISOString().split("T")[0]}
+- "piatok" = najbližší piatok
+- "budúci týždeň" = o 7 dní
+- priority: "vysoká/urgent/dôležitá" → "Vysoká", "stredná/normálna" → "Stredná", "nízka/neskôr" → "Nízka", inak ""
+- name: vyčisti z príkazu, bez slov ako "pridaj úlohu", "vytvor", "nová úloha"`;
+
+    try {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1000,
+          messages: [{ role: "user", content: prompt }],
+        }),
+      });
+      const data = await res.json();
+      const text = data.content?.map((c: any) => c.text || "").join("").trim() || "{}";
+      const parsed = JSON.parse(text.replace(/```json|```/g, "").trim());
+      if (parsed.name) {
+        const newTask: Task = {
+          id: genId(),
+          name: parsed.name,
+          status: "Nezačaté",
+          priority: parsed.priority || "",
+          dueDate: parsed.dueDate || "",
+          owner: parsed.owner || "",
+          notes: "",
+          subtasks: [],
+        };
+        const updated = [...tasksRef.current, newTask];
+        tasksRef.current = updated;
+        setTasks(updated);
+        saveAll(updated, undefined, undefined, logActivity("vytvoril (AI)", newTask.name));
+        setNlInput("");
+        setShowAI(false);
+      }
+    } catch {
+      // silently fail
+    }
+    setNlLoading(false);
+  };
 
   const pill = (color: string, bg: string, small = false) => ({
     background: darkMode ? color + "22" : bg,
@@ -863,6 +967,10 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
           <button onClick={() => setShowShare(true)} style={{ display: "flex", alignItems: "center", gap: 5, height: 30, borderRadius: 8, background: members.length > 0 ? appliedA + "18" : "transparent", border: `1px solid ${members.length > 0 ? appliedA + "55" : theme.border}`, color: members.length > 0 ? appliedA : theme.muted, cursor: "pointer", padding: "0 8px", fontSize: 11, fontWeight: 700, fontFamily: "var(--font-geist-sans)", flexShrink: 0, transition: "all .15s" }}>
             {Icons.share}
           </button>
+          {/* AI button */}
+          <button onClick={() => { setShowAI(true); setAiSummary(""); }} style={{ display: "flex", alignItems: "center", gap: 5, height: 30, borderRadius: 8, background: showAI ? appliedA + "18" : "transparent", border: `1px solid ${showAI ? appliedA + "55" : theme.border}`, color: showAI ? appliedA : theme.muted, cursor: "pointer", padding: "0 8px", fontSize: 11, fontWeight: 700, fontFamily: "var(--font-geist-sans)", flexShrink: 0 }}>
+            {Icons.ai}
+          </button>
           <button onClick={() => setAddingTask(true)} style={{ display: "flex", alignItems: "center", gap: 5, background: grad, border: "none", borderRadius: 9, padding: isMobile ? "7px 10px" : "7px 14px", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "var(--font-geist-sans)", boxShadow: `0 4px 12px ${appliedA}44`, flexShrink: 0 }}>{Icons.plus}{!isMobile && <span> Nová úloha</span>}</button>
         </div>
 
@@ -1156,6 +1264,81 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
           </div>
         )}
       </div>
+
+      {/* ── AI MODAL ── */}
+      {showAI && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)" }}
+          onClick={() => setShowAI(false)}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background: surface, borderRadius: 20, padding: 24,
+            width: "min(500px, 94vw)", maxHeight: "85vh", overflowY: "auto",
+            boxShadow: "0 24px 60px rgba(0,0,0,0.25)", border: `1px solid ${theme.border}`,
+            animation: "fadeIn .2s ease", display: "flex", flexDirection: "column", gap: 18,
+          }}>
+            {/* Header */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: grad, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {Icons.ai}
+                </div>
+                <div>
+                  <div style={{ fontSize: 16, fontWeight: 800 }}>AI Asistent</div>
+                  <div style={{ fontSize: 11, color: theme.muted }}>{projectName}</div>
+                </div>
+              </div>
+              <button onClick={() => setShowAI(false)} style={{ background: "none", border: "none", cursor: "pointer", color: theme.muted }}>{Icons.close}</button>
+            </div>
+
+            {/* Sumarizácia */}
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 800, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 10 }}>Sumarizácia projektu</div>
+              {!aiSummary && !aiLoading && (
+                <button onClick={summarizeProject} style={{ width: "100%", background: grad, border: "none", borderRadius: 12, padding: "12px", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "var(--font-geist-sans)", boxShadow: `0 4px 14px ${appliedA}44`, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+                  Analyzovať projekt
+                </button>
+              )}
+              {aiLoading && (
+                <div style={{ background: headerBg, borderRadius: 12, padding: "20px", textAlign: "center" }}>
+                  <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
+                  <div style={{ width: 28, height: 28, borderRadius: "50%", border: `3px solid ${theme.border}`, borderTopColor: appliedA, animation: "spin .8s linear infinite", margin: "0 auto 10px" }} />
+                  <div style={{ fontSize: 12, color: theme.muted }}>AI analyzuje projekt...</div>
+                </div>
+              )}
+              {aiSummary && (
+                <div style={{ background: headerBg, borderRadius: 12, padding: "16px", fontSize: 13, lineHeight: 1.7, color: theme.text, borderLeft: `3px solid ${appliedA}` }}>
+                  {aiSummary}
+                  <button onClick={summarizeProject} style={{ marginTop: 12, background: "none", border: `1px solid ${theme.border}`, borderRadius: 8, padding: "5px 12px", color: theme.muted, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}>Obnoviť</button>
+                </div>
+              )}
+            </div>
+
+            {/* Natural language input */}
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 800, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 10 }}>Pridať úlohu hlasom</div>
+              <div style={{ fontSize: 12, color: theme.muted, marginBottom: 10 }}>Napíš čo chceš urobiť prirodzene — AI to parsuje na úlohu.</div>
+              <div style={{ background: headerBg, borderRadius: 10, padding: "6px 6px 6px 12px", display: "flex", alignItems: "center", gap: 8, border: `1.5px solid ${theme.border}` }}>
+                <input
+                  value={nlInput}
+                  onChange={e => setNlInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter") addTaskFromNL(); }}
+                  placeholder='napr. "Stretnutie s klientom v piatok, vysoká priorita"'
+                  style={{ flex: 1, background: "none", border: "none", outline: "none", color: theme.text, fontFamily: "var(--font-geist-sans)", fontSize: 13 }}
+                />
+                <button onClick={addTaskFromNL} disabled={nlLoading || !nlInput.trim()} style={{ background: nlInput.trim() ? grad : theme.border, border: "none", borderRadius: 8, padding: "8px 14px", color: "#fff", fontWeight: 700, fontSize: 12, cursor: nlInput.trim() ? "pointer" : "default", fontFamily: "var(--font-geist-sans)", flexShrink: 0, transition: "background .2s" }}>
+                  {nlLoading ? "..." : "Pridaj"}
+                </button>
+              </div>
+              {/* Examples */}
+              <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+                {["Meetng so šéfom zajtra", "Opraviť bug do piatku, vysoká priorita", "Nakúpiť kávu budúci týždeň"].map(ex => (
+                  <button key={ex} onClick={() => setNlInput(ex)} style={{ background: appliedA + "15", border: `1px solid ${appliedA}33`, borderRadius: 20, padding: "4px 10px", color: appliedA, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}>{ex}</button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── SHARE MODAL ── */}
       {showShare && (
