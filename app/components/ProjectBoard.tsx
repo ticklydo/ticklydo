@@ -20,7 +20,6 @@ const auth = getAuth(app);
 type Status = "Hotovo" | "V procese" | "Uviaznuté" | "Nezačaté";
 type Priority = "Vysoká" | "Stredná" | "Nízka" | "";
 type View = "table" | "kanban";
-
 type Role = "admin" | "member" | "guest";
 
 type Member = {
@@ -74,13 +73,13 @@ type Task = {
 type CalEvent = {
   id: string;
   title: string;
-  date: string; // YYYY-MM-DD
+  date: string;
   endDate?: string;
   color: string;
   type: "event" | "task";
-  taskId?: string; // link to task if type=task
+  taskId?: string;
   notes?: string;
-  time?: string; // HH:MM
+  time?: string;
 };
 
 const STATUS_CONFIG: Record<Status, { color: string; bg: string; dot: string }> = {
@@ -110,7 +109,6 @@ function formatDate(d: string) {
   }
   return d;
 }
-
 function formatDateDMY(d: string) {
   if (!d) return "";
   const iso = toISODate(d);
@@ -120,12 +118,9 @@ function formatDateDMY(d: string) {
   }
   return d;
 }
-
 function toISODate(d: string) {
   if (!d) return "";
-  // Already YYYY-MM-DD
   if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
-  // Convert DD.MM.YYYY or D.M.YYYY to YYYY-MM-DD
   if (d.includes(".")) {
     const parts = d.split(".");
     if (parts.length === 3) {
@@ -158,8 +153,6 @@ const Icons = {
   edit: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>,
   pencil: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>,
   calView: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><rect x="7" y="14" width="3" height="3" rx="0.5"/><rect x="14" y="14" width="3" height="3" rx="0.5"/></svg>,
-  navLeft: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>,
-  navRight: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>,
   share: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>,
   ai: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2z"/><circle cx="9" cy="13" r="1"/><circle cx="15" cy="13" r="1"/></svg>,
   recurring: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>,
@@ -168,6 +161,117 @@ const Icons = {
 
 const COLS = "1fr 110px 95px 120px 130px 110px 36px";
 
+// ── AUTO-PRIORITY COMPONENT ──────────────────────────────────────────────────
+function AutoPrioritySection({ tasks, onApply }: { tasks: Task[]; onApply: (s: any[]) => void }) {
+  const [loading, setLoading] = useState(false);
+  const [preview, setPreview] = useState<any[]>([]);
+  const { darkMode, theme, appliedA, grad } = useTheme();
+
+  const PRIORITY_COLORS: Record<string, { color: string; bg: string }> = {
+    "Vysoká":  { color: "#dc2626", bg: "#fee2e2" },
+    "Stredná": { color: "#b45309", bg: "#fef3c7" },
+    "Nízka":   { color: "#2563eb", bg: "#dbeafe" },
+  };
+
+  const suggest = async () => {
+    setLoading(true);
+    const incomplete = tasks.filter(t => t.status !== "Hotovo");
+    const today = new Date().toISOString().split("T")[0];
+    try {
+      const res = await fetch("/api/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: [{
+            role: "user",
+            content: `Dnes je ${today}. Pre tieto úlohy navrhni priority. Odpovedaj IBA validným JSON poľom bez markdown:
+
+${incomplete.map((t, i) => `${i}: "${t.name}"${t.dueDate ? ` termín:${t.dueDate}` : ""}${t.priority ? ` aktuálna:${t.priority}` : ""}`).join("\n")}
+
+Formát: [{"index":0,"priority":"Vysoká","reason":"krátky dôvod po slovensky"}]
+Používaj iba: Vysoká / Stredná / Nízka`,
+          }],
+        }),
+      });
+      const data = await res.json();
+      const raw = data.content?.map((c: any) => c.text || "").join("").trim() ?? "[]";
+      const parsed = JSON.parse(raw.replace(/```json|```/g, "").trim());
+      setPreview(parsed);
+    } catch { /* silent */ }
+    setLoading(false);
+  };
+
+  const incomplete = tasks.filter(t => t.status !== "Hotovo");
+
+  return (
+    <div>
+      {preview.length === 0 ? (
+        <button
+          onClick={suggest}
+          disabled={loading || incomplete.length === 0}
+          style={{
+            width: "100%",
+            background: "transparent",
+            border: `1.5px dashed ${incomplete.length === 0 ? theme.border : appliedA}`,
+            borderRadius: 12, padding: "11px",
+            color: loading || incomplete.length === 0 ? theme.muted : appliedA,
+            fontWeight: 700, fontSize: 13,
+            cursor: loading || incomplete.length === 0 ? "default" : "pointer",
+            fontFamily: "var(--font-geist-sans)",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+            transition: "all .2s",
+          }}
+        >
+          {loading ? (
+            <>
+              <div style={{ width: 14, height: 14, borderRadius: "50%", border: `2px solid ${theme.border}`, borderTopColor: appliedA, animation: "spin .8s linear infinite" }} />
+              Analyzujem...
+            </>
+          ) : incomplete.length === 0 ? (
+            "Všetky úlohy sú dokončené"
+          ) : (
+            <>✨ Navrhnúť priority ({incomplete.length} úloh)</>
+          )}
+        </button>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {preview.map(({ index, priority, reason }) => {
+            const task = incomplete[index];
+            const cfg = PRIORITY_COLORS[priority] ?? { color: "#6b7280", bg: "#f3f4f6" };
+            return task ? (
+              <div key={index} style={{
+                display: "flex", alignItems: "center", gap: 8,
+                padding: "8px 10px",
+                background: darkMode ? cfg.color + "15" : cfg.bg,
+                borderRadius: 9, border: `1px solid ${cfg.color}28`,
+              }}>
+                <span style={{ flex: 1, fontSize: 12, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{task.name}</span>
+                <span style={{ background: cfg.bg, color: cfg.color, borderRadius: 6, padding: "2px 8px", fontSize: 11, fontWeight: 700, flexShrink: 0, border: `1px solid ${cfg.color}33` }}>{priority}</span>
+                <span style={{ fontSize: 10, color: cfg.color, opacity: 0.8, maxWidth: 90, textAlign: "right", flexShrink: 0 }}>{reason}</span>
+              </div>
+            ) : null;
+          })}
+          <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+            <button
+              onClick={() => { onApply(preview); setPreview([]); }}
+              style={{ flex: 1, background: grad, border: "none", borderRadius: 10, padding: "10px", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}
+            >
+              ✓ Použiť všetky
+            </button>
+            <button
+              onClick={() => setPreview([])}
+              style={{ background: "none", border: `1px solid ${theme.border}`, borderRadius: 10, padding: "10px 14px", color: theme.muted, fontWeight: 600, fontSize: 12, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}
+            >
+              Zrušiť
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── MAIN COMPONENT ───────────────────────────────────────────────────────────
 export default function ProjectBoard({ projectId, projectName: initialName }: { projectId: string; projectName: string }) {
   const router = useRouter();
   const { grad, theme, appliedA, darkMode } = useTheme();
@@ -191,10 +295,10 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
   const [showAI, setShowAI] = useState(false);
   const [aiSummary, setAiSummary] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState("");
   const [nlInput, setNlInput] = useState("");
   const [nlLoading, setNlLoading] = useState(false);
   const [newComment, setNewComment] = useState("");
-  const [notifPermission, setNotifPermission] = useState<NotificationPermission>("default");
   const [detailTab, setDetailTab] = useState<"details" | "comments" | "activity">("details");
   const [confirmTaskDelete, setConfirmTaskDelete] = useState<string | null>(null);
   const [showShare, setShowShare] = useState(false);
@@ -220,7 +324,6 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
     return () => window.removeEventListener("resize", check);
   }, []);
 
-  // ── NOTIFICATIONS ──
   useEffect(() => {
     if (!("Notification" in window)) return;
     if (Notification.permission === "default") Notification.requestPermission();
@@ -232,8 +335,8 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
     const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-${String(today.getDate()).padStart(2,"0")}`;
     const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
     const tomorrowStr = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth()+1).padStart(2,"0")}-${String(tomorrow.getDate()).padStart(2,"0")}`;
-    const dueTomorrow = tasks.filter(t => t.dueDate === tomorrowStr && t.status !== "Hotovo");
     const dueToday = tasks.filter(t => t.dueDate === todayStr && t.status !== "Hotovo");
+    const dueTomorrow = tasks.filter(t => t.dueDate === tomorrowStr && t.status !== "Hotovo");
     if (dueToday.length > 0) {
       new Notification(`Ticklydo — ${projectName}`, { body: `Dnes máš termín: ${dueToday.map(t => t.name).join(", ")}`, icon: "/favicon.ico" });
     } else if (dueTomorrow.length > 0) {
@@ -273,10 +376,9 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
         setActivityLog(data.activityLog ?? []);
         setMembers(data.members ?? []);
         setInvites(data.invites ?? []);
-        // Check current user role
         const currentMember = (data.members ?? []).find((m: Member) => m.uid === user.uid);
         if (currentMember) setMyRole(currentMember.role);
-        else setMyRole("admin"); // owner is always admin
+        else setMyRole("admin");
       }
       setLoading(false);
     });
@@ -288,7 +390,6 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
   const activityLogRef = useRef<ActivityEntry[]>([]);
   const projectNameRef = useRef<string>(initialName || "Projekt");
 
-  // Keep refs in sync
   useEffect(() => { tasksRef.current = tasks; }, [tasks]);
   useEffect(() => { eventsRef.current = events; }, [events]);
   useEffect(() => { activityLogRef.current = activityLog; }, [activityLog]);
@@ -299,7 +400,6 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
     if (!user) return;
     const { getFirestore, doc, setDoc } = await import("firebase/firestore");
     const db = getFirestore();
-    // Strip undefined fields from tasks before saving
     const cleanTasks = newTasks.map(t => {
       const clean: any = { ...t };
       Object.keys(clean).forEach(k => { if (clean[k] === undefined) delete clean[k]; });
@@ -315,8 +415,8 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
       projectName: newName ?? projectNameRef.current,
       events: newEvents ?? eventsRef.current,
       activityLog: (newLog ?? activityLogRef.current).slice(0, 100),
-      members: members,
-      invites: invites,
+      members,
+      invites,
     }, { merge: true });
   };
 
@@ -347,7 +447,6 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
     setProjectName(trimmed);
     setEditingName(false);
     saveAll(tasks, trimmed);
-    // Also update project name in users collection
     const user = auth.currentUser;
     if (!user) return;
     import("firebase/firestore").then(({ getFirestore, doc, getDoc, setDoc }) => {
@@ -436,10 +535,7 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
     if (!user) return;
     const { getFirestore, doc, setDoc } = await import("firebase/firestore");
     const db = getFirestore();
-    await setDoc(doc(db, "projects", `${user.uid}_${projectId}`), {
-      members: newMembers,
-      invites: newInvites,
-    }, { merge: true });
+    await setDoc(doc(db, "projects", `${user.uid}_${projectId}`), { members: newMembers, invites: newInvites }, { merge: true });
   };
 
   const inviteByEmail = async () => {
@@ -448,28 +544,13 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
     if (!user) return;
     const { getFirestore, collection, query, where, getDocs, doc, setDoc } = await import("firebase/firestore");
     const db = getFirestore();
-    // Check if user exists
     const q = query(collection(db, "users"), where("email", "==", inviteEmail.trim()));
     const snap = await getDocs(q);
-    const newInvite: Invite = {
-      token: genId() + genId(),
-      email: inviteEmail.trim(),
-      role: inviteRole,
-      createdAt: Date.now(),
-      createdBy: user.email ?? user.uid,
-    };
-    // Save invite to invitee's pending invites if they exist
+    const newInvite: Invite = { token: genId() + genId(), email: inviteEmail.trim(), role: inviteRole, createdAt: Date.now(), createdBy: user.email ?? user.uid };
     if (!snap.empty) {
       const inviteeDoc = snap.docs[0];
       const pending = inviteeDoc.data().pendingInvites ?? [];
-      await setDoc(doc(db, "users", inviteeDoc.id), {
-        pendingInvites: [...pending, {
-          ...newInvite,
-          projectId,
-          projectName,
-          ownerUid: user.uid,
-        }]
-      }, { merge: true });
+      await setDoc(doc(db, "users", inviteeDoc.id), { pendingInvites: [...pending, { ...newInvite, projectId, projectName, ownerUid: user.uid }] }, { merge: true });
     }
     const newInvites = [...invites, newInvite];
     setInvites(newInvites);
@@ -481,17 +562,11 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
     const token = genId() + genId() + genId();
     const user = auth.currentUser;
     if (!user) return;
-    const newInvite: Invite = {
-      token,
-      role: shareLinkRole,
-      createdAt: Date.now(),
-      createdBy: user.email ?? user.uid,
-    };
+    const newInvite: Invite = { token, role: shareLinkRole, createdAt: Date.now(), createdBy: user.email ?? user.uid };
     const newInvites = [...invites, newInvite];
     setInvites(newInvites);
     await saveSharing(members, newInvites);
-    const link = `${window.location.origin}/join/${user.uid}_${projectId}?token=${token}`;
-    setShareLink(link);
+    setShareLink(`${window.location.origin}/join/${user.uid}_${projectId}?token=${token}`);
   };
 
   const copyLink = () => {
@@ -519,89 +594,112 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
   };
 
   const ROLE_CONFIG: Record<Role, { label: string; color: string; bg: string; desc: string }> = {
-    admin: { label: "Admin", color: "#7c3aed", bg: "#ede9fe", desc: "Plný prístup + správa členov" },
-    member: { label: "Člen", color: "#2563eb", bg: "#dbeafe", desc: "Edituje úlohy a komentáre" },
-    guest: { label: "Host", color: "#6b7280", bg: "#f3f4f6", desc: "Len čítanie" },
+    admin:  { label: "Admin", color: "#7c3aed", bg: "#ede9fe", desc: "Plný prístup + správa členov" },
+    member: { label: "Člen",  color: "#2563eb", bg: "#dbeafe", desc: "Edituje úlohy a komentáre" },
+    guest:  { label: "Host",  color: "#6b7280", bg: "#f3f4f6", desc: "Len čítanie" },
   };
 
   const canEdit = myRole === "admin" || myRole === "member";
   const isAdmin = myRole === "admin";
 
+  // ── AI: SUMMARIZE ────────────────────────────────────────────────────────
   const summarizeProject = async () => {
     setAiLoading(true);
     setAiSummary("");
-    console.log("AI: starting summarize...");
+    setAiError("");
+
+    const today = new Date().toISOString().split("T")[0];
     const done = tasks.filter(t => t.status === "Hotovo").length;
     const inProgress = tasks.filter(t => t.status === "V procese").length;
     const stuck = tasks.filter(t => t.status === "Uviaznuté").length;
     const notStarted = tasks.filter(t => t.status === "Nezačaté").length;
-    const overdue = tasks.filter(t => t.dueDate && t.dueDate < new Date().toISOString().split("T")[0] && t.status !== "Hotovo");
+    const overdue = tasks.filter(t => t.dueDate && t.dueDate < today && t.status !== "Hotovo");
     const highPriority = tasks.filter(t => t.priority === "Vysoká" && t.status !== "Hotovo");
 
-    const prompt = `Si projektový asistent. Zhrň stav projektu "${projectName}" v slovenčine v 3-4 vetách. Buď konkrétny, vecný a použiteľný. Uveď čo je hotové, čo treba urobiť a aké sú riziká.
-
-Dáta projektu:
-- Celkom úloh: ${tasks.length}
-- Hotovo: ${done}
-- V procese: ${inProgress}  
-- Uviaznuté: ${stuck}
-- Nezačaté: ${notStarted}
-- Po termíne: ${overdue.map(t => t.name).join(", ") || "žiadne"}
-- Vysoká priorita (nedokončené): ${highPriority.map(t => t.name).join(", ") || "žiadne"}
-- Úlohy: ${tasks.map(t => `${t.name} (${t.status}${t.dueDate ? ", termín: " + t.dueDate : ""})`).join("; ")}`;
-
     try {
-      console.log("AI: calling /api/ai...");
       const res = await fetch("/api/ai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          messages: [{ role: "user", content: prompt }],
+          messages: [{
+            role: "user",
+            content: `Si projektový asistent. Zhrň stav projektu "${projectName}" v slovenčine v 3-4 vetách. Buď konkrétny a vecný.
+
+Štatistiky:
+- Celkom: ${tasks.length} úloh (${done} hotovo, ${inProgress} v procese, ${stuck} uviaznuté, ${notStarted} nezačaté)
+- Po termíne: ${overdue.length > 0 ? overdue.map(t => t.name).join(", ") : "žiadne"}
+- Vysoká priorita (nedokončené): ${highPriority.length > 0 ? highPriority.map(t => t.name).join(", ") : "žiadne"}
+- Úlohy: ${tasks.map(t => `${t.name} [${t.status}${t.dueDate ? ", termín: " + t.dueDate : ""}]`).join("; ")}
+
+Uveď čo je hotové, čo treba urobiť a aké sú riziká.`,
+          }],
         }),
       });
-      console.log("AI: response status:", res.status);
+
       const data = await res.json();
-      console.log("AI: response data:", data);
-      const text = data.content?.map((c: any) => c.text || "").join("") || "Nepodarilo sa získať sumarizáciu.";
-      setAiSummary(text);
+
+      if (!res.ok) {
+        setAiError(data.error ?? "Neznáma chyba zo servera");
+        return;
+      }
+
+      const text = data.content?.map((c: any) => c.text || "").join("") ?? "";
+      setAiSummary(text || "AI nevrátila odpoveď.");
     } catch (err) {
-      console.error("AI: error:", err);
-      setAiSummary("Chyba pri komunikácii s AI. Skús znova.");
+      console.error("summarizeProject error:", err);
+      setAiError("Chyba pri komunikácii so serverom. Skontroluj ANTHROPIC_API_KEY v .env.local");
+    } finally {
+      setAiLoading(false);
     }
-    setAiLoading(false);
   };
 
+  // ── AI: NATURAL LANGUAGE TASK ────────────────────────────────────────────
   const addTaskFromNL = async () => {
     if (!nlInput.trim()) return;
     setNlLoading(true);
+
     const today = new Date().toISOString().split("T")[0];
-    const todayFormatted = new Date().toLocaleDateString("sk-SK", { weekday: "long", day: "numeric", month: "long" });
+    const tomorrow = new Date(Date.now() + 86400000).toISOString().split("T")[0];
+    const in7days = new Date(Date.now() + 7 * 86400000).toISOString().split("T")[0];
 
-    const prompt = `Parsuj tento príkaz na vytvorenie úlohy a vráť IBA JSON bez markdown, bez backticks, bez vysvetlenia:
-{"name": "názov úlohy", "priority": "Vysoká|Stredná|Nízka|", "dueDate": "YYYY-MM-DD alebo prázdny string", "owner": "meno alebo prázdny string", "status": "Nezačaté"}
-
-Dnešný dátum: ${todayFormatted} (${today})
-Príkaz: "${nlInput}"
-
-Pravidlá:
-- "dnes" = ${today}
-- "zajtra" = ${new Date(Date.now() + 86400000).toISOString().split("T")[0]}
-- "piatok" = najbližší piatok
-- "budúci týždeň" = o 7 dní
-- priority: "vysoká/urgent/dôležitá" → "Vysoká", "stredná/normálna" → "Stredná", "nízka/neskôr" → "Nízka", inak ""
-- name: vyčisti z príkazu, bez slov ako "pridaj úlohu", "vytvor", "nová úloha"`;
+    const now = new Date();
+    const dayOfWeek = now.getDay();
+    const daysUntilFriday = dayOfWeek <= 5 ? 5 - dayOfWeek : 6;
+    const nextFriday = new Date(now);
+    nextFriday.setDate(now.getDate() + (daysUntilFriday === 0 ? 7 : daysUntilFriday));
+    const nextFridayStr = nextFriday.toISOString().split("T")[0];
 
     try {
       const res = await fetch("/api/ai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          messages: [{ role: "user", content: prompt }],
+          messages: [{
+            role: "user",
+            content: `Parsuj tento príkaz na úlohu. Odpovedaj IBA validným JSON, bez markdown, bez textu okolo.
+
+Referenčné dátumy:
+- dnes = ${today}
+- zajtra = ${tomorrow}
+- piatok = ${nextFridayStr}
+- budúci týždeň = ${in7days}
+
+Vstup: "${nlInput}"
+
+Výstup (iba JSON):
+{"name":"názov úlohy bez slov pridaj/vytvor/nová","priority":"Vysoká alebo Stredná alebo Nízka alebo ","dueDate":"YYYY-MM-DD alebo ","owner":"meno alebo ","status":"Nezačaté"}
+
+Pravidlá priority: urgent/vysoká/dôležitá → Vysoká, normálna/stredná → Stredná, nízka/neskôr → Nízka, inak prázdny string.`,
+          }],
         }),
       });
+
       const data = await res.json();
-      const text = data.content?.map((c: any) => c.text || "").join("").trim() || "{}";
-      const parsed = JSON.parse(text.replace(/```json|```/g, "").trim());
+      if (!res.ok) { setNlLoading(false); return; }
+
+      const raw = data.content?.map((c: any) => c.text || "").join("").trim() ?? "{}";
+      const parsed = JSON.parse(raw.replace(/```json|```/g, "").trim());
+
       if (parsed.name) {
         const newTask: Task = {
           id: genId(),
@@ -620,9 +718,10 @@ Pravidlá:
         setNlInput("");
         setShowAI(false);
       }
-    } catch {
-      // silently fail
+    } catch (err) {
+      console.error("NL parse error:", err);
     }
+
     setNlLoading(false);
   };
 
@@ -635,14 +734,11 @@ Pravidlá:
     cursor: "pointer", outline: "none", appearance: "none" as const,
   });
 
-  // ── Reusable cells ──
+  // ── CELLS ────────────────────────────────────────────────────────────────
   const StatusCell = ({ id, val, onChange, isSubtask = false }: { id: string; val: Status; onChange: (v: string) => void; isSubtask?: boolean }) => {
     const cfg = STATUS_CONFIG[val];
     return (
-      <select value={val} onChange={e => {
-        onChange(e.target.value);
-        if (e.target.value === "Hotovo" && !isSubtask) setExpandedId(null);
-      }} style={pill(cfg.color, cfg.bg)}>
+      <select value={val} onChange={e => { onChange(e.target.value); if (e.target.value === "Hotovo" && !isSubtask) setExpandedId(null); }} style={pill(cfg.color, cfg.bg)}>
         {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
       </select>
     );
@@ -675,32 +771,16 @@ Pravidlá:
     };
 
     if (isEditing) return (
-      <input
-        autoFocus
-        value={inputText}
-        onChange={e => handleChange(e.target.value)}
-        placeholder="dd/mm/rrrr"
+      <input autoFocus value={inputText} onChange={e => handleChange(e.target.value)} placeholder="dd/mm/rrrr"
         onBlur={() => { setEditingCell(null); setInputText(val ? formatDateDMY(val) : ""); }}
         onKeyDown={e => { if (e.key === "Enter" || e.key === "Escape") setEditingCell(null); }}
-        style={{
-          width: 100, background: headerBg, border: `1.5px solid ${appliedA}`,
-          borderRadius: 6, padding: "3px 8px", color: theme.text,
-          fontFamily: "var(--font-geist-sans)", fontSize: 12,
-          fontWeight: 600, outline: "none",
-        }}
+        style={{ width: 100, background: headerBg, border: `1.5px solid ${appliedA}`, borderRadius: 6, padding: "3px 8px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontSize: 12, fontWeight: 600, outline: "none" }}
       />
     );
 
     return (
       <div onClick={() => { setInputText(val ? formatDateDMY(val) : ""); setEditingCell({ id: cellKey, field: "dueDate" }); }}
-        style={{
-          display: "inline-flex", alignItems: "center", gap: 4,
-          background: over && val ? (darkMode ? "#fee2e222" : "#fee2e2") : headerBg,
-          border: `1px solid ${over && val ? "#ef444433" : theme.border}`,
-          borderRadius: 6, padding: "3px 8px", cursor: "text",
-          color: over && val ? "#dc2626" : val ? theme.text : theme.muted,
-          fontSize: 11, fontWeight: 600, transition: "border-color .15s",
-        }}
+        style={{ display: "inline-flex", alignItems: "center", gap: 4, background: over && val ? (darkMode ? "#fee2e222" : "#fee2e2") : headerBg, border: `1px solid ${over && val ? "#ef444433" : theme.border}`, borderRadius: 6, padding: "3px 8px", cursor: "text", color: over && val ? "#dc2626" : val ? theme.text : theme.muted, fontSize: 11, fontWeight: 600, transition: "border-color .15s" }}
         onMouseEnter={e => e.currentTarget.style.borderColor = appliedA}
         onMouseLeave={e => e.currentTarget.style.borderColor = over && val ? "#ef444433" : theme.border}
       >
@@ -763,7 +843,7 @@ Pravidlá:
     </div>
   );
 
-  // ── MOBILE DETAIL MODAL ──
+  // ── MOBILE DETAIL ────────────────────────────────────────────────────────
   const addComment = (task: Task) => {
     if (!newComment.trim()) return;
     const user = auth.currentUser;
@@ -799,7 +879,6 @@ Pravidlá:
           <div style={{ display: "flex", justifyContent: "center", padding: "10px 0 4px" }}>
             <div style={{ width: 36, height: 4, borderRadius: 2, background: theme.border }} />
           </div>
-          {/* Header */}
           <div style={{ padding: "8px 16px 0", borderBottom: `1px solid ${theme.border}` }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
               <div style={{ fontSize: 16, fontWeight: 800, flex: 1, marginRight: 12 }}>{task.name}</div>
@@ -811,6 +890,7 @@ Pravidlá:
               ))}
             </div>
           </div>
+
           {detailTab === "details" && (
             <div style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: 14 }}>
               <div>
@@ -855,7 +935,6 @@ Pravidlá:
             </div>
           )}
 
-          {/* Comments tab */}
           {detailTab === "comments" && (
             <div style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
               {comments.length === 0 && <div style={{ textAlign: "center", padding: "24px 0", color: theme.muted, fontSize: 13 }}>Zatiaľ žiadne komentáre</div>}
@@ -876,7 +955,6 @@ Pravidlá:
             </div>
           )}
 
-          {/* Activity tab */}
           {detailTab === "activity" && (
             <div style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
               {activityLog.filter(l => l.taskName === task.name).length === 0 && (
@@ -898,15 +976,8 @@ Pravidlá:
             </div>
           )}
 
-          {/* ── STICKY CLOSE BUTTON ── */}
           <div style={{ position: "sticky", bottom: 0, background: surface, borderTop: `1px solid ${theme.border}`, padding: "12px 16px", display: "flex", gap: 10 }}>
-            <button onClick={() => { setDetailTask(null); setDetailTab("details"); }} style={{
-              flex: 1, background: grad, border: "none", borderRadius: 12,
-              padding: "13px", color: "#fff", fontWeight: 800, fontSize: 14,
-              cursor: "pointer", fontFamily: "var(--font-geist-sans)",
-              boxShadow: `0 4px 14px ${appliedA}44`,
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-            }}>
+            <button onClick={() => { setDetailTask(null); setDetailTab("details"); }} style={{ flex: 1, background: grad, border: "none", borderRadius: 12, padding: "13px", color: "#fff", fontWeight: 800, fontSize: 14, cursor: "pointer", fontFamily: "var(--font-geist-sans)", boxShadow: `0 4px 14px ${appliedA}44`, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
               Uložiť a zavrieť
             </button>
@@ -915,11 +986,14 @@ Pravidlá:
       </div>
     );
   };
+
+  // ── RENDER ───────────────────────────────────────────────────────────────
   return (
     <div style={{ flex: 1, overflowY: "auto", background: theme.bg, color: theme.text, fontFamily: "var(--font-geist-sans)", minHeight: "100vh", transition: "background .3s, color .3s" }}>
       <style>{`
         @keyframes fadeIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
         @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+        @keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}
         .task-row:hover .del-btn{opacity:1!important}
         select{appearance:none!important;-webkit-appearance:none!important}
       `}</style>
@@ -931,12 +1005,9 @@ Pravidlá:
         <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 6 : 10, marginBottom: 10, flexWrap: "nowrap", minWidth: 0 }}>
           <button onClick={() => router.push("/home")} style={{ width: 30, height: 30, borderRadius: 8, background: "transparent", border: `1px solid ${theme.border}`, color: theme.muted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{Icons.back}</button>
 
-          {/* ── EDITABLE PROJECT NAME ── */}
           <div style={{ flex: 1, minWidth: 0 }}>
             {editingName ? (
-              <input
-                ref={nameInputRef}
-                defaultValue={projectName}
+              <input ref={nameInputRef} defaultValue={projectName}
                 onBlur={e => saveName(e.target.value)}
                 onKeyDown={e => { if (e.key === "Enter") saveName(e.currentTarget.value); if (e.key === "Escape") setEditingName(false); }}
                 style={{ fontSize: isMobile ? 15 : 17, fontWeight: 800, background: headerBg, border: `1.5px solid ${appliedA}`, borderRadius: 8, padding: "3px 10px", color: theme.text, fontFamily: "var(--font-geist-sans)", outline: "none", width: "100%" }}
@@ -957,21 +1028,21 @@ Pravidlá:
             <button onClick={() => router.push(`/calendar?project=${projectId}`)} style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "5px 10px", borderRadius: 6, border: "none", background: "transparent", color: theme.muted, cursor: "pointer", transition: "all .2s" }}
               onMouseEnter={e => e.currentTarget.style.background = appliedA + "18"}
               onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-              title="Globálny kalendár"
             >{Icons.calView}</button>
           </div>
-          {/* Activity log button */}
+
           <button onClick={() => setShowActivity(v => !v)} style={{ position: "relative", width: 30, height: 30, borderRadius: 8, background: showActivity ? appliedA + "18" : "transparent", border: `1px solid ${showActivity ? appliedA + "55" : theme.border}`, color: showActivity ? appliedA : theme.muted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
           </button>
-          {/* Share button */}
+
           <button onClick={() => setShowShare(true)} style={{ display: "flex", alignItems: "center", gap: 5, height: 30, borderRadius: 8, background: members.length > 0 ? appliedA + "18" : "transparent", border: `1px solid ${members.length > 0 ? appliedA + "55" : theme.border}`, color: members.length > 0 ? appliedA : theme.muted, cursor: "pointer", padding: "0 8px", fontSize: 11, fontWeight: 700, fontFamily: "var(--font-geist-sans)", flexShrink: 0, transition: "all .15s" }}>
             {Icons.share}
           </button>
-          {/* AI button */}
-          <button onClick={() => { setShowAI(true); setAiSummary(""); }} style={{ display: "flex", alignItems: "center", gap: 5, height: 30, borderRadius: 8, background: showAI ? appliedA + "18" : "transparent", border: `1px solid ${showAI ? appliedA + "55" : theme.border}`, color: showAI ? appliedA : theme.muted, cursor: "pointer", padding: "0 8px", fontSize: 11, fontWeight: 700, fontFamily: "var(--font-geist-sans)", flexShrink: 0 }}>
+
+          <button onClick={() => { setShowAI(true); setAiSummary(""); setAiError(""); }} style={{ display: "flex", alignItems: "center", gap: 5, height: 30, borderRadius: 8, background: showAI ? appliedA + "18" : "transparent", border: `1px solid ${showAI ? appliedA + "55" : theme.border}`, color: showAI ? appliedA : theme.muted, cursor: "pointer", padding: "0 8px", fontSize: 11, fontWeight: 700, fontFamily: "var(--font-geist-sans)", flexShrink: 0 }}>
             {Icons.ai}
           </button>
+
           <button onClick={() => setAddingTask(true)} style={{ display: "flex", alignItems: "center", gap: 5, background: grad, border: "none", borderRadius: 9, padding: isMobile ? "7px 10px" : "7px 14px", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "var(--font-geist-sans)", boxShadow: `0 4px 12px ${appliedA}44`, flexShrink: 0 }}>{Icons.plus}{!isMobile && <span> Nová úloha</span>}</button>
         </div>
 
@@ -996,10 +1067,9 @@ Pravidlá:
 
       <div style={{ padding: isMobile ? "12px 14px 60px" : "16px 20px 60px" }}>
 
-        {/* ── TABLE ── */}
-        {/* ── ACTIVITY LOG PANEL ── */}
+        {/* ── ACTIVITY PANEL ── */}
         {showActivity && (
-          <div style={{ background: surface, border: `1px solid ${theme.border}`, borderRadius: 14, padding: "16px 18px", boxShadow: "0 2px 12px rgba(0,0,0,0.08)", animation: "fadeIn .2s ease" }}>
+          <div style={{ background: surface, border: `1px solid ${theme.border}`, borderRadius: 14, padding: "16px 18px", boxShadow: "0 2px 12px rgba(0,0,0,0.08)", animation: "fadeIn .2s ease", marginBottom: 16 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
               <div style={{ fontSize: 13, fontWeight: 800, display: "flex", alignItems: "center", gap: 7 }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={appliedA} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -1042,6 +1112,7 @@ Pravidlá:
           </div>
         )}
 
+        {/* ── TABLE VIEW ── */}
         {view === "table" && (
           <div style={{ background: surface, borderRadius: 14, border: `1px solid ${theme.border}`, boxShadow: shadow, overflow: "hidden", animation: "fadeIn .2s ease" }}>
             {!isMobile && (
@@ -1173,9 +1244,7 @@ Pravidlá:
                         <button onClick={() => addSubtask(task.id)} style={{ background: appliedA + "18", border: "none", borderRadius: 6, padding: "4px 10px", color: appliedA, fontWeight: 700, fontSize: 11, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}>Pridať</button>
                       </div>
 
-                      {/* ── TAGS + COMMENTS INLINE ── */}
                       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0, borderTop: `1px solid ${theme.border}33` }}>
-                        {/* Tags */}
                         <div style={{ padding: "10px 14px 10px 42px", borderRight: `1px solid ${theme.border}33` }}>
                           <div style={{ fontSize: 10, fontWeight: 700, color: appliedA, textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: 7, display: "flex", alignItems: "center", gap: 5 }}>{Icons.tag} Tagy</div>
                           <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 7 }}>
@@ -1198,7 +1267,6 @@ Pravidlá:
                           onBlur={e => e.target.style.borderBottomColor = theme.border} />
                         </div>
 
-                        {/* Comments */}
                         <div style={{ padding: "10px 14px" }}>
                           <div style={{ fontSize: 10, fontWeight: 700, color: appliedA, textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: 7, display: "flex", alignItems: "center", gap: 5 }}>
                             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
@@ -1258,7 +1326,7 @@ Pravidlá:
           </div>
         )}
 
-        {/* ── KANBAN ── */}
+        {/* ── KANBAN VIEW ── */}
         {view === "kanban" && (
           <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 16, animation: "fadeIn .2s ease" }}>
             {STATUSES.map(status => {
@@ -1335,35 +1403,58 @@ Pravidlá:
               <button onClick={() => setShowAI(false)} style={{ background: "none", border: "none", cursor: "pointer", color: theme.muted }}>{Icons.close}</button>
             </div>
 
-            {/* Sumarizácia */}
+            {/* ── SUMARIZÁCIA ── */}
             <div>
               <div style={{ fontSize: 11, fontWeight: 800, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 10 }}>Sumarizácia projektu</div>
-              {!aiSummary && !aiLoading && (
+
+              {!aiSummary && !aiLoading && !aiError && (
                 <button onClick={summarizeProject} style={{ width: "100%", background: grad, border: "none", borderRadius: 12, padding: "12px", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "var(--font-geist-sans)", boxShadow: `0 4px 14px ${appliedA}44`, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
                   Analyzovať projekt
                 </button>
               )}
+
+              {/* SKELETON LOADER */}
               {aiLoading && (
-                <div style={{ background: headerBg, borderRadius: 12, padding: "20px", textAlign: "center" }}>
-                  <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
-                  <div style={{ width: 28, height: 28, borderRadius: "50%", border: `3px solid ${theme.border}`, borderTopColor: appliedA, animation: "spin .8s linear infinite", margin: "0 auto 10px" }} />
-                  <div style={{ fontSize: 12, color: theme.muted }}>AI analyzuje projekt...</div>
+                <div style={{ background: headerBg, borderRadius: 12, padding: "16px", display: "flex", flexDirection: "column", gap: 8 }}>
+                  {[100, 85, 92, 60].map((w, i) => (
+                    <div key={i} style={{
+                      height: 13, borderRadius: 7, width: `${w}%`,
+                      background: `linear-gradient(90deg, ${theme.border} 25%, ${darkMode ? "#ffffff12" : "#ececec"} 50%, ${theme.border} 75%)`,
+                      backgroundSize: "800px 100%",
+                      animation: `shimmer 1.4s ease-in-out infinite`,
+                      animationDelay: `${i * 0.12}s`,
+                    }} />
+                  ))}
+                  <div style={{ fontSize: 11, color: theme.muted, marginTop: 4 }}>AI analyzuje projekt...</div>
                 </div>
               )}
-              {aiSummary && (
-                <div style={{ background: headerBg, borderRadius: 12, padding: "16px", fontSize: 13, lineHeight: 1.7, color: theme.text, borderLeft: `3px solid ${appliedA}` }}>
+
+              {/* ERROR */}
+              {aiError && !aiLoading && (
+                <div style={{ background: darkMode ? "#fee2e218" : "#fee2e2", border: "1px solid #ef444433", borderRadius: 12, padding: "14px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div style={{ fontSize: 12, color: "#dc2626", fontWeight: 600 }}>⚠ {aiError}</div>
+                  <button onClick={summarizeProject} style={{ alignSelf: "flex-start", background: "none", border: `1px solid #dc262633`, borderRadius: 8, padding: "5px 12px", color: "#dc2626", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}>Skúsiť znova</button>
+                </div>
+              )}
+
+              {/* RESULT */}
+              {aiSummary && !aiLoading && (
+                <div style={{ background: headerBg, borderRadius: 12, padding: "16px", fontSize: 13, lineHeight: 1.75, color: theme.text, borderLeft: `3px solid ${appliedA}` }}>
                   {aiSummary}
-                  <button onClick={summarizeProject} style={{ marginTop: 12, background: "none", border: `1px solid ${theme.border}`, borderRadius: 8, padding: "5px 12px", color: theme.muted, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}>Obnoviť</button>
+                  <button onClick={summarizeProject} style={{ display: "block", marginTop: 12, background: "none", border: `1px solid ${theme.border}`, borderRadius: 8, padding: "5px 12px", color: theme.muted, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}>Obnoviť</button>
                 </div>
               )}
             </div>
 
-            {/* Natural language input */}
+            {/* ── NATURAL LANGUAGE INPUT ── */}
             <div>
               <div style={{ fontSize: 11, fontWeight: 800, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 10 }}>Pridať úlohu hlasom</div>
               <div style={{ fontSize: 12, color: theme.muted, marginBottom: 10 }}>Napíš čo chceš urobiť prirodzene — AI to parsuje na úlohu.</div>
-              <div style={{ background: headerBg, borderRadius: 10, padding: "6px 6px 6px 12px", display: "flex", alignItems: "center", gap: 8, border: `1.5px solid ${theme.border}` }}>
+              <div style={{ background: headerBg, borderRadius: 10, padding: "6px 6px 6px 12px", display: "flex", alignItems: "center", gap: 8, border: `1.5px solid ${theme.border}`, transition: "border-color .15s" }}
+                onFocusCapture={e => e.currentTarget.style.borderColor = appliedA}
+                onBlurCapture={e => e.currentTarget.style.borderColor = theme.border}
+              >
                 <input
                   value={nlInput}
                   onChange={e => setNlInput(e.target.value)}
@@ -1371,16 +1462,39 @@ Pravidlá:
                   placeholder='napr. "Stretnutie s klientom v piatok, vysoká priorita"'
                   style={{ flex: 1, background: "none", border: "none", outline: "none", color: theme.text, fontFamily: "var(--font-geist-sans)", fontSize: 13 }}
                 />
-                <button onClick={addTaskFromNL} disabled={nlLoading || !nlInput.trim()} style={{ background: nlInput.trim() ? grad : theme.border, border: "none", borderRadius: 8, padding: "8px 14px", color: "#fff", fontWeight: 700, fontSize: 12, cursor: nlInput.trim() ? "pointer" : "default", fontFamily: "var(--font-geist-sans)", flexShrink: 0, transition: "background .2s" }}>
-                  {nlLoading ? "..." : "Pridaj"}
+                <button onClick={addTaskFromNL} disabled={nlLoading || !nlInput.trim()} style={{ background: nlInput.trim() && !nlLoading ? grad : theme.border, border: "none", borderRadius: 8, padding: "8px 14px", color: "#fff", fontWeight: 700, fontSize: 12, cursor: nlInput.trim() && !nlLoading ? "pointer" : "default", fontFamily: "var(--font-geist-sans)", flexShrink: 0, transition: "background .2s" }}>
+                  {nlLoading ? (
+                    <div style={{ width: 14, height: 14, borderRadius: "50%", border: "2px solid #ffffff44", borderTopColor: "#fff", animation: "spin .8s linear infinite" }} />
+                  ) : "Pridaj"}
                 </button>
               </div>
-              {/* Examples */}
               <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
                 {["Meetng so šéfom zajtra", "Opraviť bug do piatku, vysoká priorita", "Nakúpiť kávu budúci týždeň"].map(ex => (
                   <button key={ex} onClick={() => setNlInput(ex)} style={{ background: appliedA + "15", border: `1px solid ${appliedA}33`, borderRadius: 20, padding: "4px 10px", color: appliedA, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}>{ex}</button>
                 ))}
               </div>
+            </div>
+
+            {/* ── AUTO-PRIORITY ── */}
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 800, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 6 }}>Auto-priorita</div>
+              <div style={{ fontSize: 12, color: theme.muted, marginBottom: 10 }}>AI navrhne priority pre nedokončené úlohy podľa termínov a kontextu.</div>
+              <AutoPrioritySection
+                tasks={tasks}
+                onApply={(suggestions) => {
+                  const incomplete = tasks.filter(t => t.status !== "Hotovo");
+                  const updated = tasksRef.current.map(t => {
+                    if (t.status === "Hotovo") return t;
+                    const idx = incomplete.findIndex(x => x.id === t.id);
+                    const suggestion = suggestions.find((s: any) => s.index === idx);
+                    return suggestion ? { ...t, priority: suggestion.priority as Priority } : t;
+                  });
+                  tasksRef.current = updated;
+                  setTasks(updated);
+                  saveAll(updated, undefined, undefined, logActivity("AI nastavila priority", projectName));
+                  setShowAI(false);
+                }}
+              />
             </div>
           </div>
         </div>
@@ -1396,7 +1510,6 @@ Pravidlá:
             boxShadow: "0 24px 60px rgba(0,0,0,0.25)", border: `1px solid ${theme.border}`,
             animation: "fadeIn .2s ease", display: "flex", flexDirection: "column", gap: 20,
           }}>
-            {/* Header */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div>
                 <div style={{ fontSize: 17, fontWeight: 800 }}>Zdieľať projekt</div>
@@ -1405,11 +1518,9 @@ Pravidlá:
               <button onClick={() => setShowShare(false)} style={{ background: "none", border: "none", cursor: "pointer", color: theme.muted, padding: 4 }}>{Icons.close}</button>
             </div>
 
-            {/* Current members */}
             <div>
               <div style={{ fontSize: 11, fontWeight: 800, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 10 }}>Členovia ({members.length + 1})</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {/* Owner (current user) */}
                 {(() => {
                   const user = auth.currentUser;
                   return (
@@ -1425,7 +1536,6 @@ Pravidlá:
                     </div>
                   );
                 })()}
-                {/* Other members */}
                 {members.map(m => (
                   <div key={m.uid} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: headerBg, borderRadius: 10 }}>
                     <div style={{ width: 36, height: 36, borderRadius: "50%", background: appliedA + "22", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, color: appliedA, fontWeight: 800, flexShrink: 0 }}>
@@ -1450,7 +1560,6 @@ Pravidlá:
               </div>
             </div>
 
-            {/* Invite by email */}
             {isAdmin && (
               <div>
                 <div style={{ fontSize: 11, fontWeight: 800, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 10 }}>Pozvať emailom</div>
@@ -1465,7 +1574,6 @@ Pravidlá:
                   </select>
                   <button onClick={inviteByEmail} style={{ background: grad, border: "none", borderRadius: 10, padding: "9px 16px", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "var(--font-geist-sans)", boxShadow: `0 4px 12px ${appliedA}44` }}>Pozvať</button>
                 </div>
-                {/* Pending invites */}
                 {invites.filter(i => i.email).length > 0 && (
                   <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 4 }}>
                     {invites.filter(i => i.email).map(inv => (
@@ -1482,7 +1590,6 @@ Pravidlá:
               </div>
             )}
 
-            {/* Share link */}
             {isAdmin && (
               <div>
                 <div style={{ fontSize: 11, fontWeight: 800, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 10 }}>Zdieľací link</div>
@@ -1503,7 +1610,6 @@ Pravidlá:
                     </button>
                   </div>
                 )}
-                {/* Active link invites */}
                 {invites.filter(i => !i.email).length > 0 && (
                   <div style={{ marginTop: 8 }}>
                     <div style={{ fontSize: 10, color: theme.muted, marginBottom: 4 }}>Aktívne linky:</div>
@@ -1519,7 +1625,6 @@ Pravidlá:
               </div>
             )}
 
-            {/* Role descriptions */}
             <div style={{ background: headerBg, borderRadius: 10, padding: "12px 14px" }}>
               <div style={{ fontSize: 11, fontWeight: 800, color: theme.muted, marginBottom: 8 }}>Popis rôl</div>
               {(Object.entries(ROLE_CONFIG) as [Role, typeof ROLE_CONFIG[Role]][]).map(([role, cfg]) => (
@@ -1533,7 +1638,7 @@ Pravidlá:
         </div>
       )}
 
-      {/* ── CONFIRM TASK DELETE MODAL ── */}
+      {/* ── CONFIRM DELETE MODAL ── */}
       {confirmTaskDelete && (() => {
         const task = tasks.find(t => t.id === confirmTaskDelete);
         if (!task) return null;
