@@ -389,6 +389,13 @@ export default function WorkPage() {
   const router = useRouter();
   const { grad, theme, appliedA, appliedB, darkMode } = useTheme();
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
   const [activityHeatmap, setActivityHeatmap] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("Všetky");
@@ -529,7 +536,7 @@ export default function WorkPage() {
   };
 
   if (loading) return (
-    <div style={{ flex: 1, overflowY: "auto", padding: "24px 24px 60px", display: "flex", flexDirection: "column", gap: 20, background: theme.bg, fontFamily: "var(--font-geist-sans)" }}>
+    <div style={{ flex: 1, overflowY: "auto", padding: isMobile ? "16px 12px 60px" : "24px 24px 60px", display: "flex", flexDirection: "column", gap: 20, background: theme.bg, fontFamily: "var(--font-geist-sans)" }}>
       <style>{`
         @keyframes skeletonShimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
         :root{--sk-a:${darkMode?"#ffffff0a":"#f0f0f0"};--sk-b:${darkMode?"#ffffff16":"#e0e0e0"};--sk-surface:${darkMode?theme.card:"#ffffff"};--sk-border:${theme.border};}
@@ -557,7 +564,7 @@ export default function WorkPage() {
   );
 
   return (
-    <div style={{ flex: 1, overflowY: "auto", padding: "24px 24px 60px", display: "flex", flexDirection: "column", gap: 20, background: theme.bg, color: theme.text, fontFamily: "var(--font-geist-sans)", transition: "background .3s, color .3s" }}>
+    <div style={{ flex: 1, overflowY: "auto", padding: isMobile ? "16px 12px 60px" : "24px 24px 60px", display: "flex", flexDirection: "column", gap: 20, background: theme.bg, color: theme.text, fontFamily: "var(--font-geist-sans)", transition: "background .3s, color .3s" }}>
       <style>{`
         @keyframes fadeIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
         @keyframes skeletonShimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
@@ -693,30 +700,32 @@ export default function WorkPage() {
       </div>
 
       {/* ── ANALYTIKA ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 14 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         {/* Heatmap */}
-        <div style={{ background: surface, border: `1px solid ${theme.border}`, borderRadius: 16, padding: "18px 20px", boxShadow: shadow, gridColumn: "1 / -1" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+        <div style={{ background: surface, border: `1px solid ${theme.border}`, borderRadius: 16, padding: isMobile ? "14px 12px" : "18px 20px", boxShadow: shadow }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 6 }}>
             <div style={{ fontSize: 11, fontWeight: 800, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.7px" }}>Aktivita za posledných 6 mesiacov</div>
-            <div style={{ fontSize: 11, color: theme.muted }}>{Object.values(activityHeatmap).reduce((a, b) => a + b, 0)} akcií celkom</div>
+            <div style={{ fontSize: 11, color: theme.muted }}>{Object.values(activityHeatmap).reduce((a, b) => a + b, 0)} akcií</div>
           </div>
           <Heatmap data={activityHeatmap} appliedA={appliedA} darkMode={darkMode} theme={theme} />
         </div>
 
-        {/* Trend chart */}
-        <div style={{ background: surface, border: `1px solid ${theme.border}`, borderRadius: 16, padding: "18px 20px", boxShadow: shadow }}>
-          <div style={{ fontSize: 11, fontWeight: 800, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 14 }}>Úlohy podľa týždňa</div>
-          <TrendChart tasks={tasks} appliedA={appliedA} darkMode={darkMode} theme={theme} />
-          <div style={{ display: "flex", gap: 10, marginTop: 10, fontSize: 11 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 5 }}><div style={{ width: 10, height: 10, borderRadius: 2, background: darkMode ? appliedA + "33" : appliedA + "22" }} /><span style={{ color: theme.muted }}>Celkom</span></div>
-            <div style={{ display: "flex", alignItems: "center", gap: 5 }}><div style={{ width: 10, height: 10, borderRadius: 2, background: appliedA }} /><span style={{ color: theme.muted }}>Hotovo</span></div>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 14 }}>
+          {/* Trend chart */}
+          <div style={{ background: surface, border: `1px solid ${theme.border}`, borderRadius: 16, padding: isMobile ? "14px 12px" : "18px 20px", boxShadow: shadow }}>
+            <div style={{ fontSize: 11, fontWeight: 800, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 14 }}>Úlohy podľa týždňa</div>
+            <TrendChart tasks={tasks} appliedA={appliedA} darkMode={darkMode} theme={theme} />
+            <div style={{ display: "flex", gap: 10, marginTop: 10, fontSize: 11 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 5 }}><div style={{ width: 10, height: 10, borderRadius: 2, background: darkMode ? appliedA + "33" : appliedA + "22" }} /><span style={{ color: theme.muted }}>Celkom</span></div>
+              <div style={{ display: "flex", alignItems: "center", gap: 5 }}><div style={{ width: 10, height: 10, borderRadius: 2, background: appliedA }} /><span style={{ color: theme.muted }}>Hotovo</span></div>
+            </div>
           </div>
-        </div>
 
-        {/* Burndown */}
-        <div style={{ background: surface, border: `1px solid ${theme.border}`, borderRadius: 16, padding: "18px 20px", boxShadow: shadow }}>
-          <div style={{ fontSize: 11, fontWeight: 800, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 14 }}>Burndown — tento mesiac</div>
-          <BurndownChart tasks={tasks} appliedA={appliedA} darkMode={darkMode} theme={theme} />
+          {/* Burndown */}
+          <div style={{ background: surface, border: `1px solid ${theme.border}`, borderRadius: 16, padding: isMobile ? "14px 12px" : "18px 20px", boxShadow: shadow }}>
+            <div style={{ fontSize: 11, fontWeight: 800, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 14 }}>Burndown — tento mesiac</div>
+            <BurndownChart tasks={tasks} appliedA={appliedA} darkMode={darkMode} theme={theme} />
+          </div>
         </div>
       </div>
 
