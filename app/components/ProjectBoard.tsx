@@ -997,6 +997,51 @@ Pravidlá:
       <div style={{ padding: isMobile ? "12px 14px 60px" : "16px 20px 60px" }}>
 
         {/* ── TABLE ── */}
+        {/* ── ACTIVITY LOG PANEL ── */}
+        {showActivity && (
+          <div style={{ background: surface, border: `1px solid ${theme.border}`, borderRadius: 14, padding: "16px 18px", boxShadow: "0 2px 12px rgba(0,0,0,0.08)", animation: "fadeIn .2s ease" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <div style={{ fontSize: 13, fontWeight: 800, display: "flex", alignItems: "center", gap: 7 }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={appliedA} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                Aktivita projektu
+              </div>
+              <button onClick={() => setShowActivity(false)} style={{ background: "none", border: "none", cursor: "pointer", color: theme.muted }}>{Icons.close}</button>
+            </div>
+            {activityLog.length === 0 ? (
+              <div style={{ fontSize: 12, color: theme.muted, textAlign: "center", padding: "12px 0" }}>Žiadna aktivita</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 240, overflowY: "auto" }}>
+                {activityLog.map(log => {
+                  const timeAgo = (ts: number) => {
+                    const diff = Date.now() - ts;
+                    const m = Math.floor(diff / 60000);
+                    const h = Math.floor(m / 60);
+                    const d = Math.floor(h / 24);
+                    if (m < 1) return "práve teraz";
+                    if (m < 60) return `pred ${m} min`;
+                    if (h < 24) return `pred ${h} hod`;
+                    return `pred ${d} dňami`;
+                  };
+                  return (
+                    <div key={log.id} style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "6px 0", borderBottom: `1px solid ${theme.border}22` }}>
+                      <div style={{ width: 22, height: 22, borderRadius: "50%", background: appliedA + "18", display: "flex", alignItems: "center", justifyContent: "center", color: appliedA, flexShrink: 0 }}>
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <span style={{ fontSize: 12, fontWeight: 700 }}>{log.author} </span>
+                        <span style={{ fontSize: 12, color: theme.muted }}>{log.action} </span>
+                        <span style={{ fontSize: 12, fontWeight: 600 }}>"{log.taskName}"</span>
+                        {log.field && <span style={{ fontSize: 11, color: theme.muted }}> · {log.field}: <span style={{ color: "#dc2626" }}>{log.oldVal}</span> → <span style={{ color: "#16a34a" }}>{log.newVal}</span></span>}
+                        <div style={{ fontSize: 10, color: theme.muted, marginTop: 2 }}>{timeAgo(log.createdAt)}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
         {view === "table" && (
           <div style={{ background: surface, borderRadius: 14, border: `1px solid ${theme.border}`, boxShadow: shadow, overflow: "hidden", animation: "fadeIn .2s ease" }}>
             {!isMobile && (
