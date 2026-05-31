@@ -530,6 +530,7 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
   const summarizeProject = async () => {
     setAiLoading(true);
     setAiSummary("");
+    console.log("AI: starting summarize...");
     const done = tasks.filter(t => t.status === "Hotovo").length;
     const inProgress = tasks.filter(t => t.status === "V procese").length;
     const stuck = tasks.filter(t => t.status === "Uviaznuté").length;
@@ -550,6 +551,7 @@ Dáta projektu:
 - Úlohy: ${tasks.map(t => `${t.name} (${t.status}${t.dueDate ? ", termín: " + t.dueDate : ""})`).join("; ")}`;
 
     try {
+      console.log("AI: calling /api/ai...");
       const res = await fetch("/api/ai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -557,10 +559,13 @@ Dáta projektu:
           messages: [{ role: "user", content: prompt }],
         }),
       });
+      console.log("AI: response status:", res.status);
       const data = await res.json();
+      console.log("AI: response data:", data);
       const text = data.content?.map((c: any) => c.text || "").join("") || "Nepodarilo sa získať sumarizáciu.";
       setAiSummary(text);
-    } catch {
+    } catch (err) {
+      console.error("AI: error:", err);
       setAiSummary("Chyba pri komunikácii s AI. Skús znova.");
     }
     setAiLoading(false);
