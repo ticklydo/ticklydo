@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 export async function POST(req: NextRequest) {
   try {
     const { email, projectName, inviterName, role, inviteLink } = await req.json();
@@ -14,6 +12,9 @@ export async function POST(req: NextRequest) {
     if (!process.env.RESEND_API_KEY) {
       return NextResponse.json({ error: "RESEND_API_KEY nie je nastavený" }, { status: 500 });
     }
+
+    // Lazy init — vytvorí sa až tu, nie pri build-e
+    const resend = new Resend(process.env.RESEND_API_KEY);
 
     const roleLabel = role === "admin" ? "Admin" : role === "member" ? "Člen" : "Host";
 
