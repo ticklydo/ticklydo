@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
     const roleLabel = role === "admin" ? "Admin" : role === "member" ? "Člen" : "Host";
 
     const { data, error } = await resend.emails.send({
-      from: "Ticklydo <info@ticklydo.com>",
+      from: "Ticklydo <noreply@ticklydo.com>",
       to: [email],
       subject: `${inviterName || "Niekto"} ťa pozýva do projektu "${projectName}"`,
       html: `
