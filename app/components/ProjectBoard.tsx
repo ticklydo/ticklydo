@@ -546,7 +546,8 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
     const db = getFirestore();
     const q = query(collection(db, "users"), where("email", "==", inviteEmail.trim()));
     const snap = await getDocs(q);
-    const newInvite: Invite = { token: genId() + genId(), email: inviteEmail.trim(), role: inviteRole, createdAt: Date.now(), createdBy: user.email ?? user.uid };
+    const token = genId() + genId();
+    const newInvite: Invite = { token, email: inviteEmail.trim(), role: inviteRole, createdAt: Date.now(), createdBy: user.email ?? user.uid };
     if (!snap.empty) {
       const inviteeDoc = snap.docs[0];
       const pending = inviteeDoc.data().pendingInvites ?? [];
@@ -555,6 +556,25 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
     const newInvites = [...invites, newInvite];
     setInvites(newInvites);
     await saveSharing(members, newInvites);
+
+    // ── Odosla\u0165 email cez Resend ──
+    try {
+      const inviteLink = `${window.location.origin}/join/${user.uid}_${projectId}?token=${token}`;
+      await fetch("/api/send-invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: inviteEmail.trim(),
+          projectName,
+          inviterName: user.displayName || user.email?.split("@")[0] || "Niekto",
+          role: inviteRole,
+          inviteLink,
+        }),
+      });
+    } catch (err) {
+      console.error("Email send error:", err);
+    }
+
     setInviteEmail("");
   };
 
