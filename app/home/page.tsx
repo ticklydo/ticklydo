@@ -93,6 +93,7 @@ const AVATARS: Record<string, (c1: string, c2: string) => React.ReactElement> = 
 
 function genId() { return Math.random().toString(36).slice(2, 10); }
 function timeAgo(ts: number) {
+  if (!ts) return "Nový";
   const diff = Date.now() - ts;
   const m = Math.floor(diff / 60000);
   const h = Math.floor(m / 60);
@@ -114,6 +115,7 @@ export default function HomePage() {
   const [showNewModal, setShowNewModal] = useState(false);
   const [showMenuId, setShowMenuId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false); // ← NOVÉ: prevent double submit
 
   // New project form
   const [newName, setNewName] = useState("");
@@ -129,17 +131,14 @@ export default function HomePage() {
       const { getFirestore, doc, getDoc } = await import("firebase/firestore");
       const db = getFirestore();
 
-      // Load dynamic projects from users collection
       const snap = await getDoc(doc(db, "users", user.uid));
       const dynamicProjects: Project[] = snap.exists() && snap.data().projects
         ? snap.data().projects
         : [];
 
-      // Load old static projects (project-1 to project-4)
       const staticIds = ["project-1", "project-2", "project-3", "project-4"];
       const staticProjects: Project[] = [];
       await Promise.all(staticIds.map(async (id) => {
-        // Skip if already in dynamic projects
         if (dynamicProjects.some(p => p.id === id)) return;
         const pSnap = await getDoc(doc(db, "projects", `${user.uid}_${id}`));
         if (pSnap.exists()) {
@@ -156,7 +155,6 @@ export default function HomePage() {
       const all = [...dynamicProjects, ...staticProjects];
       setProjects(all);
 
-      // If we found static projects not yet in Firebase, save them
       if (staticProjects.length > 0) {
         const { setDoc } = await import("firebase/firestore");
         await setDoc(doc(db, "users", user.uid), { projects: all }, { merge: true });
@@ -168,15 +166,28 @@ export default function HomePage() {
   }, []);
 
   const saveProjects = async (newProjects: Project[]) => {
-    const user = auth.currentUser;
+    // Čakáme na auth — ak currentUser ešte nie je, skúsime znova
+    let user = auth.currentUser;
+    if (!user) {
+      await new Promise<void>((resolve) => {
+        const unsub = auth.onAuthStateChanged((u) => {
+          user = u;
+          unsub();
+          resolve();
+        });
+      });
+    }
     if (!user) return;
+
     const { getFirestore, doc, setDoc } = await import("firebase/firestore");
     const db = getFirestore();
     await setDoc(doc(db, "users", user.uid), { projects: newProjects }, { merge: true });
   };
 
-  const createProject = () => {
-    if (!newName.trim()) return;
+  const createProject = async () => {
+    if (!newName.trim() || creating) return;
+    setCreating(true);
+
     const g = GRADIENTS[newGradIdx];
     const p: Project = {
       id: genId(),
@@ -189,13 +200,21 @@ export default function HomePage() {
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
+
     const updated = [...projects, p];
     setProjects(updated);
-    saveProjects(updated);
+
+    try {
+      await saveProjects(updated);
+    } catch (err) {
+      console.error("Chyba pri ukladaní projektu:", err);
+    }
+
     setShowNewModal(false);
     setNewName("");
     setNewGradIdx(0);
     setNewIconId("doc");
+    setCreating(false);
     router.push(`/project/${p.id}`);
   };
 
@@ -222,7 +241,6 @@ export default function HomePage() {
     const updated = projects.filter(p => p.id !== id);
     setProjects(updated);
     await saveProjects(updated);
-    // Also delete project data from Firebase
     const user = auth.currentUser;
     if (user) {
       const { getFirestore, doc, deleteDoc } = await import("firebase/firestore");
@@ -239,7 +257,6 @@ export default function HomePage() {
   const recentProjects = [...activeProjects].sort((a, b) => b.updatedAt - a.updatedAt);
 
   const surface = theme.card;
-  const surfaceHover = theme.card2;
 
   if (loading) return (
     <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", background: theme.bg }}>
@@ -250,7 +267,6 @@ export default function HomePage() {
 
   const ProjectCard = ({ p }: { p: Project }) => {
     const icon = ICONS.find(ic => ic.id === p.iconId) ?? ICONS[0];
-    const shadow = `rgba(0,0,0,0.2)`;
     return (
       <div style={{ position: "relative" }}>
         <div onClick={() => router.push(`/project/${p.id}`)} style={{
@@ -258,11 +274,11 @@ export default function HomePage() {
           display: "flex", alignItems: "center", gap: 14,
           cursor: "pointer", overflow: "hidden",
           background: `linear-gradient(135deg, ${p.color1}, ${p.color2})`,
-          boxShadow: `0 6px 22px ${shadow}`,
+          boxShadow: `0 6px 22px rgba(0,0,0,0.2)`,
           transition: "transform .2s, box-shadow .2s",
         }}
-        onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = `0 10px 28px ${shadow}`; }}
-        onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = `0 6px 22px ${shadow}`; }}
+        onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = `0 10px 28px rgba(0,0,0,0.25)`; }}
+        onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = `0 6px 22px rgba(0,0,0,0.2)`; }}
         >
           <div style={{ width: 40, height: 40, borderRadius: 11, flexShrink: 0, background: "rgba(255,255,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center" }}>
             {icon.svg}
@@ -272,18 +288,15 @@ export default function HomePage() {
             <div style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.55)", marginTop: 2 }}>{timeAgo(p.updatedAt)}</div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            {/* Star */}
             <div onClick={e => { e.stopPropagation(); toggleStar(p.id); }} style={{ cursor: "pointer", color: p.starred ? "#f5c842" : "rgba(255,255,255,0.3)", filter: p.starred ? "drop-shadow(0 0 4px rgba(245,200,66,0.6))" : "none", transition: "all .2s" }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill={p.starred ? "#f5c842" : "none"} stroke={p.starred ? "#f5c842" : "rgba(255,255,255,0.5)"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
             </div>
-            {/* Menu */}
             <div onClick={e => { e.stopPropagation(); setShowMenuId(showMenuId === p.id ? null : p.id); }} style={{ cursor: "pointer", color: "rgba(255,255,255,0.5)", padding: 2 }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
             </div>
           </div>
         </div>
 
-        {/* Context menu */}
         {showMenuId === p.id && (
           <>
             <div onClick={() => setShowMenuId(null)} style={{ position: "fixed", inset: 0, zIndex: 50 }} />
@@ -322,7 +335,7 @@ export default function HomePage() {
       background: theme.bg, color: theme.text,
       fontFamily: "var(--font-geist-sans)", transition: "background .3s, color .3s",
     }}>
-      <style>{`@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
+      <style>{`@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}} @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
 
       {/* Header */}
       <div style={{ fontSize: 22, fontWeight: 900, display: "flex", alignItems: "center", gap: 12 }}>
@@ -425,7 +438,7 @@ export default function HomePage() {
       {/* NEW PROJECT MODAL */}
       {showNewModal && (
         <div style={{ position: "fixed", inset: 0, zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)" }}
-          onClick={() => setShowNewModal(false)}>
+          onClick={() => { if (!creating) setShowNewModal(false); }}>
           <div onClick={e => e.stopPropagation()} style={{
             background: theme.card, borderRadius: 24, padding: 28,
             width: "min(480px, 92vw)", boxShadow: "0 24px 60px rgba(0,0,0,0.25)",
@@ -500,22 +513,40 @@ export default function HomePage() {
 
             {/* Buttons */}
             <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={() => setShowNewModal(false)} style={{
-                flex: 1, background: "none", border: `1px solid ${theme.border}`, borderRadius: 12,
-                padding: "12px", color: theme.muted, fontWeight: 700, fontSize: 14,
-                cursor: "pointer", fontFamily: "var(--font-geist-sans)",
-              }}>Zrušiť</button>
-              <button onClick={createProject} style={{
-                flex: 2, background: grad, border: "none", borderRadius: 12,
-                padding: "12px", color: "#fff", fontWeight: 800, fontSize: 14,
-                cursor: "pointer", fontFamily: "var(--font-geist-sans)",
-                boxShadow: `0 4px 14px ${appliedA}44`,
-              }}>Vytvoriť projekt</button>
+              <button
+                onClick={() => { if (!creating) setShowNewModal(false); }}
+                disabled={creating}
+                style={{ flex: 1, background: "none", border: `1px solid ${theme.border}`, borderRadius: 12, padding: "12px", color: theme.muted, fontWeight: 700, fontSize: 14, cursor: creating ? "default" : "pointer", fontFamily: "var(--font-geist-sans)" }}
+              >
+                Zrušiť
+              </button>
+              <button
+                onClick={createProject}
+                disabled={creating || !newName.trim()}
+                style={{
+                  flex: 2, background: creating || !newName.trim() ? theme.border : grad,
+                  border: "none", borderRadius: 12, padding: "12px",
+                  color: "#fff", fontWeight: 800, fontSize: 14,
+                  cursor: creating || !newName.trim() ? "default" : "pointer",
+                  fontFamily: "var(--font-geist-sans)",
+                  boxShadow: creating || !newName.trim() ? "none" : `0 4px 14px ${appliedA}44`,
+                  transition: "background .2s",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                }}
+              >
+                {creating ? (
+                  <>
+                    <div style={{ width: 14, height: 14, borderRadius: "50%", border: "2px solid #ffffff44", borderTopColor: "#fff", animation: "spin .8s linear infinite" }} />
+                    Vytváram...
+                  </>
+                ) : "Vytvoriť projekt"}
+              </button>
             </div>
           </div>
         </div>
       )}
-      {/* ── CONFIRM DELETE MODAL ── */}
+
+      {/* CONFIRM DELETE MODAL */}
       {confirmDelete && (() => {
         const p = projects.find(pr => pr.id === confirmDelete);
         if (!p) return null;
@@ -528,23 +559,19 @@ export default function HomePage() {
               border: `1px solid ${theme.border}`, animation: "fadeIn .2s ease",
               display: "flex", flexDirection: "column", gap: 16,
             }}>
-              {/* Icon */}
               <div style={{ width: 48, height: 48, borderRadius: 14, background: "#fee2e2", display: "flex", alignItems: "center", justifyContent: "center", color: "#dc2626" }}>
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
               </div>
-              {/* Text */}
               <div>
                 <div style={{ fontSize: 17, fontWeight: 800, marginBottom: 6 }}>Vymazať projekt?</div>
                 <div style={{ fontSize: 13, color: theme.muted, lineHeight: 1.5 }}>
                   Naozaj chceš vymazať projekt <strong style={{ color: theme.text }}>"{p.name}"</strong>? Všetky úlohy, komentáre a dáta budú nenávratne stratené.
                 </div>
               </div>
-              {/* Project preview */}
               <div style={{ borderRadius: 12, padding: "10px 14px", background: `linear-gradient(135deg, ${p.color1}22, ${p.color2}11)`, border: `1px solid ${p.color1}33`, display: "flex", alignItems: "center", gap: 10 }}>
                 <div style={{ width: 10, height: 10, borderRadius: 3, background: `linear-gradient(135deg, ${p.color1}, ${p.color2})` }} />
                 <span style={{ fontSize: 13, fontWeight: 700 }}>{p.name}</span>
               </div>
-              {/* Buttons */}
               <div style={{ display: "flex", gap: 10 }}>
                 <button onClick={() => setConfirmDelete(null)} style={{ flex: 1, background: "none", border: `1px solid ${theme.border}`, borderRadius: 12, padding: "11px", color: theme.muted, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}>Zrušiť</button>
                 <button onClick={() => deleteProject(confirmDelete)} style={{ flex: 1, background: "#dc2626", border: "none", borderRadius: 12, padding: "11px", color: "#fff", fontWeight: 800, fontSize: 13, cursor: "pointer", fontFamily: "var(--font-geist-sans)", boxShadow: "0 4px 12px #dc262644" }}>Áno, vymazať</button>
