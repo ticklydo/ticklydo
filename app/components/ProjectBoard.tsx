@@ -354,36 +354,38 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
   useEffect(() => {
     const unsub = auth.onAuthStateChanged(async (user) => {
       if (!user) { setLoading(false); return; }
-      const { getFirestore, doc, getDoc } = await import("firebase/firestore");
+      const { getFirestore, doc, onSnapshot } = await import("firebase/firestore");
       const db = getFirestore();
-      const snap = await getDoc(doc(db, "projects", `${user.uid}_${projectId}`));
-      if (snap.exists()) {
-        const data = snap.data();
-        if (data.projectName) setProjectName(data.projectName);
-        setTasks((data.tasks ?? []).map((t: Task) => {
-          const task: Task = {
-            id: t.id, name: t.name, status: t.status ?? "Nezačaté",
-            priority: t.priority ?? "", dueDate: t.dueDate ?? "",
-            owner: t.owner ?? "", notes: t.notes ?? "",
-            subtasks: (t.subtasks ?? []).map((s: SubTask) => ({
-              id: s.id, name: s.name, done: s.done ?? false,
-              status: s.status ?? "Nezačaté", priority: s.priority ?? "",
-              dueDate: s.dueDate ?? "", owner: s.owner ?? "", notes: s.notes ?? "",
-            })),
-          };
-          if (t.tags) task.tags = t.tags;
-          if (t.comments) task.comments = t.comments;
-          return task;
-        }));
-        setEvents(data.events ?? []);
-        setActivityLog(data.activityLog ?? []);
-        setMembers(data.members ?? []);
-        setInvites(data.invites ?? []);
-        const currentMember = (data.members ?? []).find((m: Member) => m.uid === user.uid);
-        if (currentMember) setMyRole(currentMember.role);
-        else setMyRole("admin");
-      }
-      setLoading(false);
+      const unsubSnap = onSnapshot(doc(db, "projects", `${user.uid}_${projectId}`), (snap) => {
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data.projectName) setProjectName(data.projectName);
+          setTasks((data.tasks ?? []).map((t: Task) => {
+            const task: Task = {
+              id: t.id, name: t.name, status: t.status ?? "Nezačaté",
+              priority: t.priority ?? "", dueDate: t.dueDate ?? "",
+              owner: t.owner ?? "", notes: t.notes ?? "",
+              subtasks: (t.subtasks ?? []).map((s: SubTask) => ({
+                id: s.id, name: s.name, done: s.done ?? false,
+                status: s.status ?? "Nezačaté", priority: s.priority ?? "",
+                dueDate: s.dueDate ?? "", owner: s.owner ?? "", notes: s.notes ?? "",
+              })),
+            };
+            if (t.tags) task.tags = t.tags;
+            if (t.comments) task.comments = t.comments;
+            return task;
+          }));
+          setEvents(data.events ?? []);
+          setActivityLog(data.activityLog ?? []);
+          setMembers(data.members ?? []);
+          setInvites(data.invites ?? []);
+          const currentMember = (data.members ?? []).find((m: Member) => m.uid === user.uid);
+          if (currentMember) setMyRole(currentMember.role);
+          else setMyRole("admin");
+        }
+        setLoading(false);
+      });
+      return () => unsubSnap();
     });
     return () => unsub();
   }, [projectId]);
