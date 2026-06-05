@@ -95,7 +95,8 @@ export default function NotificationsPage() {
       const all: Notif[] = [];
 
       await Promise.all(projects.map(async (project: any) => {
-        const snap = await getDoc(doc(db, "projects", `${user.uid}_${project.id}`));
+        const projectPath = project.shared ? `${project.ownerUid}_${project.projectId}` : `${user.uid}_${project.id}`;
+const snap = await getDoc(doc(db, "projects", projectPath));
         if (!snap.exists()) return;
         const tasks = snap.data().tasks ?? [];
 
