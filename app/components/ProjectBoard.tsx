@@ -298,6 +298,9 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
   const [aiError, setAiError] = useState("");
   const [nlInput, setNlInput] = useState("");
   const [nlLoading, setNlLoading] = useState(false);
+  const [subtaskSuggestId, setSubtaskSuggestId] = useState<string | null>(null);
+  const [subtaskSuggestions, setSubtaskSuggestions] = useState<string[]>([]);
+  const [subtaskSuggestLoading, setSubtaskSuggestLoading] = useState(false);
   const [newComment, setNewComment] = useState("");
   const [detailTab, setDetailTab] = useState<"details" | "comments" | "activity">("details");
   const [confirmTaskDelete, setConfirmTaskDelete] = useState<string | null>(null);
@@ -745,6 +748,45 @@ Pravidlá priority: urgent/vysoká/dôležitá → Vysoká, normálna/stredná �
     setNlLoading(false);
   };
 
+  // ── AI: SUGGEST SUBTASKS ────────────────────────────────────────────────
+  const suggestSubtasks = async (task: Task) => {
+    setSubtaskSuggestId(task.id);
+    setSubtaskSuggestions([]);
+    setSubtaskSuggestLoading(true);
+    try {
+      const res = await fetch("/api/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: [{
+            role: "user",
+            content: `Pre úlohu "${task.name}" navrhni 4-5 konkrétnych podúloh. Odpovedaj IBA validným JSON poľom stringov bez markdown:
+["podúloha 1", "podúloha 2", "podúloha 3", "podúloha 4"]
+${task.notes ? `Kontext: ${task.notes}` : ""}
+Buď konkrétny a stručný, max 6 slov na podúlohu.`,
+          }],
+        }),
+      });
+      const data = await res.json();
+      const raw = data.content?.map((c: any) => c.text || "").join("").trim() ?? "[]";
+      const parsed = JSON.parse(raw.replace(/```json|```/g, "").trim());
+      setSubtaskSuggestions(parsed);
+    } catch { /* silent */ }
+    setSubtaskSuggestLoading(false);
+  };
+
+  const acceptSubtaskSuggestions = (taskId: string, suggestions: string[]) => {
+    const task = tasksRef.current.find(t => t.id === taskId);
+    if (!task) return;
+    const newSubs: SubTask[] = suggestions.map(name => ({
+      id: genId(), name, done: false, status: "Nezačaté" as Status,
+      priority: "" as Priority, dueDate: "", owner: "", notes: "",
+    }));
+    updateTask(taskId, "subtasks", [...task.subtasks, ...newSubs]);
+    setSubtaskSuggestId(null);
+    setSubtaskSuggestions([]);
+  };
+
   const pill = (color: string, bg: string, small = false) => ({
     background: darkMode ? color + "22" : bg,
     color, border: `1px solid ${color}33`,
@@ -951,6 +993,36 @@ Pravidlá priority: urgent/vysoká/dôležitá → Vysoká, normálna/stredná �
                   <input value={newSubtask[task.id] ?? ""} onChange={e => setNewSubtask(prev => ({ ...prev, [task.id]: e.target.value }))} placeholder="Nová podúloha..." onKeyDown={e => { if (e.key === "Enter") addSubtask(task.id); }} style={{ flex: 1, background: headerBg, border: `1.5px solid ${theme.border}`, borderRadius: 10, padding: "8px 12px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontSize: 13, outline: "none" }} onFocus={e => e.target.style.borderColor = appliedA} onBlur={e => e.target.style.borderColor = theme.border} />
                   <button onClick={() => addSubtask(task.id)} style={{ background: grad, border: "none", borderRadius: 10, padding: "8px 14px", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}>Pridať</button>
                 </div>
+
+                {/* AI subtask suggestions - mobile */}
+                {subtaskSuggestId === task.id ? (
+                  <div style={{ marginTop: 8 }}>
+                    {subtaskSuggestLoading ? (
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: theme.muted, padding: "8px 0" }}>
+                        <div style={{ width: 12, height: 12, borderRadius: "50%", border: `2px solid ${theme.border}`, borderTopColor: appliedA, animation: "spin .8s linear infinite" }} />
+                        AI navrhuje podúlohy...
+                      </div>
+                    ) : subtaskSuggestions.length > 0 ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: appliedA, marginBottom: 4 }}>✨ Navrhnuté podúlohy</div>
+                        {subtaskSuggestions.map((s, i) => (
+                          <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", background: appliedA + "10", borderRadius: 10, border: `1px solid ${appliedA}22` }}>
+                            <div style={{ width: 14, height: 14, borderRadius: 4, border: `1.5px solid ${appliedA}`, flexShrink: 0 }} />
+                            <span style={{ fontSize: 13, flex: 1 }}>{s}</span>
+                          </div>
+                        ))}
+                        <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+                          <button onClick={() => acceptSubtaskSuggestions(task.id, subtaskSuggestions)} style={{ flex: 1, background: grad, border: "none", borderRadius: 10, padding: "10px", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}>✓ Pridať všetky</button>
+                          <button onClick={() => { setSubtaskSuggestId(null); setSubtaskSuggestions([]); }} style={{ background: "none", border: `1px solid ${theme.border}`, borderRadius: 10, padding: "10px 14px", color: theme.muted, fontSize: 12, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}>Zrušiť</button>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : (
+                  <button onClick={() => suggestSubtasks(task)} style={{ marginTop: 8, width: "100%", background: "none", border: `1.5px dashed ${appliedA}66`, borderRadius: 10, padding: "10px", color: appliedA, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "var(--font-geist-sans)", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                    ✨ Navrhnúť podúlohy pomocou AI
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -1263,6 +1335,38 @@ Pravidlá priority: urgent/vysoká/dôležitá → Vysoká, normálna/stredná �
                         <input value={newSubtask[task.id] ?? ""} onChange={e => setNewSubtask(prev => ({ ...prev, [task.id]: e.target.value }))} placeholder="Pridaj podúlohu..." onKeyDown={e => { if (e.key === "Enter") addSubtask(task.id); }} style={{ flex: 1, background: "transparent", border: "none", borderBottom: `1.5px solid ${theme.border}`, padding: "3px 0", color: theme.text, fontSize: 12, fontFamily: "var(--font-geist-sans)", fontWeight: 500, outline: "none", transition: "border-color .15s" }} onFocus={e => e.target.style.borderBottomColor = appliedA} onBlur={e => e.target.style.borderBottomColor = theme.border} />
                         <button onClick={() => addSubtask(task.id)} style={{ background: appliedA + "18", border: "none", borderRadius: 6, padding: "4px 10px", color: appliedA, fontWeight: 700, fontSize: 11, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}>Pridať</button>
                       </div>
+
+                      {/* ── AI SUBTASK SUGGESTIONS ── */}
+                      {subtaskSuggestId === task.id ? (
+                        <div style={{ padding: "8px 14px 10px 42px" }}>
+                          {subtaskSuggestLoading ? (
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: theme.muted }}>
+                              <div style={{ width: 12, height: 12, borderRadius: "50%", border: `2px solid ${theme.border}`, borderTopColor: appliedA, animation: "spin .8s linear infinite" }} />
+                              AI navrhuje podúlohy...
+                            </div>
+                          ) : subtaskSuggestions.length > 0 ? (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                              <div style={{ fontSize: 10, fontWeight: 700, color: appliedA, textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: 4 }}>✨ Navrhnuté podúlohy</div>
+                              {subtaskSuggestions.map((s, i) => (
+                                <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 8px", background: appliedA + "10", borderRadius: 8, border: `1px solid ${appliedA}22` }}>
+                                  <div style={{ width: 12, height: 12, borderRadius: 3, border: `1.5px solid ${appliedA}`, flexShrink: 0 }} />
+                                  <span style={{ fontSize: 12, flex: 1 }}>{s}</span>
+                                </div>
+                              ))}
+                              <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+                                <button onClick={() => acceptSubtaskSuggestions(task.id, subtaskSuggestions)} style={{ flex: 1, background: appliedA, border: "none", borderRadius: 8, padding: "6px 10px", color: "#fff", fontWeight: 700, fontSize: 11, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}>✓ Pridať všetky</button>
+                                <button onClick={() => { setSubtaskSuggestId(null); setSubtaskSuggestions([]); }} style={{ background: "none", border: `1px solid ${theme.border}`, borderRadius: 8, padding: "6px 10px", color: theme.muted, fontSize: 11, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}>Zrušiť</button>
+                              </div>
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : (
+                        <div style={{ padding: "0 14px 10px 42px" }}>
+                          <button onClick={() => suggestSubtasks(task)} style={{ background: "none", border: `1px dashed ${appliedA}66`, borderRadius: 8, padding: "5px 12px", color: appliedA, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "var(--font-geist-sans)", display: "flex", alignItems: "center", gap: 5 }}>
+                            ✨ Navrhnúť podúlohy
+                          </button>
+                        </div>
+                      )}
 
                       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0, borderTop: `1px solid ${theme.border}33` }}>
                         <div style={{ padding: "10px 14px 10px 42px", borderRight: `1px solid ${theme.border}33` }}>
