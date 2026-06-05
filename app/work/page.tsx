@@ -325,10 +325,8 @@ export default function WorkPage() {
       const { getFirestore, doc, getDoc } = await import("firebase/firestore");
       const db = getFirestore();
       const userSnap = await getDoc(doc(db, "users", user.uid));
-      console.log("USER DOC EXISTS:", userSnap.exists());
       if (!userSnap.exists()) { setLoading(false); return; }
       const projects = userSnap.data().projects ?? [];
-      console.log("PROJECTS COUNT:", projects.length, projects.map((p: any) => ({ id: p.id, name: p.name, shared: p.shared })));
       const allTasks: Task[] = [];
       const activityByDay: Record<string, number> = {};
 
@@ -336,12 +334,18 @@ export default function WorkPage() {
         const projectPath = project.shared
           ? `${project.ownerUid}_${project.projectId}`
           : `${user.uid}_${project.id}`;
-        console.log("LOADING PATH:", projectPath, "shared:", project.shared);
-        const snap = await getDoc(doc(db, "projects", projectPath));
-        console.log("PATH:", projectPath, "EXISTS:", snap.exists());
+        let snap = await getDoc(doc(db, "projects", projectPath));
+
+        // Fallback: ak dokument neexistuje, skús _undefined (legacy bug)
+        if (!snap.exists() && !project.shared) {
+          const fallbackSnap = await getDoc(doc(db, "projects", `${user.uid}_undefined`));
+          if (fallbackSnap.exists() && fallbackSnap.data().projectName === project.name) {
+            snap = fallbackSnap;
+          }
+        }
+
         if (!snap.exists()) return;
         const data = snap.data();
-        console.log("TASKS IN PROJECT:", data.tasks?.length ?? 0, "for", project.name);
         (data.tasks ?? []).forEach((t: any) => {
           allTasks.push({
             id: t.id, name: t.name, status: t.status ?? "Nezačaté",
@@ -357,8 +361,6 @@ export default function WorkPage() {
           activityByDay[date] = (activityByDay[date] || 0) + 1;
         });
       }));
-
-      console.log("TOTAL TASKS LOADED:", allTasks.length);
       setTasks(allTasks);
       setActivityHeatmap(activityByDay);
       setLoading(false);
