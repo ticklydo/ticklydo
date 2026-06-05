@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
       html: `
         <div style="font-family: -apple-system, Segoe UI, Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px; color: #1a1a1a;">
           <div style="text-align: center; margin-bottom: 28px;">
-            <div style="display: inline-block; width: 56px; height: 56px; border-radius: 16px; background: linear-gradient(135deg, #7c3aed, #d946ef); line-height: 56px; font-size: 28px;">✓</div>
+            <img src="https://www.ticklydo.com/LOGO.png" width="56" height="56" style="border-radius: 16px; display: block; margin: 0 auto;" alt="Ticklydo" />
             <h1 style="font-size: 22px; font-weight: 800; margin: 16px 0 4px;">Ticklydo</h1>
           </div>
 
