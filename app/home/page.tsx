@@ -105,6 +105,27 @@ function timeAgo(ts: number) {
   return `Pred ${d} dňami`;
 }
 
+const ONBOARDING_STEPS = [
+  {
+    emoji: "👋",
+    title: "Vitaj v Ticklydo!",
+    desc: "Tvoj osobný nástroj na správu projektov a úloh. Organizuj prácu po svojom — jednoducho a rýchlo.",
+    features: ["📁 Projekty pre rôzne oblasti", "✅ Úlohy s prioritami a termínmi", "🤖 AI asistent pre produktivitu", "👥 Zdieľanie s tímom"],
+  },
+  {
+    emoji: "🚀",
+    title: "Ako to funguje?",
+    desc: "Vytvoríš projekt, pridáš úlohy a sleduješ postup. AI ti pomôže rozdeliť veľké úlohy na menšie kroky.",
+    features: ["📋 Table a Kanban pohľad", "🔍 Globálne vyhľadávanie úloh", "✨ AI navrhne podúlohy", "📧 Pozvánky pre spoluprácu"],
+  },
+  {
+    emoji: "🎯",
+    title: "Vytvor prvý projekt",
+    desc: "Začni hneď teraz. Pomenuj svoj prvý projekt a skoč do toho!",
+    isCreateStep: true,
+  },
+];
+
 export default function HomePage() {
   const router = useRouter();
   const { grad, theme, appliedA, appliedB, avatarId, userName } = useTheme();
@@ -115,7 +136,13 @@ export default function HomePage() {
   const [showNewModal, setShowNewModal] = useState(false);
   const [showMenuId, setShowMenuId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false); // ← NOVÉ: prevent double submit
+  const [creating, setCreating] = useState(false);
+
+  // Onboarding
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [onboardingStep, setOnboardingStep] = useState(0);
+  const [onboardingName, setOnboardingName] = useState("");
+  const [onboardingGradIdx, setOnboardingGradIdx] = useState(0);
 
   // New project form
   const [newName, setNewName] = useState("");
@@ -124,7 +151,6 @@ export default function HomePage() {
 
   const avatarFn = AVATARS[avatarId] ?? AVATARS.robot;
 
-  // Load projects from Firebase
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (!user) { setLoading(false); return; }
@@ -132,9 +158,8 @@ export default function HomePage() {
       const db = getFirestore();
 
       const snap = await getDoc(doc(db, "users", user.uid));
-      const dynamicProjects: Project[] = snap.exists() && snap.data().projects
-        ? snap.data().projects
-        : [];
+      const data = snap.exists() ? snap.data() : {};
+      const dynamicProjects: Project[] = data.projects ?? [];
 
       const staticIds = ["project-1", "project-2", "project-3", "project-4"];
       const staticProjects: Project[] = [];
@@ -142,9 +167,9 @@ export default function HomePage() {
         if (dynamicProjects.some(p => p.id === id)) return;
         const pSnap = await getDoc(doc(db, "projects", `${user.uid}_${id}`));
         if (pSnap.exists()) {
-          const data = pSnap.data();
+          const pData = pSnap.data();
           staticProjects.push({
-            id, name: data.projectName || id,
+            id, name: pData.projectName || id,
             color1: "#6366f1", color2: "#8b5cf6",
             iconId: "doc", starred: false, archived: false,
             createdAt: 0, updatedAt: 0,
@@ -154,6 +179,11 @@ export default function HomePage() {
 
       const all = [...dynamicProjects, ...staticProjects];
       setProjects(all);
+
+      // Show onboarding for new users with no projects
+      if (all.length === 0 && !data.onboardingDone) {
+        setShowOnboarding(true);
+      }
 
       if (staticProjects.length > 0) {
         const { setDoc } = await import("firebase/firestore");
@@ -166,54 +196,73 @@ export default function HomePage() {
   }, []);
 
   const saveProjects = async (newProjects: Project[]) => {
-    // Čakáme na auth — ak currentUser ešte nie je, skúsime znova
     let user = auth.currentUser;
     if (!user) {
       await new Promise<void>((resolve) => {
-        const unsub = auth.onAuthStateChanged((u) => {
-          user = u;
-          unsub();
-          resolve();
-        });
+        const unsub = auth.onAuthStateChanged((u) => { user = u; unsub(); resolve(); });
       });
     }
     if (!user) return;
-
     const { getFirestore, doc, setDoc } = await import("firebase/firestore");
     const db = getFirestore();
     await setDoc(doc(db, "users", user.uid), { projects: newProjects }, { merge: true });
   };
 
+  const markOnboardingDone = async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+    const { getFirestore, doc, setDoc } = await import("firebase/firestore");
+    const db = getFirestore();
+    await setDoc(doc(db, "users", user.uid), { onboardingDone: true }, { merge: true });
+  };
+
+  const createProjectFromOnboarding = async () => {
+    if (!onboardingName.trim() || creating) return;
+    setCreating(true);
+    const g = GRADIENTS[onboardingGradIdx];
+    const p: Project = {
+      id: genId(),
+      name: onboardingName.trim(),
+      color1: g.a, color2: g.b,
+      iconId: "rocket",
+      starred: false, archived: false,
+      createdAt: Date.now(), updatedAt: Date.now(),
+    };
+    const updated = [...projects, p];
+    setProjects(updated);
+    try {
+      await saveProjects(updated);
+      await markOnboardingDone();
+    } catch (err) {
+      console.error(err);
+    }
+    setShowOnboarding(false);
+    setCreating(false);
+    router.push(`/project/${p.id}`);
+  };
+
+  const skipOnboarding = async () => {
+    await markOnboardingDone();
+    setShowOnboarding(false);
+  };
+
   const createProject = async () => {
     if (!newName.trim() || creating) return;
     setCreating(true);
-
     const g = GRADIENTS[newGradIdx];
     const p: Project = {
       id: genId(),
       name: newName.trim(),
-      color1: g.a,
-      color2: g.b,
+      color1: g.a, color2: g.b,
       iconId: newIconId,
-      starred: false,
-      archived: false,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
+      starred: false, archived: false,
+      createdAt: Date.now(), updatedAt: Date.now(),
     };
-
     const updated = [...projects, p];
     setProjects(updated);
-
-    try {
-      await saveProjects(updated);
-    } catch (err) {
-      console.error("Chyba pri ukladaní projektu:", err);
-    }
-
+    try { await saveProjects(updated); } catch (err) { console.error(err); }
     setShowNewModal(false);
-    setNewName("");
-    setNewGradIdx(0);
-    setNewIconId("doc");
+    setNewName(""); setNewGradIdx(0); setNewIconId("doc");
     setCreating(false);
     router.push(`/project/${p.id}`);
   };
@@ -255,7 +304,6 @@ export default function HomePage() {
   const archivedProjects = projects.filter(p => p.archived);
   const starredProjects = activeProjects.filter(p => p.starred);
   const recentProjects = [...activeProjects].sort((a, b) => b.updatedAt - a.updatedAt);
-
   const surface = theme.card;
 
   if (loading) return (
@@ -296,27 +344,16 @@ export default function HomePage() {
             </div>
           </div>
         </div>
-
         {showMenuId === p.id && (
           <>
             <div onClick={() => setShowMenuId(null)} style={{ position: "fixed", inset: 0, zIndex: 50 }} />
-            <div style={{
-              position: "absolute", top: "calc(100% + 4px)", right: 0,
-              background: surface, border: `1px solid ${theme.border}`,
-              borderRadius: 12, padding: 6, zIndex: 51, minWidth: 160,
-              boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
-              animation: "fadeIn .15s ease",
-            }}>
+            <div style={{ position: "absolute", top: "calc(100% + 4px)", right: 0, background: surface, border: `1px solid ${theme.border}`, borderRadius: 12, padding: 6, zIndex: 51, minWidth: 160, boxShadow: "0 8px 24px rgba(0,0,0,0.15)", animation: "fadeIn .15s ease" }}>
               {[
                 { label: "Otvoriť", icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>, action: () => { router.push(`/project/${p.id}`); setShowMenuId(null); }, color: theme.text },
                 { label: "Archivovať", icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>, action: () => archiveProject(p.id), color: theme.muted },
                 { label: "Vymazať", icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>, action: () => { setShowMenuId(null); setConfirmDelete(p.id); }, color: "#ef4444" },
               ].map(item => (
-                <div key={item.label} onClick={item.action} style={{
-                  display: "flex", alignItems: "center", gap: 10, padding: "9px 12px",
-                  borderRadius: 8, cursor: "pointer", color: item.color,
-                  fontSize: 13, fontWeight: 600, transition: "background .15s",
-                }}
+                <div key={item.label} onClick={item.action} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderRadius: 8, cursor: "pointer", color: item.color, fontSize: 13, fontWeight: 600, transition: "background .15s" }}
                 onMouseEnter={e => e.currentTarget.style.background = theme.card2}
                 onMouseLeave={e => e.currentTarget.style.background = "transparent"}
                 >{item.icon} {item.label}</div>
@@ -328,14 +365,101 @@ export default function HomePage() {
     );
   };
 
+  const step = ONBOARDING_STEPS[onboardingStep];
+
   return (
-    <div style={{
-      flex: 1, overflowY: "auto", padding: "28px 28px 80px",
-      display: "flex", flexDirection: "column", gap: 20,
-      background: theme.bg, color: theme.text,
-      fontFamily: "var(--font-geist-sans)", transition: "background .3s, color .3s",
-    }}>
-      <style>{`@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}} @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
+    <div style={{ flex: 1, overflowY: "auto", padding: "28px 28px 80px", display: "flex", flexDirection: "column", gap: 20, background: theme.bg, color: theme.text, fontFamily: "var(--font-geist-sans)", transition: "background .3s, color .3s" }}>
+      <style>{`@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}} @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}} @keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}`}</style>
+
+      {/* ONBOARDING MODAL */}
+      {showOnboarding && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.6)", backdropFilter: "blur(6px)" }}>
+          <div style={{ background: theme.card, borderRadius: 24, padding: 32, width: "min(480px, 92vw)", boxShadow: "0 32px 80px rgba(0,0,0,0.3)", border: `1px solid ${theme.border}`, animation: "slideUp .3s ease", display: "flex", flexDirection: "column", gap: 24 }}>
+
+            {/* Progress dots */}
+            <div style={{ display: "flex", justifyContent: "center", gap: 6 }}>
+              {ONBOARDING_STEPS.map((_, i) => (
+                <div key={i} style={{ width: i === onboardingStep ? 20 : 6, height: 6, borderRadius: 3, background: i === onboardingStep ? appliedA : theme.border, transition: "all .3s" }} />
+              ))}
+            </div>
+
+            {/* Emoji + Title */}
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: 52, marginBottom: 16 }}>{step.emoji}</div>
+              <div style={{ fontSize: 22, fontWeight: 900, marginBottom: 10 }}>{step.title}</div>
+              <div style={{ fontSize: 14, color: theme.muted, lineHeight: 1.6 }}>{step.desc}</div>
+            </div>
+
+            {/* Features list (steps 1-2) */}
+            {step.features && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {step.features.map((f, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", background: appliedA + "10", borderRadius: 12, fontSize: 13, fontWeight: 600 }}>
+                    {f}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Create project form (step 3) */}
+            {step.isCreateStep && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <input
+                  autoFocus
+                  value={onboardingName}
+                  onChange={e => setOnboardingName(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter") createProjectFromOnboarding(); }}
+                  placeholder="napr. Práca, Škola, Osobné..."
+                  style={{ width: "100%", background: theme.card2, border: `1.5px solid ${theme.border}`, borderRadius: 12, padding: "12px 14px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontWeight: 700, fontSize: 15, outline: "none", boxSizing: "border-box" }}
+                  onFocus={e => e.target.style.borderColor = appliedA}
+                  onBlur={e => e.target.style.borderColor = theme.border}
+                />
+                {/* Color picker */}
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {GRADIENTS.map((g, i) => (
+                    <div key={i} onClick={() => setOnboardingGradIdx(i)} style={{ width: 32, height: 32, borderRadius: 9, cursor: "pointer", background: `linear-gradient(135deg, ${g.a}, ${g.b})`, border: `3px solid ${onboardingGradIdx === i ? theme.text : "transparent"}`, boxShadow: onboardingGradIdx === i ? `0 0 0 2px ${g.a}` : "none", transition: "all .15s" }} />
+                  ))}
+                </div>
+                {/* Preview */}
+                {onboardingName.trim() && (
+                  <div style={{ borderRadius: 14, padding: "14px 18px", background: `linear-gradient(135deg, ${GRADIENTS[onboardingGradIdx].a}, ${GRADIENTS[onboardingGradIdx].b})`, display: "flex", alignItems: "center", gap: 12 }}>
+                    <div style={{ fontWeight: 800, fontSize: 14, color: "#fff" }}>{onboardingName}</div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Buttons */}
+            <div style={{ display: "flex", gap: 10 }}>
+              {onboardingStep < ONBOARDING_STEPS.length - 1 ? (
+                <>
+                  <button onClick={skipOnboarding} style={{ flex: 1, background: "none", border: `1px solid ${theme.border}`, borderRadius: 12, padding: "12px", color: theme.muted, fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}>
+                    Preskočiť
+                  </button>
+                  <button onClick={() => setOnboardingStep(s => s + 1)} style={{ flex: 2, background: grad, border: "none", borderRadius: 12, padding: "12px", color: "#fff", fontWeight: 800, fontSize: 14, cursor: "pointer", fontFamily: "var(--font-geist-sans)", boxShadow: `0 4px 14px ${appliedA}44` }}>
+                    Ďalej →
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button onClick={() => setOnboardingStep(s => s - 1)} style={{ background: "none", border: `1px solid ${theme.border}`, borderRadius: 12, padding: "12px 16px", color: theme.muted, fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}>
+                    ←
+                  </button>
+                  <button
+                    onClick={createProjectFromOnboarding}
+                    disabled={!onboardingName.trim() || creating}
+                    style={{ flex: 1, background: !onboardingName.trim() || creating ? theme.border : grad, border: "none", borderRadius: 12, padding: "12px", color: "#fff", fontWeight: 800, fontSize: 14, cursor: !onboardingName.trim() || creating ? "default" : "pointer", fontFamily: "var(--font-geist-sans)", boxShadow: !onboardingName.trim() ? "none" : `0 4px 14px ${appliedA}44`, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+                  >
+                    {creating ? (
+                      <><div style={{ width: 14, height: 14, borderRadius: "50%", border: "2px solid #ffffff44", borderTopColor: "#fff", animation: "spin .8s linear infinite" }} />Vytváram...</>
+                    ) : "🚀 Vytvoriť projekt"}
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Header */}
       <div style={{ fontSize: 22, fontWeight: 900, display: "flex", alignItems: "center", gap: 12 }}>
@@ -358,17 +482,13 @@ export default function HomePage() {
         </>
       )}
 
-      {/* Recent */}
+      {/* All projects */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", maxWidth: 520 }}>
         <div style={{ fontSize: 11, fontWeight: 800, color: theme.muted, textTransform: "uppercase", letterSpacing: "1.2px" }}>
           Všetky projekty ({activeProjects.length})
         </div>
         {archivedProjects.length > 0 && (
-          <button onClick={() => setShowArchive(v => !v)} style={{
-            background: "none", border: `1px solid ${theme.border}`, borderRadius: 8,
-            padding: "4px 10px", color: theme.muted, fontSize: 11, fontWeight: 700,
-            cursor: "pointer", fontFamily: "var(--font-geist-sans)", display: "flex", alignItems: "center", gap: 5,
-          }}>
+          <button onClick={() => setShowArchive(v => !v)} style={{ background: "none", border: `1px solid ${theme.border}`, borderRadius: 8, padding: "4px 10px", color: theme.muted, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)", display: "flex", alignItems: "center", gap: 5 }}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
             Archív ({archivedProjects.length})
           </button>
@@ -402,9 +522,7 @@ export default function HomePage() {
               const icon = ICONS.find(ic => ic.id === p.iconId) ?? ICONS[0];
               return (
                 <div key={p.id} style={{ borderRadius: 18, padding: "14px 18px", display: "flex", alignItems: "center", gap: 14, background: theme.card, border: `1px solid ${theme.border}`, opacity: 0.7 }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 10, flexShrink: 0, background: `linear-gradient(135deg, ${p.color1}, ${p.color2})`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    {icon.svg}
-                  </div>
+                  <div style={{ width: 36, height: 36, borderRadius: 10, flexShrink: 0, background: `linear-gradient(135deg, ${p.color1}, ${p.color2})`, display: "flex", alignItems: "center", justifyContent: "center" }}>{icon.svg}</div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 700, fontSize: 14 }}>{p.name}</div>
                     <div style={{ fontSize: 11, color: theme.muted, marginTop: 1 }}>Archivované</div>
@@ -421,16 +539,9 @@ export default function HomePage() {
       )}
 
       {/* FAB */}
-      <button onClick={() => setShowNewModal(true)} style={{
-        position: "fixed", bottom: 28, right: 28,
-        width: 52, height: 52, borderRadius: "50%",
-        background: grad, border: "none",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        cursor: "pointer", boxShadow: `0 8px 24px ${appliedA}77`,
-        transition: "transform .2s",
-      }}
-      onMouseEnter={e => e.currentTarget.style.transform = "scale(1.1)"}
-      onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}
+      <button onClick={() => setShowNewModal(true)} style={{ position: "fixed", bottom: 28, right: 28, width: 52, height: 52, borderRadius: "50%", background: grad, border: "none", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", boxShadow: `0 8px 24px ${appliedA}77`, transition: "transform .2s" }}
+        onMouseEnter={e => e.currentTarget.style.transform = "scale(1.1)"}
+        onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}
       >
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14"/></svg>
       </button>
@@ -439,107 +550,41 @@ export default function HomePage() {
       {showNewModal && (
         <div style={{ position: "fixed", inset: 0, zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)" }}
           onClick={() => { if (!creating) setShowNewModal(false); }}>
-          <div onClick={e => e.stopPropagation()} style={{
-            background: theme.card, borderRadius: 24, padding: 28,
-            width: "min(480px, 92vw)", boxShadow: "0 24px 60px rgba(0,0,0,0.25)",
-            border: `1px solid ${theme.border}`, animation: "fadeIn .2s ease",
-          }}>
-            {/* Preview */}
-            <div style={{
-              borderRadius: 16, padding: "18px 20px", marginBottom: 24,
-              background: `linear-gradient(135deg, ${GRADIENTS[newGradIdx].a}, ${GRADIENTS[newGradIdx].b})`,
-              display: "flex", alignItems: "center", gap: 14,
-              boxShadow: `0 8px 24px ${GRADIENTS[newGradIdx].shadow}`,
-            }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: theme.card, borderRadius: 24, padding: 28, width: "min(480px, 92vw)", boxShadow: "0 24px 60px rgba(0,0,0,0.25)", border: `1px solid ${theme.border}`, animation: "fadeIn .2s ease" }}>
+            <div style={{ borderRadius: 16, padding: "18px 20px", marginBottom: 24, background: `linear-gradient(135deg, ${GRADIENTS[newGradIdx].a}, ${GRADIENTS[newGradIdx].b})`, display: "flex", alignItems: "center", gap: 14, boxShadow: `0 8px 24px ${GRADIENTS[newGradIdx].shadow}` }}>
               <div style={{ width: 44, height: 44, borderRadius: 12, background: "rgba(255,255,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 {(ICONS.find(i => i.id === newIconId) ?? ICONS[0]).svg}
               </div>
               <div style={{ color: "#fff", fontWeight: 800, fontSize: 15 }}>{newName || "Názov projektu"}</div>
             </div>
-
-            {/* Name */}
             <div style={{ marginBottom: 18 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 8 }}>Názov projektu</div>
-              <input
-                autoFocus
-                value={newName}
-                onChange={e => setNewName(e.target.value)}
-                placeholder="Môj nový projekt..."
-                onKeyDown={e => { if (e.key === "Enter") createProject(); }}
-                style={{
-                  width: "100%", background: theme.card2, border: `1.5px solid ${theme.border}`,
-                  borderRadius: 12, padding: "11px 14px", color: theme.text,
-                  fontFamily: "var(--font-geist-sans)", fontWeight: 700, fontSize: 15,
-                  outline: "none", boxSizing: "border-box",
-                }}
-                onFocus={e => e.target.style.borderColor = appliedA}
-                onBlur={e => e.target.style.borderColor = theme.border}
-              />
+              <input autoFocus value={newName} onChange={e => setNewName(e.target.value)} placeholder="Môj nový projekt..." onKeyDown={e => { if (e.key === "Enter") createProject(); }}
+                style={{ width: "100%", background: theme.card2, border: `1.5px solid ${theme.border}`, borderRadius: 12, padding: "11px 14px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontWeight: 700, fontSize: 15, outline: "none", boxSizing: "border-box" }}
+                onFocus={e => e.target.style.borderColor = appliedA} onBlur={e => e.target.style.borderColor = theme.border} />
             </div>
-
-            {/* Icon picker */}
             <div style={{ marginBottom: 18 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 8 }}>Ikona</div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {ICONS.map(ic => (
-                  <div key={ic.id} onClick={() => setNewIconId(ic.id)} style={{
-                    width: 44, height: 44, borderRadius: 12, cursor: "pointer",
-                    background: newIconId === ic.id ? `linear-gradient(135deg, ${GRADIENTS[newGradIdx].a}, ${GRADIENTS[newGradIdx].b})` : theme.card2,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    border: `2px solid ${newIconId === ic.id ? "transparent" : theme.border}`,
-                    transition: "all .15s",
-                  }}>
+                  <div key={ic.id} onClick={() => setNewIconId(ic.id)} style={{ width: 44, height: 44, borderRadius: 12, cursor: "pointer", background: newIconId === ic.id ? `linear-gradient(135deg, ${GRADIENTS[newGradIdx].a}, ${GRADIENTS[newGradIdx].b})` : theme.card2, display: "flex", alignItems: "center", justifyContent: "center", border: `2px solid ${newIconId === ic.id ? "transparent" : theme.border}`, transition: "all .15s" }}>
                     <div style={{ filter: newIconId === ic.id ? "none" : "invert(0.5)" }}>{ic.svg}</div>
                   </div>
                 ))}
               </div>
             </div>
-
-            {/* Color picker */}
             <div style={{ marginBottom: 24 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 8 }}>Farba</div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {GRADIENTS.map((g, i) => (
-                  <div key={i} onClick={() => setNewGradIdx(i)} style={{
-                    width: 36, height: 36, borderRadius: 10, cursor: "pointer",
-                    background: `linear-gradient(135deg, ${g.a}, ${g.b})`,
-                    border: `3px solid ${newGradIdx === i ? theme.text : "transparent"}`,
-                    boxShadow: newGradIdx === i ? `0 0 0 2px ${g.a}` : "none",
-                    transition: "all .15s",
-                  }} />
+                  <div key={i} onClick={() => setNewGradIdx(i)} style={{ width: 36, height: 36, borderRadius: 10, cursor: "pointer", background: `linear-gradient(135deg, ${g.a}, ${g.b})`, border: `3px solid ${newGradIdx === i ? theme.text : "transparent"}`, boxShadow: newGradIdx === i ? `0 0 0 2px ${g.a}` : "none", transition: "all .15s" }} />
                 ))}
               </div>
             </div>
-
-            {/* Buttons */}
             <div style={{ display: "flex", gap: 10 }}>
-              <button
-                onClick={() => { if (!creating) setShowNewModal(false); }}
-                disabled={creating}
-                style={{ flex: 1, background: "none", border: `1px solid ${theme.border}`, borderRadius: 12, padding: "12px", color: theme.muted, fontWeight: 700, fontSize: 14, cursor: creating ? "default" : "pointer", fontFamily: "var(--font-geist-sans)" }}
-              >
-                Zrušiť
-              </button>
-              <button
-                onClick={createProject}
-                disabled={creating || !newName.trim()}
-                style={{
-                  flex: 2, background: creating || !newName.trim() ? theme.border : grad,
-                  border: "none", borderRadius: 12, padding: "12px",
-                  color: "#fff", fontWeight: 800, fontSize: 14,
-                  cursor: creating || !newName.trim() ? "default" : "pointer",
-                  fontFamily: "var(--font-geist-sans)",
-                  boxShadow: creating || !newName.trim() ? "none" : `0 4px 14px ${appliedA}44`,
-                  transition: "background .2s",
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                }}
-              >
-                {creating ? (
-                  <>
-                    <div style={{ width: 14, height: 14, borderRadius: "50%", border: "2px solid #ffffff44", borderTopColor: "#fff", animation: "spin .8s linear infinite" }} />
-                    Vytváram...
-                  </>
-                ) : "Vytvoriť projekt"}
+              <button onClick={() => { if (!creating) setShowNewModal(false); }} disabled={creating} style={{ flex: 1, background: "none", border: `1px solid ${theme.border}`, borderRadius: 12, padding: "12px", color: theme.muted, fontWeight: 700, fontSize: 14, cursor: creating ? "default" : "pointer", fontFamily: "var(--font-geist-sans)" }}>Zrušiť</button>
+              <button onClick={createProject} disabled={creating || !newName.trim()} style={{ flex: 2, background: creating || !newName.trim() ? theme.border : grad, border: "none", borderRadius: 12, padding: "12px", color: "#fff", fontWeight: 800, fontSize: 14, cursor: creating || !newName.trim() ? "default" : "pointer", fontFamily: "var(--font-geist-sans)", boxShadow: creating || !newName.trim() ? "none" : `0 4px 14px ${appliedA}44`, transition: "background .2s", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                {creating ? (<><div style={{ width: 14, height: 14, borderRadius: "50%", border: "2px solid #ffffff44", borderTopColor: "#fff", animation: "spin .8s linear infinite" }} />Vytváram...</>) : "Vytvoriť projekt"}
               </button>
             </div>
           </div>
@@ -551,22 +596,14 @@ export default function HomePage() {
         const p = projects.find(pr => pr.id === confirmDelete);
         if (!p) return null;
         return (
-          <div style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)" }}
-            onClick={() => setConfirmDelete(null)}>
-            <div onClick={e => e.stopPropagation()} style={{
-              background: theme.card, borderRadius: 20, padding: "28px 28px 24px",
-              width: "min(400px, 90vw)", boxShadow: "0 24px 60px rgba(0,0,0,0.25)",
-              border: `1px solid ${theme.border}`, animation: "fadeIn .2s ease",
-              display: "flex", flexDirection: "column", gap: 16,
-            }}>
+          <div style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)" }} onClick={() => setConfirmDelete(null)}>
+            <div onClick={e => e.stopPropagation()} style={{ background: theme.card, borderRadius: 20, padding: "28px 28px 24px", width: "min(400px, 90vw)", boxShadow: "0 24px 60px rgba(0,0,0,0.25)", border: `1px solid ${theme.border}`, animation: "fadeIn .2s ease", display: "flex", flexDirection: "column", gap: 16 }}>
               <div style={{ width: 48, height: 48, borderRadius: 14, background: "#fee2e2", display: "flex", alignItems: "center", justifyContent: "center", color: "#dc2626" }}>
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
               </div>
               <div>
                 <div style={{ fontSize: 17, fontWeight: 800, marginBottom: 6 }}>Vymazať projekt?</div>
-                <div style={{ fontSize: 13, color: theme.muted, lineHeight: 1.5 }}>
-                  Naozaj chceš vymazať projekt <strong style={{ color: theme.text }}>"{p.name}"</strong>? Všetky úlohy, komentáre a dáta budú nenávratne stratené.
-                </div>
+                <div style={{ fontSize: 13, color: theme.muted, lineHeight: 1.5 }}>Naozaj chceš vymazať projekt <strong style={{ color: theme.text }}>"{p.name}"</strong>? Všetky úlohy, komentáre a dáta budú nenávratne stratené.</div>
               </div>
               <div style={{ borderRadius: 12, padding: "10px 14px", background: `linear-gradient(135deg, ${p.color1}22, ${p.color2}11)`, border: `1px solid ${p.color1}33`, display: "flex", alignItems: "center", gap: 10 }}>
                 <div style={{ width: 10, height: 10, borderRadius: 3, background: `linear-gradient(135deg, ${p.color1}, ${p.color2})` }} />
