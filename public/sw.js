@@ -1,4 +1,4 @@
-const CACHE_NAME = "ticklydo-v1";
+const CACHE_NAME = "ticklydo-v2";
 const STATIC = ["/", "/home", "/LOGO.png", "/IKONA.png", "/manifest.json"];
 
 self.addEventListener("install", e => {
