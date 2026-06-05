@@ -51,6 +51,13 @@ export default function RootLayout({
         <meta name="theme-color" content="#7c3aed" />
         <link rel="manifest" href="/manifest.json" />
         <link rel="apple-touch-icon" href="/IKONA.png" />
+        <script dangerouslySetInnerHTML={{__html: `
+          if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+              navigator.serviceWorker.register('/sw.js');
+            });
+          }
+        `}} />
       </head>
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
         <LayoutShell>{children}</LayoutShell>
