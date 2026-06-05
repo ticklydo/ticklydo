@@ -71,7 +71,6 @@ export default function NotificationsPage() {
         ? (userSnap.data().projects ?? []).filter((p: any) => !p.archived)
         : [];
 
-      // Also check old static project IDs (project-1 to project-4)
       const staticIds = ["project-1", "project-2", "project-3", "project-4"];
       const staticProjects: any[] = [];
       await Promise.all(staticIds.map(async (id) => {
@@ -95,8 +94,19 @@ export default function NotificationsPage() {
       const all: Notif[] = [];
 
       await Promise.all(projects.map(async (project: any) => {
-        const projectPath = project.shared ? `${project.ownerUid}_${project.projectId}` : `${user.uid}_${project.id}`;
-const snap = await getDoc(doc(db, "projects", projectPath));
+        const projectPath = project.shared
+          ? `${project.ownerUid}_${project.projectId}`
+          : `${user.uid}_${project.id}`;
+        let snap = await getDoc(doc(db, "projects", projectPath));
+
+        // Fallback: ak dokument neexistuje, skús _undefined (legacy bug)
+        if (!snap.exists() && !project.shared) {
+          const fallbackSnap = await getDoc(doc(db, "projects", `${user.uid}_undefined`));
+          if (fallbackSnap.exists() && fallbackSnap.data().projectName === project.name) {
+            snap = fallbackSnap;
+          }
+        }
+
         if (!snap.exists()) return;
         const tasks = snap.data().tasks ?? [];
 
@@ -118,7 +128,6 @@ const snap = await getDoc(doc(db, "projects", projectPath));
         });
       }));
 
-      // Sort: overdue first, then today, tomorrow, soon; within same type by date
       const order = { overdue: 0, today: 1, tomorrow: 2, soon: 3 };
       all.sort((a, b) => order[a.type] - order[b.type] || a.dueDate.localeCompare(b.dueDate));
       setNotifs(all);
@@ -202,7 +211,6 @@ const snap = await getDoc(doc(db, "projects", projectPath));
             const cfg = TYPE_CONFIG[type];
             return (
               <div key={type}>
-                {/* Group header */}
                 <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", marginBottom: 6 }}>
                   <div style={{ color: cfg.color }}>{cfg.icon}</div>
                   <span style={{ fontSize: 12, fontWeight: 800, color: cfg.color, textTransform: "uppercase", letterSpacing: "0.7px" }}>{cfg.label}</span>
@@ -210,7 +218,6 @@ const snap = await getDoc(doc(db, "projects", projectPath));
                   <span style={{ fontSize: 11, fontWeight: 700, color: cfg.color, background: cfg.bg, border: `1px solid ${cfg.border}`, borderRadius: 10, padding: "1px 8px" }}>{group.length}</span>
                 </div>
 
-                {/* Notif cards */}
                 <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
                   {group.map(n => (
                     <div key={n.id} style={{
@@ -225,12 +232,10 @@ const snap = await getDoc(doc(db, "projects", projectPath));
                     onMouseEnter={e => e.currentTarget.style.transform = "translateX(3px)"}
                     onMouseLeave={e => e.currentTarget.style.transform = "translateX(0)"}
                     >
-                      {/* Project color dot */}
                       <div style={{ width: 36, height: 36, borderRadius: 10, background: `linear-gradient(135deg, ${n.projectColor1}, ${n.projectColor2})`, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
                       </div>
 
-                      {/* Content */}
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontWeight: 700, fontSize: 14, color: cfg.color, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{n.taskName}</div>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 3 }}>
@@ -242,7 +247,6 @@ const snap = await getDoc(doc(db, "projects", projectPath));
                         </div>
                       </div>
 
-                      {/* Dismiss */}
                       <button onClick={e => { e.stopPropagation(); setDismissed(prev => new Set([...prev, n.id])); }} style={{ background: "none", border: "none", cursor: "pointer", color: cfg.color, opacity: 0.5, padding: 4, display: "flex", alignItems: "center", flexShrink: 0, transition: "opacity .15s" }}
                         onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = "1"}
                         onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = "0.5"}
