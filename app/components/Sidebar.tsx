@@ -1,11 +1,11 @@
 "use client";
 
-import React from "react";
-import { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { getAuth } from "firebase/auth";
 import { initializeApp, getApps } from "firebase/app";
 import { useTheme } from "../context/ThemeContext";
+import GlobalSearch from "./GlobalSearch";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -128,8 +128,21 @@ export default function Sidebar() {
   const router = useRouter();
   const pathname = usePathname();
   const { darkMode, appliedA, appliedB, grad, theme, avatarId } = useTheme();
+  const [searchOpen, setSearchOpen] = useState(false);
 
   const avatarFn = AVATARS[avatarId] ?? AVATARS.robot;
+
+  // Ctrl+K shortcut
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+        e.preventDefault();
+        setSearchOpen(true);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
 
   function isActive(path: string) {
     return pathname === path || pathname.startsWith(path + "/");
@@ -140,125 +153,151 @@ export default function Sidebar() {
   }
 
   return (
-    <aside style={{
-      width: 72,
-      background: theme.card,
-      borderRight: `1px solid ${theme.border}`,
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      padding: "18px 0 24px",
-      gap: 4,
-      flexShrink: 0,
-      transition: "background .3s, border-color .3s",
-      zIndex: 50,
-    }}>
-      {/* Logo */}
-      <img
-        src="/IKONA.png"
-        alt="TicklyDo"
-        onClick={() => router.push("/home")}
-        style={{
-          width: 42, height: 42, borderRadius: 13,
-          marginBottom: 18, cursor: "pointer",
-          objectFit: "contain",
-        }}
-      />
+    <>
+      <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
 
-      {/* Nav items */}
-      {NAV.map((item) => (
+      <aside style={{
+        width: 72,
+        background: theme.card,
+        borderRight: `1px solid ${theme.border}`,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        padding: "18px 0 24px",
+        gap: 4,
+        flexShrink: 0,
+        transition: "background .3s, border-color .3s",
+        zIndex: 50,
+      }}>
+        {/* Logo */}
+        <img
+          src="/IKONA.png"
+          alt="TicklyDo"
+          onClick={() => router.push("/home")}
+          style={{
+            width: 42, height: 42, borderRadius: 13,
+            marginBottom: 18, cursor: "pointer",
+            objectFit: "contain",
+          }}
+        />
+
+        {/* Search button */}
         <button
-          key={item.id}
-          title={item.label}
-          onClick={() => router.push(item.path)}
+          title="Hľadať úlohy (Ctrl+K)"
+          onClick={() => setSearchOpen(true)}
           style={{
             width: 46, height: 46, borderRadius: 13,
             display: "flex", alignItems: "center", justifyContent: "center",
             cursor: "pointer", border: "none",
-            background: isActive(item.path) ? theme.card2 : "transparent",
-            color: isActive(item.path) ? appliedA : theme.muted,
+            background: "transparent",
+            color: theme.muted,
+            transition: "all .2s",
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = theme.card2; e.currentTarget.style.color = appliedA; }}
+          onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = theme.muted; }}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+          </svg>
+        </button>
+
+        <div style={{ width: 36, height: 1, background: theme.border, margin: "2px 0" }} />
+
+        {/* Nav items */}
+        {NAV.map((item) => (
+          <button
+            key={item.id}
+            title={item.label}
+            onClick={() => router.push(item.path)}
+            style={{
+              width: 46, height: 46, borderRadius: 13,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              cursor: "pointer", border: "none",
+              background: isActive(item.path) ? theme.card2 : "transparent",
+              color: isActive(item.path) ? appliedA : theme.muted,
+              position: "relative", transition: "all .2s",
+            }}
+          >
+            {isActive(item.path) && (
+              <span style={{
+                position: "absolute", left: 0, top: "50%", transform: "translateY(-50%)",
+                width: 3, height: 24, borderRadius: "0 3px 3px 0",
+                background: grad,
+              }} />
+            )}
+            {item.svg}
+          </button>
+        ))}
+
+        <div style={{ width: 36, height: 1, background: theme.border, margin: "6px 0" }} />
+
+        {/* Profile */}
+        <button
+          title="Profil & Nastavenia"
+          onClick={() => router.push("/profile")}
+          style={{
+            width: 46, height: 46, borderRadius: 13,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            cursor: "pointer", border: "none",
+            background: isProfileActive() ? theme.card2 : "transparent",
+            color: isProfileActive() ? appliedA : theme.muted,
             position: "relative", transition: "all .2s",
           }}
         >
-          {isActive(item.path) && (
+          {isProfileActive() && (
             <span style={{
               position: "absolute", left: 0, top: "50%", transform: "translateY(-50%)",
               width: 3, height: 24, borderRadius: "0 3px 3px 0",
               background: grad,
             }} />
           )}
-          {item.svg}
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="8" r="4"/>
+            <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+          </svg>
         </button>
-      ))}
 
-      <div style={{ width: 36, height: 1, background: theme.border, margin: "6px 0" }} />
+        <div style={{ flex: 1 }} />
 
-      {/* Profile */}
-      <button
-        title="Profil & Nastavenia"
-        onClick={() => router.push("/profile")}
-        style={{
-          width: 46, height: 46, borderRadius: 13,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          cursor: "pointer", border: "none",
-          background: isProfileActive() ? theme.card2 : "transparent",
-          color: isProfileActive() ? appliedA : theme.muted,
-          position: "relative", transition: "all .2s",
-        }}
-      >
-        {isProfileActive() && (
-          <span style={{
-            position: "absolute", left: 0, top: "50%", transform: "translateY(-50%)",
-            width: 3, height: 24, borderRadius: "0 3px 3px 0",
-            background: grad,
-          }} />
-        )}
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="8" r="4"/>
-          <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
-        </svg>
-      </button>
+        {/* Avatar mini preview */}
+        <div
+          onClick={() => router.push("/profile")}
+          style={{
+            width: 36, height: 36, borderRadius: "50%",
+            background: grad, padding: 3,
+            cursor: "pointer", marginBottom: 8,
+            boxShadow: `0 2px 10px ${appliedA}44`,
+          }}
+          title="Môj profil"
+        >
+          {avatarFn(appliedA, appliedB)}
+        </div>
 
-      <div style={{ flex: 1 }} />
-
-      {/* Avatar mini preview */}
-      <div
-        onClick={() => router.push("/profile")}
-        style={{
-          width: 36, height: 36, borderRadius: "50%",
-          background: grad, padding: 3,
-          cursor: "pointer", marginBottom: 8,
-          boxShadow: `0 2px 10px ${appliedA}44`,
-        }}
-        title="Môj profil"
-      >
-        {avatarFn(appliedA, appliedB)}
-      </div>
-
-      {/* Logout */}
-      <button
-        title="Odhlásiť sa"
-        onClick={async () => {
-          await auth.signOut();
-          window.location.href = "/login";
-        }}
-        style={{
-          width: 46, height: 46, borderRadius: 13,
-          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-          gap: 3, cursor: "pointer", border: "none",
-          background: "transparent", color: theme.muted,
-          fontSize: 10, fontWeight: 700, transition: "color .2s",
-        }}
-        onMouseEnter={e => e.currentTarget.style.color = "#ef4444"}
-        onMouseLeave={e => e.currentTarget.style.color = theme.muted}
-      >
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-          <polyline points="16 17 21 12 16 7"/>
-          <line x1="21" y1="12" x2="9" y2="12"/>
-        </svg>
-        Odhlásiť
-      </button>
-    </aside>
+        {/* Logout */}
+        <button
+          title="Odhlásiť sa"
+          onClick={async () => {
+            await auth.signOut();
+            window.location.href = "/login";
+          }}
+          style={{
+            width: 46, height: 46, borderRadius: 13,
+            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+            gap: 3, cursor: "pointer", border: "none",
+            background: "transparent", color: theme.muted,
+            fontSize: 10, fontWeight: 700, transition: "color .2s",
+          }}
+          onMouseEnter={e => e.currentTarget.style.color = "#ef4444"}
+          onMouseLeave={e => e.currentTarget.style.color = theme.muted}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+            <polyline points="16 17 21 12 16 7"/>
+            <line x1="21" y1="12" x2="9" y2="12"/>
+          </svg>
+          Odhlásiť
+        </button>
+      </aside>
+    </>
   );
 }
