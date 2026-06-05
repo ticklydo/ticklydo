@@ -1,4 +1,4 @@
-const CACHE_NAME = "ticklydo-v2";
+const CACHE_NAME = "ticklydo-v3";
 const STATIC = ["/", "/home", "/LOGO.png", "/IKONA.png", "/manifest.json"];
 
 self.addEventListener("install", e => {
@@ -14,8 +14,30 @@ self.addEventListener("activate", e => {
 });
 
 self.addEventListener("fetch", e => {
+  // Ignoruj non-GET a chrome-extension requesty
   if (e.request.method !== "GET") return;
+  if (!e.request.url.startsWith("http")) return;
+
   e.respondWith(
-    fetch(e.request).catch(() => caches.match(e.request))
+    fetch(e.request)
+      .then(response => {
+        // Len cachuj úspešné odpovede
+        if (response && response.status === 200 && response.type === "basic") {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(e.request, clone));
+        }
+        return response;
+      })
+      .catch(() => {
+        // Offline fallback — vráť z cache ak existuje
+        return caches.match(e.request).then(cached => {
+          if (cached) return cached;
+          // Pre navigáciu vráť home page
+          if (e.request.mode === "navigate") {
+            return caches.match("/home") || new Response("Offline", { status: 503 });
+          }
+          return new Response("Offline", { status: 503 });
+        });
+      })
   );
 });
