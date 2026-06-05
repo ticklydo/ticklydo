@@ -420,7 +420,8 @@ export default function WorkPage() {
       const activityByDay: Record<string, number> = {};
 
       await Promise.all(projects.filter((p: any) => !p.archived).map(async (project: any) => {
-        const snap = await getDoc(doc(db, "projects", `${user.uid}_${project.id}`));
+        const projectPath = project.shared ? `${project.ownerUid}_${project.projectId}` : `${user.uid}_${project.id}`;
+const snap = await getDoc(doc(db, "projects", projectPath));
         if (!snap.exists()) return;
         const data = snap.data();
         (data.tasks ?? []).forEach((t: any) => {
