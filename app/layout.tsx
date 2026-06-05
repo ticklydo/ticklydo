@@ -25,6 +25,15 @@ export const metadata: Metadata = {
     shortcut: "/IKONA.png?v=2",
     apple: "/IKONA.png?v=2",
   },
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "TicklyDo",
+  },
+  other: {
+    "mobile-web-app-capable": "yes",
+  },
 };
 
 export default function RootLayout({
@@ -38,6 +47,11 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
+      <head>
+        <meta name="theme-color" content="#7c3aed" />
+        <link rel="manifest" href="/manifest.json" />
+        <link rel="apple-touch-icon" href="/IKONA.png" />
+      </head>
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
         <LayoutShell>{children}</LayoutShell>
       </body>
