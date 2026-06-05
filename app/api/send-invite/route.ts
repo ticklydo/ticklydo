@@ -13,9 +13,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "RESEND_API_KEY nie je nastavený" }, { status: 500 });
     }
 
-    // Lazy init — vytvorí sa až tu, nie pri build-e
     const resend = new Resend(process.env.RESEND_API_KEY);
-
     const roleLabel = role === "admin" ? "Admin" : role === "member" ? "Člen" : "Host";
 
     const { data, error } = await resend.emails.send({
@@ -25,8 +23,7 @@ export async function POST(req: NextRequest) {
       html: `
         <div style="font-family: -apple-system, Segoe UI, Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px; color: #1a1a1a;">
           <div style="text-align: center; margin-bottom: 28px;">
-            <img src="https://www.ticklydo.com/LOGO.png" width="56" height="56" style="border-radius: 16px; display: block; margin: 0 auto;" alt="Ticklydo" />
-            <h1 style="font-size: 22px; font-weight: 800; margin: 16px 0 4px;">Ticklydo</h1>
+            <img src="https://www.ticklydo.com/LOGO.png" width="160" style="display: block; margin: 0 auto;" alt="Ticklydo" />
           </div>
 
           <div style="background: #f8f9fb; border-radius: 16px; padding: 24px; text-align: center;">
