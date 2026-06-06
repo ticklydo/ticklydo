@@ -19,7 +19,7 @@ const auth = getAuth(app);
 
 type Status = "Hotovo" | "V procese" | "Uviaznuté" | "Nezačaté";
 type CalTask = { id: string; name: string; status: Status; dueDate: string; priority: string; projectId: string; projectName: string; projectColor1: string; projectColor2: string; };
-type CalEvent = { id: string; title: string; date: string; color: string; time?: string; notes?: string; projectId: string; projectName: string; projectColor1: string; projectColor2: string; };
+type CalEvent = { id: string; title: string; date: string; color: string; time?: string; notes?: string; projectId: string; projectName: string; projectColor1: string; projectColor2: string; isGlobal?: boolean; };
 type Project = { id: string; name: string; color1: string; color2: string; };
 
 const STATUS_CONFIG: Record<Status, { color: string; bg: string }> = {
@@ -52,7 +52,9 @@ export default function CalendarPage() {
   const [newEventTitle, setNewEventTitle] = useState("");
   const [newEventColor, setNewEventColor] = useState("#6366f1");
   const [newEventTime, setNewEventTime] = useState("");
+  const [newEventProject, setNewEventProject] = useState<string>("__global__");
   const [showYearPicker, setShowYearPicker] = useState(false);
+  const [confirmDeleteEvent, setConfirmDeleteEvent] = useState<CalEvent | null>(null);
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => { const check = () => setIsMobile(window.innerWidth < 768); check(); window.addEventListener("resize", check); return () => window.removeEventListener("resize", check); }, []);
@@ -68,7 +70,8 @@ export default function CalendarPage() {
       const { getFirestore, doc, getDoc } = await import("firebase/firestore");
       const db = getFirestore();
       const userSnap = await getDoc(doc(db, "users", user.uid));
-      const dynamicProjects = userSnap.exists() ? (userSnap.data().projects ?? []).filter((p: any) => !p.archived) : [];
+      const userData = userSnap.exists() ? userSnap.data() : {};
+      const dynamicProjects = (userData.projects ?? []).filter((p: any) => !p.archived);
       const staticIds = ["project-1","project-2","project-3","project-4"];
       const staticProjects: any[] = [];
       await Promise.all(staticIds.map(async (id) => {
@@ -80,8 +83,16 @@ export default function CalendarPage() {
       setProjects(allProjects);
       const urlProject = searchParams.get("project");
       setSelectedProjects(new Set(urlProject ? [urlProject] : allProjects.map((p: Project) => p.id)));
+
       const allTasks: CalTask[] = [];
       const allEvents: CalEvent[] = [];
+
+      // Load global events (not tied to project)
+      const globalEvents: CalEvent[] = (userData.globalEvents ?? []).map((e: any) => ({
+        ...e, projectId: "__global__", projectName: "Osobné", projectColor1: appliedA, projectColor2: appliedB, isGlobal: true,
+      }));
+      allEvents.push(...globalEvents);
+
       await Promise.all(allProjects.map(async (project: Project) => {
         const projectPath = (project as any).shared ? `${(project as any).ownerUid}_${(project as any).projectId}` : `${user.uid}_${project.id}`;
         let snap = await getDoc(doc(db, "projects", projectPath));
@@ -91,13 +102,15 @@ export default function CalendarPage() {
         }
         if (!snap.exists()) return;
         const data = snap.data();
-        (data.tasks ?? []).filter((t: any) => t.dueDate && t.status !== "Hotovo").forEach((t: any) => {
+        // Všetky úlohy vrátane hotových
+        (data.tasks ?? []).filter((t: any) => t.dueDate).forEach((t: any) => {
           allTasks.push({ id: t.id, name: t.name, status: t.status ?? "Nezačaté", dueDate: t.dueDate, priority: t.priority ?? "", projectId: project.id, projectName: project.name, projectColor1: project.color1, projectColor2: project.color2 });
         });
         (data.events ?? []).forEach((e: any) => {
-          allEvents.push({ id: e.id, title: e.title, date: e.date, color: e.color, time: e.time, notes: e.notes, projectId: project.id, projectName: project.name, projectColor1: project.color1, projectColor2: project.color2 });
+          allEvents.push({ id: e.id, title: e.title, date: e.date, color: e.color, time: e.time, notes: e.notes, projectId: project.id, projectName: project.name, projectColor1: project.color1, projectColor2: project.color2, isGlobal: false });
         });
       }));
+
       setTasks(allTasks);
       setEvents(allEvents);
       setLoading(false);
@@ -107,7 +120,7 @@ export default function CalendarPage() {
 
   const toggleProject = (id: string) => setSelectedProjects(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
   const filteredTasks = tasks.filter(t => selectedProjects.has(t.projectId) && showTasks);
-  const filteredEvents = events.filter(e => selectedProjects.has(e.projectId) && showEvents);
+  const filteredEvents = events.filter(e => (e.isGlobal || selectedProjects.has(e.projectId)) && showEvents);
   const getDateStr = (year: number, month: number, day: number) => `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
   const getItemsForDay = (dateStr: string) => ({ tasks: filteredTasks.filter(t => t.dueDate === dateStr), events: filteredEvents.filter(e => e.date === dateStr) });
 
@@ -123,19 +136,55 @@ export default function CalendarPage() {
   const totalTasksMonth = filteredTasks.filter(t => t.dueDate.startsWith(`${year}-${String(month+1).padStart(2,"0")}`)).length;
   const totalEventsMonth = filteredEvents.filter(e => e.date.startsWith(`${year}-${String(month+1).padStart(2,"0")}`)).length;
 
-  const addEvent = async (projectId: string, date: string) => {
+  const addEvent = async (date: string) => {
     if (!newEventTitle.trim()) return;
     const user = auth.currentUser;
     if (!user) return;
     const { getFirestore, doc, getDoc, setDoc } = await import("firebase/firestore");
     const db = getFirestore();
-    const snap = await getDoc(doc(db, "projects", `${user.uid}_${projectId}`));
-    if (!snap.exists()) return;
-    const ev = { id: Math.random().toString(36).slice(2,10), title: newEventTitle.trim(), date, color: newEventColor, time: newEventTime, notes: "", type: "event" };
-    await setDoc(doc(db, "projects", `${user.uid}_${projectId}`), { events: [...(snap.data().events ?? []), ev] }, { merge: true });
-    const project = projects.find(p => p.id === projectId);
-    setEvents(prev => [...prev, { ...ev, projectId, projectName: project?.name ?? "", projectColor1: project?.color1 ?? appliedA, projectColor2: project?.color2 ?? appliedB }]);
-    setNewEventTitle(""); setNewEventTime(""); setAddModal(null);
+    const ev = { id: Math.random().toString(36).slice(2,10), title: newEventTitle.trim(), date, color: newEventColor, time: newEventTime, notes: "" };
+
+    if (newEventProject === "__global__") {
+      // Uloži do user dokumentu
+      const userSnap = await getDoc(doc(db, "users", user.uid));
+      const existing = userSnap.exists() ? (userSnap.data().globalEvents ?? []) : [];
+      await setDoc(doc(db, "users", user.uid), { globalEvents: [...existing, ev] }, { merge: true });
+      setEvents(prev => [...prev, { ...ev, projectId: "__global__", projectName: "Osobné", projectColor1: appliedA, projectColor2: appliedB, isGlobal: true }]);
+    } else {
+      const snap = await getDoc(doc(db, "projects", `${user.uid}_${newEventProject}`));
+      if (!snap.exists()) return;
+      await setDoc(doc(db, "projects", `${user.uid}_${newEventProject}`), { events: [...(snap.data().events ?? []), ev] }, { merge: true });
+      const project = projects.find(p => p.id === newEventProject);
+      setEvents(prev => [...prev, { ...ev, projectId: newEventProject, projectName: project?.name ?? "", projectColor1: project?.color1 ?? appliedA, projectColor2: project?.color2 ?? appliedB, isGlobal: false }]);
+    }
+
+    setNewEventTitle(""); setNewEventTime(""); setNewEventProject("__global__"); setAddModal(null);
+  };
+
+  const deleteEvent = async (event: CalEvent) => {
+    const user = auth.currentUser;
+    if (!user) return;
+    const { getFirestore, doc, getDoc, setDoc } = await import("firebase/firestore");
+    const db = getFirestore();
+
+    if (event.isGlobal) {
+      const userSnap = await getDoc(doc(db, "users", user.uid));
+      const existing = userSnap.exists() ? (userSnap.data().globalEvents ?? []) : [];
+      await setDoc(doc(db, "users", user.uid), { globalEvents: existing.filter((e: any) => e.id !== event.id) }, { merge: true });
+    } else {
+      const snap = await getDoc(doc(db, "projects", `${user.uid}_${event.projectId}`));
+      if (!snap.exists()) return;
+      await setDoc(doc(db, "projects", `${user.uid}_${event.projectId}`), { events: (snap.data().events ?? []).filter((e: any) => e.id !== event.id) }, { merge: true });
+    }
+
+    setEvents(prev => prev.filter(e => e.id !== event.id));
+    setConfirmDeleteEvent(null);
+    // Update day modal if open
+    if (dayModal) {
+      const updated = dayModal.events.filter(e => e.id !== event.id);
+      if (updated.length === 0 && dayModal.tasks.length === 0) setDayModal(null);
+      else setDayModal({ ...dayModal, events: updated });
+    }
   };
 
   if (loading) return (
@@ -163,10 +212,8 @@ export default function CalendarPage() {
 
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "220px 1fr", gap: 16, alignItems: "start" }}>
 
-        {/* ── SIDEBAR ── */}
+        {/* SIDEBAR */}
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-
-          {/* Zobraziť + Projekty vedľa seba na mobile, pod sebou na desktop */}
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "1fr", gap: 10 }}>
 
             {/* Zobraziť */}
@@ -220,7 +267,7 @@ export default function CalendarPage() {
           {/* Month/Year navigator */}
           {!isMobile && (
             <div style={{ background: surface, border: `1px solid ${theme.border}`, borderRadius: 14, padding: "14px", boxShadow: shadow }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: showYearPicker ? 10 : 10 }}>
                 <button onClick={() => setCalMonth(new Date(year, month - 1, 1))} style={{ width: 28, height: 28, borderRadius: 7, border: `1px solid ${theme.border}`, background: "transparent", color: theme.muted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
                 </button>
@@ -232,19 +279,17 @@ export default function CalendarPage() {
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
                 </button>
               </div>
-
-              {/* Year + Month picker */}
               {showYearPicker && (
                 <div style={{ marginBottom: 10 }}>
                   <div style={{ fontSize: 10, fontWeight: 700, color: theme.muted, marginBottom: 6 }}>Rok</div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 8 }}>
                     {YEARS.map(y => (
-                      <button key={y} onClick={() => { setCalMonth(new Date(y, month, 1)); setShowYearPicker(false); }} style={{ background: y === year ? appliedA : headerBg, border: `1px solid ${y === year ? appliedA : theme.border}`, borderRadius: 6, padding: "3px 8px", color: y === year ? "#fff" : theme.text, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}>
+                      <button key={y} onClick={() => setCalMonth(new Date(y, month, 1))} style={{ background: y === year ? appliedA : headerBg, border: `1px solid ${y === year ? appliedA : theme.border}`, borderRadius: 6, padding: "3px 8px", color: y === year ? "#fff" : theme.text, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}>
                         {y}
                       </button>
                     ))}
                   </div>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: theme.muted, marginTop: 8, marginBottom: 6 }}>Mesiac</div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: theme.muted, marginBottom: 6 }}>Mesiac</div>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 4 }}>
                     {MONTH_NAMES.map((m, i) => (
                       <button key={m} onClick={() => { setCalMonth(new Date(year, i, 1)); setShowYearPicker(false); }} style={{ background: i === month ? appliedA : headerBg, border: `1px solid ${i === month ? appliedA : theme.border}`, borderRadius: 6, padding: "4px 2px", color: i === month ? "#fff" : theme.text, fontSize: 10, fontWeight: 600, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}>
@@ -254,23 +299,19 @@ export default function CalendarPage() {
                   </div>
                 </div>
               )}
-
               <button onClick={() => setCalMonth(new Date(today.getFullYear(), today.getMonth(), 1))} style={{ width: "100%", background: grad, border: "none", borderRadius: 8, padding: "7px", color: "#fff", fontWeight: 700, fontSize: 11, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}>Dnes</button>
             </div>
           )}
         </div>
 
-        {/* ── CALENDAR GRID ── */}
+        {/* CALENDAR GRID */}
         <div style={{ borderRadius: 16, overflow: "hidden", boxShadow: shadow, animation: "fadeIn .25s ease" }}>
-
-          {/* Gradient header s navigáciou */}
+          {/* Header s navigáciou */}
           <div style={{ background: grad, padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <button onClick={() => setCalMonth(new Date(year, month - 1, 1))} style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.1)", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
             </button>
-
             <div style={{ textAlign: "center", flex: 1 }}>
-              {/* Kliknuteľný mesiac/rok */}
               <button onClick={() => setShowYearPicker(v => !v)} style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", fontFamily: "var(--font-geist-sans)", display: "flex", alignItems: "center", gap: 6, margin: "0 auto" }}>
                 <span style={{ fontSize: 24, fontWeight: 900, letterSpacing: "-0.5px" }}>{MONTH_NAMES[month]}</span>
                 <span style={{ fontSize: 16, fontWeight: 700, opacity: 0.8 }}>{year}</span>
@@ -278,13 +319,12 @@ export default function CalendarPage() {
               </button>
               <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", fontWeight: 600 }}>{totalTasksMonth} úloh · {totalEventsMonth} udalostí</div>
             </div>
-
             <button onClick={() => setCalMonth(new Date(year, month + 1, 1))} style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.1)", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
             </button>
           </div>
 
-          {/* Year/Month quick picker nad gridom */}
+          {/* Year/Month picker */}
           {showYearPicker && (
             <div style={{ background: surface, borderBottom: `1px solid ${theme.border}`, padding: "14px 16px" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
@@ -293,7 +333,6 @@ export default function CalendarPage() {
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
                 </button>
               </div>
-              {/* Roky */}
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
                 {YEARS.map(y => (
                   <button key={y} onClick={() => setCalMonth(new Date(y, month, 1))} style={{ background: y === year ? appliedA : headerBg, border: `1px solid ${y === year ? appliedA : theme.border}`, borderRadius: 7, padding: "4px 10px", color: y === year ? "#fff" : theme.text, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)", transition: "all .15s" }}>
@@ -301,7 +340,6 @@ export default function CalendarPage() {
                   </button>
                 ))}
               </div>
-              {/* Mesiace */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 5 }}>
                 {MONTH_NAMES.map((m, i) => (
                   <button key={m} onClick={() => { setCalMonth(new Date(year, i, 1)); setShowYearPicker(false); }} style={{ background: i === month ? appliedA : headerBg, border: `1px solid ${i === month ? appliedA : theme.border}`, borderRadius: 7, padding: "5px 4px", color: i === month ? "#fff" : theme.text, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "var(--font-geist-sans)", transition: "all .15s" }}>
@@ -327,10 +365,9 @@ export default function CalendarPage() {
               const all = [...dEvents, ...dTasks];
               const isCurrentDay = day ? isToday(day) : false;
               const isWeekend = i % 7 >= 5;
-              const maxVisible = 3;
               return (
                 <div key={i} style={{ minHeight: isMobile ? 52 : 110, borderRight: (i + 1) % 7 !== 0 ? `1px solid ${theme.border}` : "none", borderBottom: i < cells.length - 7 ? `1px solid ${theme.border}` : "none", padding: isMobile ? "4px 3px" : "6px", overflow: "hidden", background: !day ? (darkMode ? theme.card2 + "40" : "#f7f8fc") : isWeekend ? (darkMode ? appliedA + "06" : appliedA + "04") : surface, cursor: day ? "pointer" : "default", transition: "background .15s" }}
-                  onClick={() => { if (!day) return; const d = getItemsForDay(dateStr); if (d.tasks.length || d.events.length) setDayModal({ date: dateStr, ...d }); else if (projects.length > 0) setAddModal({ date: dateStr, projectId: projects[0].id }); }}
+                  onClick={() => { if (!day) return; const d = getItemsForDay(dateStr); if (d.tasks.length || d.events.length) setDayModal({ date: dateStr, ...d }); else setAddModal({ date: dateStr, projectId: "__global__" }); }}
                   onMouseEnter={e => { if (day) e.currentTarget.style.background = darkMode ? appliedA + "12" : appliedA + "07"; }}
                   onMouseLeave={e => { if (day) e.currentTarget.style.background = !day ? (darkMode ? theme.card2 + "40" : "#f7f8fc") : isWeekend ? (darkMode ? appliedA + "06" : appliedA + "04") : surface; }}
                 >
@@ -354,19 +391,19 @@ export default function CalendarPage() {
                           </div>
                         ) : (
                           <>
-                            {all.slice(0, maxVisible).map((item, idx) => {
+                            {all.slice(0, 3).map((item, idx) => {
                               const isEvent = "title" in item;
                               const color = isEvent ? (item as CalEvent).color : STATUS_CONFIG[(item as CalTask).status].color;
                               const bg = isEvent ? (item as CalEvent).color + "22" : (darkMode ? STATUS_CONFIG[(item as CalTask).status].color + "22" : STATUS_CONFIG[(item as CalTask).status].bg);
                               const label = isEvent ? (item as CalEvent).title : (item as CalTask).name;
                               return (
-                                <div key={idx} style={{ background: bg, color, borderRadius: 4, padding: "2px 5px", fontSize: 10, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "pointer", borderLeft: `2.5px solid ${color}`, display: "flex", alignItems: "center", gap: 3 }}>
+                                <div key={idx} style={{ background: bg, color, borderRadius: 4, padding: "2px 5px", fontSize: 10, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "pointer", borderLeft: `2.5px solid ${color}`, display: "flex", alignItems: "center", gap: 3, textDecoration: !isEvent && (item as CalTask).status === "Hotovo" ? "line-through" : "none", opacity: !isEvent && (item as CalTask).status === "Hotovo" ? 0.6 : 1 }}>
                                   <div style={{ width: 6, height: 6, borderRadius: "50%", background: `linear-gradient(135deg, ${(item as any).projectColor1}, ${(item as any).projectColor2})`, flexShrink: 0 }} />
                                   {label}
                                 </div>
                               );
                             })}
-                            {all.length > maxVisible && <div style={{ fontSize: 10, color: appliedA, fontWeight: 700, paddingLeft: 4, cursor: "pointer" }}>+{all.length - maxVisible} ďalšie</div>}
+                            {all.length > 3 && <div style={{ fontSize: 10, color: appliedA, fontWeight: 700, paddingLeft: 4 }}>+{all.length - 3} ďalšie</div>}
                           </>
                         )}
                       </div>
@@ -379,6 +416,10 @@ export default function CalendarPage() {
 
           {/* Legend */}
           <div style={{ padding: "10px 16px", borderTop: `1px solid ${theme.border}`, background: surface, display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              <div style={{ width: 8, height: 8, borderRadius: 2, background: `linear-gradient(135deg, ${appliedA}, ${appliedB})` }} />
+              <span style={{ fontSize: 10, fontWeight: 600, color: theme.muted }}>Osobné</span>
+            </div>
             {projects.filter(p => selectedProjects.has(p.id)).map(p => (
               <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 5 }}>
                 <div style={{ width: 8, height: 8, borderRadius: 2, background: `linear-gradient(135deg, ${p.color1}, ${p.color2})` }} />
@@ -389,10 +430,10 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {/* ── DAY MODAL ── */}
+      {/* DAY DETAIL MODAL */}
       {dayModal && (
         <div style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)" }} onClick={() => setDayModal(null)}>
-          <div onClick={e => e.stopPropagation()} style={{ background: surface, borderRadius: 20, padding: 20, width: "min(400px, 90vw)", maxHeight: "70vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.3)", border: `1px solid ${theme.border}`, animation: "fadeIn .2s ease" }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: surface, borderRadius: 20, padding: 20, width: "min(420px, 90vw)", maxHeight: "70vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.3)", border: `1px solid ${theme.border}`, animation: "fadeIn .2s ease" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
               <div>
                 <div style={{ fontSize: 15, fontWeight: 800 }}>{dayModal.date}</div>
@@ -408,18 +449,31 @@ export default function CalendarPage() {
                 const color = isEvent ? (item as CalEvent).color : STATUS_CONFIG[(item as CalTask).status].color;
                 const bg = isEvent ? (item as CalEvent).color + "18" : (darkMode ? STATUS_CONFIG[(item as CalTask).status].color + "18" : STATUS_CONFIG[(item as CalTask).status].bg);
                 return (
-                  <div key={idx} onClick={() => { router.push(`/project/${(item as any).projectId}`); setDayModal(null); }} style={{ background: bg, borderRadius: 10, padding: "10px 12px", cursor: "pointer", borderLeft: `3px solid ${color}` }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color }}>{isEvent ? (item as CalEvent).title : (item as CalTask).name}</div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3 }}>
-                      <div style={{ width: 8, height: 8, borderRadius: 2, background: `linear-gradient(135deg, ${(item as any).projectColor1}, ${(item as any).projectColor2})` }} />
-                      <span style={{ fontSize: 11, color: theme.muted, fontWeight: 600 }}>{(item as any).projectName}</span>
-                      {isEvent && (item as CalEvent).time && <span style={{ fontSize: 10, color: theme.muted }}>· {(item as CalEvent).time}</span>}
+                  <div key={idx} style={{ background: bg, borderRadius: 10, padding: "10px 12px", borderLeft: `3px solid ${color}`, display: "flex", alignItems: "center", gap: 10 }}>
+                    <div onClick={() => { if (!isEvent) { router.push(`/project/${(item as any).projectId}`); setDayModal(null); } }} style={{ flex: 1, cursor: isEvent ? "default" : "pointer" }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color, textDecoration: !isEvent && (item as CalTask).status === "Hotovo" ? "line-through" : "none" }}>{isEvent ? (item as CalEvent).title : (item as CalTask).name}</div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3 }}>
+                        <div style={{ width: 8, height: 8, borderRadius: 2, background: `linear-gradient(135deg, ${(item as any).projectColor1}, ${(item as any).projectColor2})` }} />
+                        <span style={{ fontSize: 11, color: theme.muted, fontWeight: 600 }}>{(item as any).projectName}</span>
+                        {isEvent && (item as CalEvent).time && <span style={{ fontSize: 10, color: theme.muted }}>· {(item as CalEvent).time}</span>}
+                        {!isEvent && <span style={{ fontSize: 10, color, fontWeight: 700, background: color + "18", borderRadius: 4, padding: "1px 5px" }}>{(item as CalTask).status}</span>}
+                      </div>
                     </div>
+                    {/* Mazanie len pre udalosti */}
+                    {isEvent && (
+                      <button onClick={e => { e.stopPropagation(); setConfirmDeleteEvent(item as CalEvent); }} style={{ background: "none", border: "none", cursor: "pointer", color: theme.muted, padding: 4, borderRadius: 6, flexShrink: 0, transition: "color .15s" }}
+                        onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = "#dc2626"}
+                        onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = theme.muted}
+                        title="Zmazať udalosť"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                      </button>
+                    )}
                   </div>
                 );
               })}
             </div>
-            <button onClick={() => { setAddModal({ date: dayModal.date, projectId: projects[0]?.id ?? "" }); setDayModal(null); }} style={{ marginTop: 14, width: "100%", background: grad, border: "none", borderRadius: 10, padding: "10px", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "var(--font-geist-sans)", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+            <button onClick={() => { setAddModal({ date: dayModal.date, projectId: "__global__" }); setDayModal(null); }} style={{ marginTop: 14, width: "100%", background: grad, border: "none", borderRadius: 10, padding: "10px", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "var(--font-geist-sans)", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14"/></svg>
               Pridať udalosť
             </button>
@@ -427,19 +481,20 @@ export default function CalendarPage() {
         </div>
       )}
 
-      {/* ── ADD EVENT MODAL ── */}
+      {/* ADD EVENT MODAL */}
       {addModal && (
         <div style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)" }} onClick={() => setAddModal(null)}>
           <div onClick={e => e.stopPropagation()} style={{ background: surface, borderRadius: 20, padding: 24, width: "min(400px, 90vw)", boxShadow: "0 20px 60px rgba(0,0,0,0.3)", border: `1px solid ${theme.border}`, animation: "fadeIn .2s ease" }}>
             <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 4 }}>Nová udalosť</div>
             <div style={{ fontSize: 12, color: theme.muted, marginBottom: 18 }}>{addModal.date}</div>
-            <input autoFocus value={newEventTitle} onChange={e => setNewEventTitle(e.target.value)} placeholder="Názov udalosti..." onKeyDown={e => { if (e.key === "Enter") addEvent(addModal.projectId, addModal.date); }}
+            <input autoFocus value={newEventTitle} onChange={e => setNewEventTitle(e.target.value)} placeholder="Názov udalosti..." onKeyDown={e => { if (e.key === "Enter") addEvent(addModal.date); }}
               style={{ width: "100%", background: headerBg, border: `1.5px solid ${theme.border}`, borderRadius: 10, padding: "10px 14px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontSize: 14, fontWeight: 600, outline: "none", boxSizing: "border-box", marginBottom: 12 }}
               onFocus={e => e.target.style.borderColor = appliedA} onBlur={e => e.target.style.borderColor = theme.border} />
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
               <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: theme.muted, marginBottom: 5 }}>Projekt</div>
-                <select value={addModal.projectId} onChange={e => setAddModal({ ...addModal, projectId: e.target.value })} style={{ width: "100%", background: headerBg, border: `1.5px solid ${theme.border}`, borderRadius: 8, padding: "7px 10px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontSize: 12, outline: "none", boxSizing: "border-box" }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: theme.muted, marginBottom: 5 }}>Projekt (voliteľné)</div>
+                <select value={newEventProject} onChange={e => setNewEventProject(e.target.value)} style={{ width: "100%", background: headerBg, border: `1.5px solid ${theme.border}`, borderRadius: 8, padding: "7px 10px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontSize: 12, outline: "none", boxSizing: "border-box" }}>
+                  <option value="__global__">Osobné (bez projektu)</option>
                   {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
               </div>
@@ -450,13 +505,32 @@ export default function CalendarPage() {
             </div>
             <div style={{ marginBottom: 18 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: theme.muted, marginBottom: 8 }}>Farba</div>
-              <div style={{ display: "flex", gap: 8 }}>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {EVENT_COLORS.map(c => <div key={c} onClick={() => setNewEventColor(c)} style={{ width: 26, height: 26, borderRadius: "50%", background: c, cursor: "pointer", border: `3px solid ${newEventColor === c ? theme.text : "transparent"}`, boxShadow: newEventColor === c ? `0 0 0 2px ${c}` : "none", transition: "all .15s" }} />)}
               </div>
             </div>
             <div style={{ display: "flex", gap: 10 }}>
               <button onClick={() => setAddModal(null)} style={{ flex: 1, background: "none", border: `1px solid ${theme.border}`, borderRadius: 12, padding: "10px", color: theme.muted, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}>Zrušiť</button>
-              <button onClick={() => addEvent(addModal.projectId, addModal.date)} style={{ flex: 2, background: grad, border: "none", borderRadius: 12, padding: "10px", color: "#fff", fontWeight: 800, fontSize: 13, cursor: "pointer", fontFamily: "var(--font-geist-sans)", boxShadow: `0 4px 14px ${appliedA}44` }}>Pridať udalosť</button>
+              <button onClick={() => addEvent(addModal.date)} style={{ flex: 2, background: grad, border: "none", borderRadius: 12, padding: "10px", color: "#fff", fontWeight: 800, fontSize: 13, cursor: "pointer", fontFamily: "var(--font-geist-sans)", boxShadow: `0 4px 14px ${appliedA}44` }}>Pridať udalosť</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CONFIRM DELETE MODAL */}
+      {confirmDeleteEvent && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)" }} onClick={() => setConfirmDeleteEvent(null)}>
+          <div onClick={e => e.stopPropagation()} style={{ background: surface, borderRadius: 18, padding: "24px", width: "min(360px, 90vw)", boxShadow: "0 20px 60px rgba(0,0,0,0.3)", border: `1px solid ${theme.border}`, animation: "fadeIn .2s ease", display: "flex", flexDirection: "column", gap: 16 }}>
+            <div style={{ width: 44, height: 44, borderRadius: 12, background: "#fee2e2", display: "flex", alignItems: "center", justifyContent: "center", color: "#dc2626" }}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+            </div>
+            <div>
+              <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 6 }}>Zmazať udalosť?</div>
+              <div style={{ fontSize: 13, color: theme.muted }}>Naozaj chceš zmazať <strong style={{ color: theme.text }}>"{confirmDeleteEvent.title}"</strong>?</div>
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={() => setConfirmDeleteEvent(null)} style={{ flex: 1, background: "none", border: `1px solid ${theme.border}`, borderRadius: 10, padding: "10px", color: theme.muted, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}>Zrušiť</button>
+              <button onClick={() => deleteEvent(confirmDeleteEvent)} style={{ flex: 1, background: "#dc2626", border: "none", borderRadius: 10, padding: "10px", color: "#fff", fontWeight: 800, fontSize: 13, cursor: "pointer", fontFamily: "var(--font-geist-sans)", boxShadow: "0 4px 12px #dc262644" }}>Zmazať</button>
             </div>
           </div>
         </div>
