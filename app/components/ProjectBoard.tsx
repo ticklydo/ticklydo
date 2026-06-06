@@ -1095,8 +1095,8 @@ Buď konkrétny a stručný, max 6 slov na podúlohu.`,
       {renderMobileDetail()}
 
       {/* ── HEADER ── */}
-      <div style={{ position: "sticky", top: 0, zIndex: 20, background: surface, borderBottom: `1px solid ${theme.border}`, padding: isMobile ? "12px 14px 0" : "14px 20px 0" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 6 : 10, marginBottom: 10, flexWrap: "nowrap", minWidth: 0 }}>
+      <div style={{ position: "sticky", top: 0, zIndex: 20, background: surface, borderBottom: `1px solid ${theme.border}`, padding: isMobile ? "10px 12px 0" : "14px 20px 0" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
           <button onClick={() => router.push("/home")} style={{ width: 30, height: 30, borderRadius: 8, background: "transparent", border: `1px solid ${theme.border}`, color: theme.muted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{Icons.back}</button>
 
           <div style={{ flex: 1, minWidth: 0 }}>
