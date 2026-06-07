@@ -6,45 +6,9 @@ type SubTask = { id: string; name: string; done: boolean; status: Status; priori
 type Comment = { id: string; text: string; author: string; createdAt: number; };
 type Task = { id: string; name: string; status: Status; priority: Priority; dueDate: string; owner: string; notes: string; subtasks: SubTask[]; tags?: string[]; comments?: Comment[]; };
 
-const STATUS_COLOR: Record<string, { bg: string; text: string; border: string }> = {
-  "Hotovo":    { bg: "#dcfce7", text: "#16a34a", border: "#16a34a" },
-  "V procese": { bg: "#fef3c7", text: "#b45309", border: "#f59e0b" },
-  "Uviaznuté": { bg: "#fee2e2", text: "#dc2626", border: "#ef4444" },
-  "Nezacate":  { bg: "#f3f4f6", text: "#6b7280", border: "#9ca3af" },
-};
-
-const PRIORITY_COLOR: Record<string, { bg: string; text: string }> = {
-  "Vysoka":  { bg: "#fee2e2", text: "#dc2626" },
-  "Stredna": { bg: "#fef3c7", text: "#b45309" },
-  "Nizka":   { bg: "#dbeafe", text: "#2563eb" },
-  "":        { bg: "transparent", text: "#9ca3af" },
-};
-
 function isOverdue(d: string) {
   if (!d) return false;
   return new Date(d + "T00:00:00") < new Date();
-}
-
-// Remove diacritics for jsPDF (which doesn't support them natively)
-function clean(s: string): string {
-  return s
-    .replace(/á/g, "a").replace(/Á/g, "A")
-    .replace(/ä/g, "a").replace(/Ä/g, "A")
-    .replace(/č/g, "c").replace(/Č/g, "C")
-    .replace(/ď/g, "d").replace(/Ď/g, "D")
-    .replace(/é/g, "e").replace(/É/g, "E")
-    .replace(/í/g, "i").replace(/Í/g, "I")
-    .replace(/ľ/g, "l").replace(/Ľ/g, "L")
-    .replace(/ĺ/g, "l").replace(/Ĺ/g, "L")
-    .replace(/ň/g, "n").replace(/Ň/g, "N")
-    .replace(/ó/g, "o").replace(/Ó/g, "O")
-    .replace(/ô/g, "o").replace(/Ô/g, "O")
-    .replace(/ŕ/g, "r").replace(/Ŕ/g, "R")
-    .replace(/š/g, "s").replace(/Š/g, "S")
-    .replace(/ť/g, "t").replace(/Ť/g, "T")
-    .replace(/ú/g, "u").replace(/Ú/g, "U")
-    .replace(/ý/g, "y").replace(/Ý/g, "Y")
-    .replace(/ž/g, "z").replace(/Ž/g, "Z");
 }
 
 // ── EXCEL EXPORT ─────────────────────────────────────────────────────────────
@@ -53,18 +17,18 @@ export async function exportToExcel(projectName: string, tasks: Task[]) {
   const wb = XLSX.utils.book_new();
   const wsData: any[][] = [];
 
-  wsData.push(["#", "Typ", "Nazov ulohy / Podulohy", "Status", "Priorita", "Termin", "Zodpovedny", "Poznamky", "Tagy", "Komentare"]);
+  wsData.push(["#", "Typ", "Názov úlohy / Podúlohy", "Status", "Priorita", "Termín", "Zodpovedný", "Poznámky", "Tagy", "Komentáre"]);
 
   tasks.forEach((task, ti) => {
     wsData.push([
-      ti + 1, "Uloha", task.name, task.status, task.priority || "—",
+      ti + 1, "Úloha", task.name, task.status, task.priority || "—",
       task.dueDate || "—", task.owner || "—", task.notes || "",
       (task.tags ?? []).join(", ") || "—",
       (task.comments ?? []).map(c => `${c.author}: ${c.text}`).join(" | ") || "—",
     ]);
     task.subtasks.forEach(sub => {
       wsData.push([
-        "", "  Poduloha", "      " + sub.name,
+        "", "  └ Podúloha", "      " + sub.name,
         sub.done ? "Hotovo" : sub.status, sub.priority || "—",
         sub.dueDate || "—", sub.owner || "—", sub.notes || "", "—", "—",
       ]);
@@ -73,7 +37,7 @@ export async function exportToExcel(projectName: string, tasks: Task[]) {
 
   const ws = XLSX.utils.aoa_to_sheet(wsData);
   ws["!cols"] = [
-    { wch: 4 }, { wch: 10 }, { wch: 38 }, { wch: 12 }, { wch: 10 },
+    { wch: 4 }, { wch: 12 }, { wch: 38 }, { wch: 12 }, { wch: 10 },
     { wch: 12 }, { wch: 16 }, { wch: 28 }, { wch: 18 }, { wch: 35 },
   ];
 
@@ -94,7 +58,7 @@ export async function exportToExcel(projectName: string, tasks: Task[]) {
 
   for (let r = 2; r <= wsData.length; r++) {
     const rowData = wsData[r - 1];
-    const isSubtask = rowData[1]?.toString().includes("Poduloha");
+    const isSubtask = rowData[1]?.toString().includes("Podúloha");
     const status = rowData[3]?.toString() ?? "";
     const priority = rowData[4]?.toString() ?? "";
     const dueDate = rowData[5]?.toString() ?? "";
@@ -130,219 +94,166 @@ export async function exportToExcel(projectName: string, tasks: Task[]) {
 
   const done = tasks.filter(t => t.status === "Hotovo").length;
   const summaryData = [
-    ["Suhrn projektu", projectName],
-    ["Datum exportu", new Date().toLocaleDateString("sk-SK")],
+    ["Súhrn projektu", projectName],
+    ["Dátum exportu", new Date().toLocaleDateString("sk-SK")],
     ["", ""],
-    ["Celkom uloh", tasks.length],
+    ["Celkom úloh", tasks.length],
     ["Hotovo", done],
     ["V procese", tasks.filter(t => t.status === "V procese").length],
     ["Uviaznuté", tasks.filter(t => t.status === "Uviaznuté").length],
-    ["Nezacate", tasks.filter(t => t.status === "Nezačaté").length],
+    ["Nezačaté", tasks.filter(t => t.status === "Nezačaté").length],
     ["", ""],
-    ["Celkom poduloh", tasks.reduce((a, t) => a + t.subtasks.length, 0)],
-    ["Vysoka priorita", tasks.filter(t => t.priority === "Vysoká").length],
-    ["Dokoncene %", tasks.length > 0 ? Math.round((done / tasks.length) * 100) + "%" : "0%"],
+    ["Celkom podúloh", tasks.reduce((a, t) => a + t.subtasks.length, 0)],
+    ["Vysoká priorita", tasks.filter(t => t.priority === "Vysoká").length],
+    ["Dokončené %", tasks.length > 0 ? Math.round((done / tasks.length) * 100) + "%" : "0%"],
   ];
   const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
   wsSummary["!cols"] = [{ wch: 20 }, { wch: 30 }];
   if (wsSummary["A1"]) wsSummary["A1"].s = { font: { bold: true, sz: 13, color: { rgb: "FFFFFF" } }, fill: { patternType: "solid", fgColor: { rgb: "6366F1" } } };
   if (wsSummary["B1"]) wsSummary["B1"].s = { font: { bold: true, sz: 13, color: { rgb: "FFFFFF" } }, fill: { patternType: "solid", fgColor: { rgb: "6366F1" } } };
-  XLSX.utils.book_append_sheet(wb, wsSummary, "Suhrn");
+  XLSX.utils.book_append_sheet(wb, wsSummary, "Súhrn");
 
   XLSX.writeFile(wb, `${projectName}-export.xlsx`);
 }
 
-// ── PDF EXPORT (jsPDF, bez diakritiky) ───────────────────────────────────────
+// ── PDF EXPORT (@react-pdf/renderer) ─────────────────────────────────────────
 export async function exportToPDF(projectName: string, tasks: Task[]) {
-  const { jsPDF } = await import("jspdf");
+  const { pdf, Document, Page, Text, View, StyleSheet } = await import("@react-pdf/renderer");
+  const React = await import("react");
 
-  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
-  const pdfW = 297;
-  const margin = 12;
-  const cW = pdfW - margin * 2;
-  let y = 10;
+  const today = new Date().toLocaleDateString("sk-SK");
+  const done = tasks.filter(t => t.status === "Hotovo").length;
 
-  const PURPLE: [number,number,number] = [99, 102, 241];
-  const WHITE: [number,number,number] = [255, 255, 255];
-  const DARK: [number,number,number] = [17, 24, 39];
-  const GRAY: [number,number,number] = [107, 114, 128];
-  const LIGHT: [number,number,number] = [249, 250, 251];
-  const LIGHT2: [number,number,number] = [243, 244, 246];
-  const GREEN: [number,number,number] = [22, 163, 74];
-  const GREEN_BG: [number,number,number] = [220, 252, 231];
-  const AMBER: [number,number,number] = [180, 83, 9];
-  const AMBER_BG: [number,number,number] = [254, 243, 199];
-  const RED: [number,number,number] = [220, 38, 38];
-  const RED_BG: [number,number,number] = [254, 226, 226];
+  const styles = StyleSheet.create({
+    page: { padding: 20, fontFamily: "Helvetica", fontSize: 9, backgroundColor: "#ffffff" },
+    header: { backgroundColor: "#6366f1", padding: 14, borderRadius: 6, marginBottom: 12, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+    headerTitle: { color: "#ffffff", fontSize: 16, fontFamily: "Helvetica-Bold" },
+    headerSub: { color: "#e0e0ff", fontSize: 8, marginTop: 3 },
+    headerRight: { color: "#e0e0ff", fontSize: 8 },
+    statsRow: { flexDirection: "row", gap: 8, marginBottom: 12 },
+    statBox: { flex: 1, borderRadius: 5, padding: 8 },
+    statVal: { fontSize: 18, fontFamily: "Helvetica-Bold" },
+    statLbl: { fontSize: 7, marginTop: 2 },
+    tableHeader: { flexDirection: "row", backgroundColor: "#6366f1", paddingVertical: 5, paddingHorizontal: 4, marginBottom: 0 },
+    thText: { color: "#ffffff", fontSize: 7, fontFamily: "Helvetica-Bold" },
+    row: { flexDirection: "row", paddingVertical: 4, paddingHorizontal: 4, borderBottomWidth: 0.5, borderBottomColor: "#e5e7eb" },
+    subRow: { flexDirection: "row", paddingVertical: 3, paddingHorizontal: 4, backgroundColor: "#f8f9ff", borderBottomWidth: 0.5, borderBottomColor: "#e5e7eb" },
+    badge: { borderRadius: 3, paddingHorizontal: 5, paddingVertical: 2, fontSize: 7, fontFamily: "Helvetica-Bold" },
+    footer: { position: "absolute", bottom: 10, left: 20, right: 20, textAlign: "center", fontSize: 7, color: "#9ca3af" },
+  });
 
-  const checkPage = (need: number) => {
-    if (y + need > 200) { doc.addPage(); y = 10; }
+  const colWidths = { num: "4%", name: "28%", status: "11%", priority: "10%", due: "11%", owner: "12%", notes: "24%" };
+
+  const statusStyles: Record<string, { bg: string; color: string }> = {
+    "Hotovo":    { bg: "#dcfce7", color: "#16a34a" },
+    "V procese": { bg: "#fef3c7", color: "#b45309" },
+    "Uviaznuté": { bg: "#fee2e2", color: "#dc2626" },
+    "Nezačaté":  { bg: "#f3f4f6", color: "#6b7280" },
+  };
+  const priorityStyles: Record<string, { bg: string; color: string }> = {
+    "Vysoká":  { bg: "#fee2e2", color: "#dc2626" },
+    "Stredná": { bg: "#fef3c7", color: "#b45309" },
+    "Nízka":   { bg: "#dbeafe", color: "#2563eb" },
   };
 
-  // ── Header bar ──
-  doc.setFillColor(...PURPLE);
-  doc.rect(0, 0, 297, 22, "F");
-  doc.setTextColor(...WHITE);
-  doc.setFontSize(16); doc.setFont("helvetica", "bold");
-  doc.text(clean(projectName), margin, 10);
-  doc.setFontSize(9); doc.setFont("helvetica", "normal");
-  doc.text(`Export: ${new Date().toLocaleDateString("sk-SK")} | ${tasks.length} uloh | ${tasks.filter(t => t.status === "Hotovo").length} hotovo`, margin, 17);
-  doc.text("Ticklydo", pdfW - margin, 14, { align: "right" });
-  y = 28;
+  const MyDoc = () => React.createElement(Document, null,
+    React.createElement(Page, { size: "A4", orientation: "landscape", style: styles.page },
+      // Header
+      React.createElement(View, { style: styles.header },
+        React.createElement(View, null,
+          React.createElement(Text, { style: styles.headerTitle }, projectName),
+          React.createElement(Text, { style: styles.headerSub }, `Export: ${today} · ${tasks.length} úloh · ${done} dokončených`)
+        ),
+        React.createElement(Text, { style: styles.headerRight }, "Ticklydo Export")
+      ),
 
-  // ── Stat boxes ──
-  const stats = [
-    { label: "Hotovo", val: tasks.filter(t => t.status === "Hotovo").length, bg: GREEN_BG, fg: GREEN },
-    { label: "V procese", val: tasks.filter(t => t.status === "V procese").length, bg: AMBER_BG, fg: AMBER },
-    { label: "Uviaznuté", val: tasks.filter(t => t.status === "Uviaznuté").length, bg: RED_BG, fg: RED },
-    { label: "Nezacate", val: tasks.filter(t => t.status === "Nezačaté").length, bg: LIGHT2, fg: GRAY },
-  ];
-  const bw = (cW - 9) / 4;
-  stats.forEach((s, i) => {
-    const x = margin + i * (bw + 3);
-    doc.setFillColor(...s.bg); doc.roundedRect(x, y, bw, 14, 2, 2, "F");
-    doc.setFillColor(...s.fg); doc.roundedRect(x, y, 3, 14, 1, 1, "F");
-    doc.setTextColor(...s.fg); doc.setFontSize(14); doc.setFont("helvetica", "bold");
-    doc.text(String(s.val), x + bw / 2 + 1, y + 8, { align: "center" });
-    doc.setFontSize(7); doc.setFont("helvetica", "normal");
-    doc.text(s.label, x + bw / 2 + 1, y + 12, { align: "center" });
-  });
-  y += 20;
+      // Stats
+      React.createElement(View, { style: styles.statsRow },
+        ...[
+          { lbl: "Hotovo", val: done, bg: "#dcfce7", fg: "#16a34a" },
+          { lbl: "V procese", val: tasks.filter(t => t.status === "V procese").length, bg: "#fef3c7", fg: "#b45309" },
+          { lbl: "Uviaznuté", val: tasks.filter(t => t.status === "Uviaznuté").length, bg: "#fee2e2", fg: "#dc2626" },
+          { lbl: "Nezačaté", val: tasks.filter(t => t.status === "Nezačaté").length, bg: "#f3f4f6", fg: "#6b7280" },
+        ].map(s => React.createElement(View, { key: s.lbl, style: { ...styles.statBox, backgroundColor: s.bg } },
+          React.createElement(Text, { style: { ...styles.statVal, color: s.fg } }, String(s.val)),
+          React.createElement(Text, { style: { ...styles.statLbl, color: s.fg } }, s.lbl)
+        ))
+      ),
 
-  // ── Column config ──
-  // cols: #, Nazov, Status, Priorita, Termin, Zodpovedny, Poznamky
-  const colW = [10, 72, 28, 22, 24, 28, 0]; // last = fill
-  colW[6] = cW - colW.slice(0, 6).reduce((a, b) => a + b, 0);
-  const colX = [margin];
-  for (let i = 1; i < colW.length; i++) colX.push(colX[i-1] + colW[i-1]);
+      // Table header
+      React.createElement(View, { style: styles.tableHeader },
+        React.createElement(Text, { style: { ...styles.thText, width: colWidths.num } }, "#"),
+        React.createElement(Text, { style: { ...styles.thText, width: colWidths.name } }, "Názov úlohy / Podúlohy"),
+        React.createElement(Text, { style: { ...styles.thText, width: colWidths.status } }, "Status"),
+        React.createElement(Text, { style: { ...styles.thText, width: colWidths.priority } }, "Priorita"),
+        React.createElement(Text, { style: { ...styles.thText, width: colWidths.due } }, "Termín"),
+        React.createElement(Text, { style: { ...styles.thText, width: colWidths.owner } }, "Zodpovedný"),
+        React.createElement(Text, { style: { ...styles.thText, width: colWidths.notes } }, "Poznámky"),
+      ),
 
-  // ── Table header ──
-  doc.setFillColor(...PURPLE);
-  doc.rect(margin, y, cW, 8, "F");
-  doc.setTextColor(...WHITE); doc.setFontSize(7.5); doc.setFont("helvetica", "bold");
-  const headers = ["#", "Nazov ulohy / Podulohy", "Status", "Priorita", "Termin", "Zodpovedny", "Poznamky"];
-  headers.forEach((h, i) => doc.text(h, colX[i] + 2, y + 5.5));
-  y += 10;
+      // Tasks
+      ...tasks.flatMap((task, ti) => {
+        const sc = statusStyles[task.status] ?? statusStyles["Nezačaté"];
+        const pc = priorityStyles[task.priority];
+        const overdue = isOverdue(task.dueDate);
+        const rowBg = ti % 2 === 0 ? "#ffffff" : "#f9fafb";
 
-  // ── Tasks ──
-  tasks.forEach((task, ti) => {
-    checkPage(12);
+        const taskRow = React.createElement(View, { key: task.id, style: { ...styles.row, backgroundColor: rowBg, borderLeftWidth: 2, borderLeftColor: sc.color } },
+          React.createElement(Text, { style: { width: colWidths.num, color: "#9ca3af", fontFamily: "Helvetica-Bold" } }, String(ti + 1)),
+          React.createElement(View, { style: { width: colWidths.name } },
+            React.createElement(Text, { style: { fontFamily: "Helvetica-Bold", color: "#111827", fontSize: 8 } }, task.name),
+            task.subtasks.length > 0
+              ? React.createElement(Text, { style: { fontSize: 6, color: "#6b7280", marginTop: 1 } }, `${task.subtasks.filter(s => s.done).length}/${task.subtasks.length} podúloh`)
+              : null,
+            (task.tags ?? []).length > 0
+              ? React.createElement(Text, { style: { fontSize: 6, color: "#6366f1", marginTop: 1 } }, "#" + task.tags!.join(" #"))
+              : null,
+          ),
+          React.createElement(View, { style: { width: colWidths.status } },
+            React.createElement(View, { style: { ...styles.badge, backgroundColor: sc.bg, alignSelf: "flex-start" } },
+              React.createElement(Text, { style: { color: sc.color } }, task.status)
+            )
+          ),
+          React.createElement(View, { style: { width: colWidths.priority } },
+            pc ? React.createElement(View, { style: { ...styles.badge, backgroundColor: pc.bg, alignSelf: "flex-start" } },
+              React.createElement(Text, { style: { color: pc.color } }, task.priority)
+            ) : React.createElement(Text, { style: { color: "#9ca3af" } }, "—")
+          ),
+          React.createElement(Text, { style: { width: colWidths.due, color: overdue ? "#dc2626" : "#374151", fontFamily: overdue ? "Helvetica-Bold" : "Helvetica", fontSize: 8 } }, task.dueDate ? task.dueDate + (overdue ? " ⚠" : "") : "—"),
+          React.createElement(Text, { style: { width: colWidths.owner, color: "#374151", fontSize: 8 } }, task.owner || "—"),
+          React.createElement(Text, { style: { width: colWidths.notes, color: "#6b7280", fontSize: 7 } }, task.notes ? task.notes.slice(0, 60) + (task.notes.length > 60 ? "…" : "") : "—"),
+        );
 
-    const sc = task.status === "Hotovo" ? { bg: GREEN_BG, fg: GREEN } :
-               task.status === "V procese" ? { bg: AMBER_BG, fg: AMBER } :
-               task.status === "Uviaznuté" ? { bg: RED_BG, fg: RED } :
-               { bg: LIGHT2, fg: GRAY };
+        const subRows = task.subtasks.map(sub => {
+          const ssc = statusStyles[sub.done ? "Hotovo" : sub.status] ?? statusStyles["Nezačaté"];
+          return React.createElement(View, { key: sub.id, style: styles.subRow },
+            React.createElement(Text, { style: { width: colWidths.num, color: "#6366f1" } }, "↳"),
+            React.createElement(Text, { style: { width: colWidths.name, color: sub.done ? "#16a34a" : "#374151", fontSize: 8, paddingLeft: 8 } }, (sub.done ? "✓ " : "○ ") + sub.name),
+            React.createElement(View, { style: { width: colWidths.status } },
+              React.createElement(View, { style: { ...styles.badge, backgroundColor: ssc.bg, alignSelf: "flex-start" } },
+                React.createElement(Text, { style: { color: ssc.color } }, sub.done ? "Hotovo" : sub.status)
+              )
+            ),
+            React.createElement(Text, { style: { width: colWidths.priority, color: "#9ca3af" } }, sub.priority || "—"),
+            React.createElement(Text, { style: { width: colWidths.due, color: "#6b7280", fontSize: 8 } }, sub.dueDate || "—"),
+            React.createElement(Text, { style: { width: colWidths.owner, color: "#6b7280", fontSize: 8 } }, sub.owner || "—"),
+            React.createElement(Text, { style: { width: colWidths.notes, color: "#9ca3af", fontSize: 7 } }, sub.notes || "—"),
+          );
+        });
 
-    const pc = task.priority === "Vysoká" ? { bg: RED_BG, fg: RED } :
-               task.priority === "Stredná" ? { bg: AMBER_BG, fg: AMBER } :
-               task.priority === "Nízka" ? { bg: [219, 234, 254] as [number,number,number], fg: [37, 99, 235] as [number,number,number] } :
-               { bg: LIGHT2, fg: GRAY };
+        return [taskRow, ...subRows];
+      }),
 
-    const overdue = isOverdue(task.dueDate);
-    const rowH = 9;
-    const rowBg: [number,number,number] = ti % 2 === 0 ? WHITE : LIGHT;
+      // Footer
+      React.createElement(Text, { style: styles.footer, fixed: true }, `${projectName} · Ticklydo export · ${today}`)
+    )
+  );
 
-    doc.setFillColor(...rowBg);
-    doc.rect(margin, y, cW, rowH, "F");
-    doc.setFillColor(sc.fg[0], sc.fg[1], sc.fg[2]);
-    doc.rect(margin, y, 2, rowH, "F");
-
-    // #
-    doc.setTextColor(...GRAY); doc.setFontSize(7); doc.setFont("helvetica", "bold");
-    doc.text(String(ti + 1), colX[0] + 2, y + 6);
-
-    // Name
-    doc.setTextColor(...DARK); doc.setFontSize(8); doc.setFont("helvetica", "bold");
-    const nameStr = clean(task.name).length > 40 ? clean(task.name).slice(0, 39) + "…" : clean(task.name);
-    doc.text(nameStr, colX[1] + 2, y + 6);
-    if (task.subtasks.length > 0) {
-      doc.setFontSize(6); doc.setFont("helvetica", "normal"); doc.setTextColor(...GRAY);
-      doc.text(`${task.subtasks.filter(s => s.done).length}/${task.subtasks.length} poduloh`, colX[1] + 2, y + 8.5);
-    }
-
-    // Status badge
-    doc.setFillColor(...sc.bg); doc.roundedRect(colX[2] + 1, y + 1.5, colW[2] - 3, 6, 1, 1, "F");
-    doc.setTextColor(...sc.fg); doc.setFontSize(6.5); doc.setFont("helvetica", "bold");
-    doc.text(clean(task.status), colX[2] + colW[2] / 2 - 1, y + 5.8, { align: "center" });
-
-    // Priority badge
-    if (task.priority) {
-      doc.setFillColor(...(pc.bg as [number,number,number])); doc.roundedRect(colX[3] + 1, y + 1.5, colW[3] - 3, 6, 1, 1, "F");
-      doc.setTextColor(...(pc.fg as [number,number,number])); doc.setFontSize(6.5); doc.setFont("helvetica", "bold");
-      doc.text(clean(task.priority), colX[3] + colW[3] / 2 - 1, y + 5.8, { align: "center" });
-    } else {
-      doc.setTextColor(...GRAY); doc.setFontSize(7); doc.text("—", colX[3] + 4, y + 6);
-    }
-
-    // Due date
-    if (task.dueDate) {
-      if (overdue) { doc.setFillColor(...RED_BG); doc.roundedRect(colX[4] + 1, y + 1.5, colW[4] - 3, 6, 1, 1, "F"); doc.setTextColor(...RED); }
-      else { doc.setTextColor(...DARK); }
-      doc.setFontSize(7); doc.setFont("helvetica", overdue ? "bold" : "normal");
-      doc.text(task.dueDate + (overdue ? " !" : ""), colX[4] + 2, y + 6);
-    } else {
-      doc.setTextColor(...GRAY); doc.setFontSize(7); doc.text("—", colX[4] + 2, y + 6);
-    }
-
-    // Owner
-    doc.setTextColor(...DARK); doc.setFontSize(7); doc.setFont("helvetica", "normal");
-    doc.text(clean(task.owner || "—").slice(0, 16), colX[5] + 2, y + 6);
-
-    // Notes
-    doc.setTextColor(...GRAY); doc.setFontSize(6.5);
-    const notesStr = clean(task.notes || "—");
-    doc.text(notesStr.length > 35 ? notesStr.slice(0, 34) + "…" : notesStr, colX[6] + 2, y + 6);
-
-    y += rowH;
-
-    // ── Subtasks ──
-    task.subtasks.forEach(sub => {
-      checkPage(7);
-      const subBg: [number,number,number] = [248, 249, 255];
-      doc.setFillColor(...subBg); doc.rect(margin, y, cW, 7, "F");
-      doc.setFillColor(...PURPLE); doc.rect(margin + 4, y, 1, 7, "F");
-
-      doc.setTextColor(...GRAY); doc.setFontSize(6); doc.setFont("helvetica", "normal");
-      doc.text("↳", colX[0] + 2, y + 5);
-
-      doc.setTextColor(sub.done ? GREEN[0] : DARK[0], sub.done ? GREEN[1] : DARK[1], sub.done ? GREEN[2] : DARK[2]);
-      doc.setFontSize(7); doc.setFont("helvetica", sub.done ? "italic" : "normal");
-      const subName = clean(sub.name).length > 38 ? clean(sub.name).slice(0, 37) + "…" : clean(sub.name);
-      doc.text((sub.done ? "✓ " : "○ ") + subName, colX[1] + 6, y + 5);
-
-      const ssc = sub.done || sub.status === "Hotovo"
-        ? { bg: GREEN_BG, fg: GREEN }
-        : sub.status === "V procese" ? { bg: AMBER_BG, fg: AMBER }
-        : sub.status === "Uviaznuté" ? { bg: RED_BG, fg: RED }
-        : { bg: LIGHT2, fg: GRAY };
-
-      doc.setFillColor(...ssc.bg); doc.roundedRect(colX[2] + 1, y + 1, colW[2] - 3, 5, 1, 1, "F");
-      doc.setTextColor(...ssc.fg); doc.setFontSize(6); doc.setFont("helvetica", "bold");
-      doc.text(clean(sub.done ? "Hotovo" : sub.status), colX[2] + colW[2] / 2 - 1, y + 4.5, { align: "center" });
-
-      if (sub.dueDate) {
-        doc.setTextColor(...GRAY); doc.setFontSize(6.5); doc.setFont("helvetica", "normal");
-        doc.text(sub.dueDate, colX[4] + 2, y + 5);
-      }
-
-      y += 7;
-    });
-
-    // Divider
-    if (ti < tasks.length - 1) {
-      doc.setDrawColor(229, 231, 235); doc.setLineWidth(0.2);
-      doc.line(margin, y, margin + cW, y);
-    }
-    y += 1;
-  });
-
-  // ── Footer ──
-  const pageCount = (doc as any).internal.getNumberOfPages();
-  for (let i = 1; i <= pageCount; i++) {
-    doc.setPage(i);
-    doc.setFontSize(7); doc.setFont("helvetica", "normal"); doc.setTextColor(...GRAY);
-    doc.text(`${clean(projectName)} · Ticklydo export · Strana ${i}/${pageCount}`, pdfW / 2, 207, { align: "center" });
-  }
-
-  doc.save(`${projectName}-export.pdf`);
+  const blob = await pdf(React.createElement(MyDoc)).toBlob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${projectName}-export.pdf`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
