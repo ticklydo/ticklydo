@@ -11,7 +11,6 @@ function isOverdue(d: string) {
   return new Date(d + "T00:00:00") < new Date();
 }
 
-// ── EXCEL EXPORT ─────────────────────────────────────────────────────────────
 export async function exportToExcel(projectName: string, tasks: Task[]) {
   const XLSX = await import("xlsx");
   const wb = XLSX.utils.book_new();
@@ -92,6 +91,7 @@ export async function exportToExcel(projectName: string, tasks: Task[]) {
 
   XLSX.utils.book_append_sheet(wb, ws, projectName.slice(0, 31));
 
+  // Súhrn
   const done = tasks.filter(t => t.status === "Hotovo").length;
   const summaryData = [
     ["Súhrn projektu", projectName],
@@ -114,146 +114,4 @@ export async function exportToExcel(projectName: string, tasks: Task[]) {
   XLSX.utils.book_append_sheet(wb, wsSummary, "Súhrn");
 
   XLSX.writeFile(wb, `${projectName}-export.xlsx`);
-}
-
-// ── PDF EXPORT (@react-pdf/renderer) ─────────────────────────────────────────
-export async function exportToPDF(projectName: string, tasks: Task[]) {
-  const { pdf, Document, Page, Text, View, StyleSheet } = await import("@react-pdf/renderer");
-  const React = await import("react");
-
-  const today = new Date().toLocaleDateString("sk-SK");
-  const done = tasks.filter(t => t.status === "Hotovo").length;
-
-  const styles = StyleSheet.create({
-    page: { padding: 20, fontFamily: "Helvetica", fontSize: 9, backgroundColor: "#ffffff" },
-    header: { backgroundColor: "#6366f1", padding: 14, borderRadius: 6, marginBottom: 12, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-    headerTitle: { color: "#ffffff", fontSize: 16, fontFamily: "Helvetica-Bold" },
-    headerSub: { color: "#e0e0ff", fontSize: 8, marginTop: 3 },
-    headerRight: { color: "#e0e0ff", fontSize: 8 },
-    statsRow: { flexDirection: "row", gap: 8, marginBottom: 12 },
-    statBox: { flex: 1, borderRadius: 5, padding: 8 },
-    statVal: { fontSize: 18, fontFamily: "Helvetica-Bold" },
-    statLbl: { fontSize: 7, marginTop: 2 },
-    tableHeader: { flexDirection: "row", backgroundColor: "#6366f1", paddingVertical: 5, paddingHorizontal: 4, marginBottom: 0 },
-    thText: { color: "#ffffff", fontSize: 7, fontFamily: "Helvetica-Bold" },
-    row: { flexDirection: "row", paddingVertical: 4, paddingHorizontal: 4, borderBottomWidth: 0.5, borderBottomColor: "#e5e7eb" },
-    subRow: { flexDirection: "row", paddingVertical: 3, paddingHorizontal: 4, backgroundColor: "#f8f9ff", borderBottomWidth: 0.5, borderBottomColor: "#e5e7eb" },
-    badge: { borderRadius: 3, paddingHorizontal: 5, paddingVertical: 2, fontSize: 7, fontFamily: "Helvetica-Bold" },
-    footer: { position: "absolute", bottom: 10, left: 20, right: 20, textAlign: "center", fontSize: 7, color: "#9ca3af" },
-  });
-
-  const colWidths = { num: "4%", name: "28%", status: "11%", priority: "10%", due: "11%", owner: "12%", notes: "24%" };
-
-  const statusStyles: Record<string, { bg: string; color: string }> = {
-    "Hotovo":    { bg: "#dcfce7", color: "#16a34a" },
-    "V procese": { bg: "#fef3c7", color: "#b45309" },
-    "Uviaznuté": { bg: "#fee2e2", color: "#dc2626" },
-    "Nezačaté":  { bg: "#f3f4f6", color: "#6b7280" },
-  };
-  const priorityStyles: Record<string, { bg: string; color: string }> = {
-    "Vysoká":  { bg: "#fee2e2", color: "#dc2626" },
-    "Stredná": { bg: "#fef3c7", color: "#b45309" },
-    "Nízka":   { bg: "#dbeafe", color: "#2563eb" },
-  };
-
-  const MyDoc = () => React.createElement(Document, null,
-    React.createElement(Page, { size: "A4", orientation: "landscape", style: styles.page },
-      // Header
-      React.createElement(View, { style: styles.header },
-        React.createElement(View, null,
-          React.createElement(Text, { style: styles.headerTitle }, projectName),
-          React.createElement(Text, { style: styles.headerSub }, `Export: ${today} · ${tasks.length} úloh · ${done} dokončených`)
-        ),
-        React.createElement(Text, { style: styles.headerRight }, "Ticklydo Export")
-      ),
-
-      // Stats
-      React.createElement(View, { style: styles.statsRow },
-        ...[
-          { lbl: "Hotovo", val: done, bg: "#dcfce7", fg: "#16a34a" },
-          { lbl: "V procese", val: tasks.filter(t => t.status === "V procese").length, bg: "#fef3c7", fg: "#b45309" },
-          { lbl: "Uviaznuté", val: tasks.filter(t => t.status === "Uviaznuté").length, bg: "#fee2e2", fg: "#dc2626" },
-          { lbl: "Nezačaté", val: tasks.filter(t => t.status === "Nezačaté").length, bg: "#f3f4f6", fg: "#6b7280" },
-        ].map(s => React.createElement(View, { key: s.lbl, style: { ...styles.statBox, backgroundColor: s.bg } },
-          React.createElement(Text, { style: { ...styles.statVal, color: s.fg } }, String(s.val)),
-          React.createElement(Text, { style: { ...styles.statLbl, color: s.fg } }, s.lbl)
-        ))
-      ),
-
-      // Table header
-      React.createElement(View, { style: styles.tableHeader },
-        React.createElement(Text, { style: { ...styles.thText, width: colWidths.num } }, "#"),
-        React.createElement(Text, { style: { ...styles.thText, width: colWidths.name } }, "Názov úlohy / Podúlohy"),
-        React.createElement(Text, { style: { ...styles.thText, width: colWidths.status } }, "Status"),
-        React.createElement(Text, { style: { ...styles.thText, width: colWidths.priority } }, "Priorita"),
-        React.createElement(Text, { style: { ...styles.thText, width: colWidths.due } }, "Termín"),
-        React.createElement(Text, { style: { ...styles.thText, width: colWidths.owner } }, "Zodpovedný"),
-        React.createElement(Text, { style: { ...styles.thText, width: colWidths.notes } }, "Poznámky"),
-      ),
-
-      // Tasks
-      ...tasks.flatMap((task, ti) => {
-        const sc = statusStyles[task.status] ?? statusStyles["Nezačaté"];
-        const pc = priorityStyles[task.priority];
-        const overdue = isOverdue(task.dueDate);
-        const rowBg = ti % 2 === 0 ? "#ffffff" : "#f9fafb";
-
-        const taskRow = React.createElement(View, { key: task.id, style: { ...styles.row, backgroundColor: rowBg, borderLeftWidth: 2, borderLeftColor: sc.color } },
-          React.createElement(Text, { style: { width: colWidths.num, color: "#9ca3af", fontFamily: "Helvetica-Bold" } }, String(ti + 1)),
-          React.createElement(View, { style: { width: colWidths.name } },
-            React.createElement(Text, { style: { fontFamily: "Helvetica-Bold", color: "#111827", fontSize: 8 } }, task.name),
-            task.subtasks.length > 0
-              ? React.createElement(Text, { style: { fontSize: 6, color: "#6b7280", marginTop: 1 } }, `${task.subtasks.filter(s => s.done).length}/${task.subtasks.length} podúloh`)
-              : null,
-            (task.tags ?? []).length > 0
-              ? React.createElement(Text, { style: { fontSize: 6, color: "#6366f1", marginTop: 1 } }, "#" + task.tags!.join(" #"))
-              : null,
-          ),
-          React.createElement(View, { style: { width: colWidths.status } },
-            React.createElement(View, { style: { ...styles.badge, backgroundColor: sc.bg, alignSelf: "flex-start" } },
-              React.createElement(Text, { style: { color: sc.color } }, task.status)
-            )
-          ),
-          React.createElement(View, { style: { width: colWidths.priority } },
-            pc ? React.createElement(View, { style: { ...styles.badge, backgroundColor: pc.bg, alignSelf: "flex-start" } },
-              React.createElement(Text, { style: { color: pc.color } }, task.priority)
-            ) : React.createElement(Text, { style: { color: "#9ca3af" } }, "—")
-          ),
-          React.createElement(Text, { style: { width: colWidths.due, color: overdue ? "#dc2626" : "#374151", fontFamily: overdue ? "Helvetica-Bold" : "Helvetica", fontSize: 8 } }, task.dueDate ? task.dueDate + (overdue ? " ⚠" : "") : "—"),
-          React.createElement(Text, { style: { width: colWidths.owner, color: "#374151", fontSize: 8 } }, task.owner || "—"),
-          React.createElement(Text, { style: { width: colWidths.notes, color: "#6b7280", fontSize: 7 } }, task.notes ? task.notes.slice(0, 60) + (task.notes.length > 60 ? "…" : "") : "—"),
-        );
-
-        const subRows = task.subtasks.map(sub => {
-          const ssc = statusStyles[sub.done ? "Hotovo" : sub.status] ?? statusStyles["Nezačaté"];
-          return React.createElement(View, { key: sub.id, style: styles.subRow },
-            React.createElement(Text, { style: { width: colWidths.num, color: "#6366f1" } }, "↳"),
-            React.createElement(Text, { style: { width: colWidths.name, color: sub.done ? "#16a34a" : "#374151", fontSize: 8, paddingLeft: 8 } }, (sub.done ? "✓ " : "○ ") + sub.name),
-            React.createElement(View, { style: { width: colWidths.status } },
-              React.createElement(View, { style: { ...styles.badge, backgroundColor: ssc.bg, alignSelf: "flex-start" } },
-                React.createElement(Text, { style: { color: ssc.color } }, sub.done ? "Hotovo" : sub.status)
-              )
-            ),
-            React.createElement(Text, { style: { width: colWidths.priority, color: "#9ca3af" } }, sub.priority || "—"),
-            React.createElement(Text, { style: { width: colWidths.due, color: "#6b7280", fontSize: 8 } }, sub.dueDate || "—"),
-            React.createElement(Text, { style: { width: colWidths.owner, color: "#6b7280", fontSize: 8 } }, sub.owner || "—"),
-            React.createElement(Text, { style: { width: colWidths.notes, color: "#9ca3af", fontSize: 7 } }, sub.notes || "—"),
-          );
-        });
-
-        return [taskRow, ...subRows];
-      }),
-
-      // Footer
-      React.createElement(Text, { style: styles.footer, fixed: true }, `${projectName} · Ticklydo export · ${today}`)
-    )
-  );
-
-  const blob = await pdf(React.createElement(MyDoc)).toBlob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `${projectName}-export.pdf`;
-  a.click();
-  URL.revokeObjectURL(url);
 }
