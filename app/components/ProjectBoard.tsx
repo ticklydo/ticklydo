@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "../context/ThemeContext";
 import { getAuth } from "firebase/auth";
+import { exportToExcel, exportToPDF } from "../utils/exportProject";
 import { initializeApp, getApps } from "firebase/app";
 
 const firebaseConfig = {
@@ -313,6 +314,7 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
   const [shareLink, setShareLink] = useState("");
   const [shareLinkRole, setShareLinkRole] = useState<Role>("member");
   const [copySuccess, setCopySuccess] = useState(false);
+  const [showExport, setShowExport] = useState(false);
 
   const surface = darkMode ? theme.card : "#ffffff";
   const surfaceHover = darkMode ? theme.card2 : "#f9fafb";
@@ -1502,6 +1504,43 @@ Buď konkrétny a stručný, max 6 slov na podúlohu.`,
           </div>
         )}
       </div>
+
+      {/* ── EXPORT DROPDOWN ── */}
+      {showExport && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 200 }} onClick={() => setShowExport(false)}>
+          <div onClick={e => e.stopPropagation()} style={{ position: "fixed", top: isMobile ? "auto" : 110, bottom: isMobile ? 80 : "auto", right: isMobile ? 12 : 20, background: surface, border: `1px solid ${theme.border}`, borderRadius: 14, boxShadow: "0 8px 32px rgba(0,0,0,0.18)", padding: 8, minWidth: 190, animation: "fadeIn .15s ease", zIndex: 201 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.7px", padding: "6px 10px 4px" }}>Exportovať projekt</div>
+            <button
+              onClick={async () => { setShowExport(false); const { exportToExcel } = await import("../utils/exportProject"); await exportToExcel(projectName, tasks); }}
+              style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 8, border: "none", background: "transparent", color: theme.text, cursor: "pointer", fontSize: 13, fontWeight: 600, fontFamily: "var(--font-geist-sans)", transition: "background .15s" }}
+              onMouseEnter={e => e.currentTarget.style.background = headerBg}
+              onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+            >
+              <div style={{ width: 28, height: 28, borderRadius: 7, background: "#16a34a18", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/></svg>
+              </div>
+              <div style={{ textAlign: "left" }}>
+                <div>Excel (.xlsx)</div>
+                <div style={{ fontSize: 10, color: theme.muted, fontWeight: 400 }}>Úlohy + podúlohy + komentáre</div>
+              </div>
+            </button>
+            <button
+              onClick={async () => { setShowExport(false); const { exportToPDF } = await import("../utils/exportProject"); await exportToPDF(projectName, tasks); }}
+              style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 8, border: "none", background: "transparent", color: theme.text, cursor: "pointer", fontSize: 13, fontWeight: 600, fontFamily: "var(--font-geist-sans)", transition: "background .15s" }}
+              onMouseEnter={e => e.currentTarget.style.background = headerBg}
+              onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+            >
+              <div style={{ width: 28, height: 28, borderRadius: 7, background: "#dc262618", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              </div>
+              <div style={{ textAlign: "left" }}>
+                <div>PDF</div>
+                <div style={{ fontSize: 10, color: theme.muted, fontWeight: 400 }}>Formátovaný report</div>
+              </div>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── AI MODAL ── */}
       {showAI && (
