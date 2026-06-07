@@ -962,7 +962,7 @@ Buď konkrétny a stručný, max 6 slov na podúlohu.`,
               <div>
                 <div style={{ fontSize: 11, fontWeight: 700, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 6 }}>Status</div>
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                  {STATUSES.map(s => { const cfg = STATUS_CONFIG[s]; const active = task.status === s; return <button key={s} onClick={() => updateTask(task.id, "status", s)} style={{ background: active ? (darkMode ? cfg.color + "33" : cfg.bg) : "transparent", color: active ? cfg.color : theme.muted, border: `1.5px solid ${active ? cfg.color + "55" : theme.border}`, borderRadius: 20, padding: "6px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)", display: "flex", alignItems: "center", gap: 5 }}><div style={{ width: 6, height: 6, borderRadius: "50%", background: active ? cfg.dot : theme.muted }} />{s}</button>; })}
+                  {!isMobile && <div style={{ flex: 1 }} />}{STATUSES.map(s => { const cfg = STATUS_CONFIG[s]; const active = task.status === s; return <button key={s} onClick={() => updateTask(task.id, "status", s)} style={{ background: active ? (darkMode ? cfg.color + "33" : cfg.bg) : "transparent", color: active ? cfg.color : theme.muted, border: `1.5px solid ${active ? cfg.color + "55" : theme.border}`, borderRadius: 20, padding: "6px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)", display: "flex", alignItems: "center", gap: 5 }}><div style={{ width: 6, height: 6, borderRadius: "50%", background: active ? cfg.dot : theme.muted }} />{s}</button>; })}
                 </div>
               </div>
               <div>
@@ -1141,12 +1141,11 @@ Buď konkrétny a stručný, max 6 slov na podúlohu.`,
           </button><button onClick={() => setShowExport(v => !v)} title="Export" style={{ width: 30, height: 30, borderRadius: 8, background: showExport ? appliedA + "18" : "transparent", border: `1px solid ${showExport ? appliedA + "55" : theme.border}`, color: showExport ? appliedA : theme.muted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           </button>
-          <div style={{ flex: 1 }} />
         </div>
 
         {/* Riadok 3: Status pills */}
         <div style={{ display: "flex", gap: 6, paddingBottom: 8, overflowX: "auto", scrollbarWidth: "none" }}>
-          {STATUSES.map(s => {
+          {!isMobile && <div style={{ flex: 1 }} />}{STATUSES.map(s => {
             const cfg = STATUS_CONFIG[s];
             const count = tasks.filter(t => t.status === s).length;
             return (
