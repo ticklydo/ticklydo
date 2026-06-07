@@ -962,7 +962,7 @@ Buď konkrétny a stručný, max 6 slov na podúlohu.`,
               <div>
                 <div style={{ fontSize: 11, fontWeight: 700, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 6 }}>Status</div>
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                  {!isMobile && <div style={{ flex: 1 }} />}{STATUSES.map(s => { const cfg = STATUS_CONFIG[s]; const active = task.status === s; return <button key={s} onClick={() => updateTask(task.id, "status", s)} style={{ background: active ? (darkMode ? cfg.color + "33" : cfg.bg) : "transparent", color: active ? cfg.color : theme.muted, border: `1.5px solid ${active ? cfg.color + "55" : theme.border}`, borderRadius: 20, padding: "6px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)", display: "flex", alignItems: "center", gap: 5 }}><div style={{ width: 6, height: 6, borderRadius: "50%", background: active ? cfg.dot : theme.muted }} />{s}</button>; })}
+                {STATUSES.map(s => { const cfg = STATUS_CONFIG[s]; const active = task.status === s; return <button key={s} onClick={() => updateTask(task.id, "status", s)} style={{ background: active ? (darkMode ? cfg.color + "33" : cfg.bg) : "transparent", color: active ? cfg.color : theme.muted, border: `1.5px solid ${active ? cfg.color + "55" : theme.border}`, borderRadius: 20, padding: "6px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)", display: "flex", alignItems: "center", gap: 5 }}><div style={{ width: 6, height: 6, borderRadius: "50%", background: active ? cfg.dot : theme.muted }} />{s}</button>; })}
                 </div>
               </div>
               <div>
@@ -1145,7 +1145,7 @@ Buď konkrétny a stručný, max 6 slov na podúlohu.`,
 
         {/* Riadok 3: Status pills */}
         <div style={{ display: "flex", gap: 6, paddingBottom: 8, overflowX: "auto", scrollbarWidth: "none" }}>
-          {!isMobile && <div style={{ flex: 1 }} />}{STATUSES.map(s => {
+          <div style={{ width: 1, height: 20, background: theme.border, flexShrink: 0 }} />{STATUSES.map(s => {
             const cfg = STATUS_CONFIG[s];
             const count = tasks.filter(t => t.status === s).length;
             return (
