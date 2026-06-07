@@ -1,351 +1,330 @@
 // app/utils/exportProject.ts
-// Client-side export — Excel (SheetJS) + PDF (jsPDF)
 
 type Status = "Hotovo" | "V procese" | "Uviaznuté" | "Nezačaté";
 type Priority = "Vysoká" | "Stredná" | "Nízka" | "";
-
-type SubTask = {
-  id: string; name: string; done: boolean;
-  status: Status; priority: Priority;
-  dueDate: string; owner: string; notes: string;
-};
-
+type SubTask = { id: string; name: string; done: boolean; status: Status; priority: Priority; dueDate: string; owner: string; notes: string; };
 type Comment = { id: string; text: string; author: string; createdAt: number; };
+type Task = { id: string; name: string; status: Status; priority: Priority; dueDate: string; owner: string; notes: string; subtasks: SubTask[]; tags?: string[]; comments?: Comment[]; };
 
-type Task = {
-  id: string; name: string; status: Status; priority: Priority;
-  dueDate: string; owner: string; notes: string; subtasks: SubTask[];
-  tags?: string[];
-  comments?: Comment[];
+const STATUS_COLOR: Record<string, { bg: string; text: string; border: string }> = {
+  "Hotovo":    { bg: "#dcfce7", text: "#16a34a", border: "#16a34a" },
+  "V procese": { bg: "#fef3c7", text: "#b45309", border: "#f59e0b" },
+  "Uviaznuté": { bg: "#fee2e2", text: "#dc2626", border: "#ef4444" },
+  "Nezačaté":  { bg: "#f3f4f6", text: "#6b7280", border: "#9ca3af" },
 };
+
+const PRIORITY_COLOR: Record<string, { bg: string; text: string }> = {
+  "Vysoká":  { bg: "#fee2e2", text: "#dc2626" },
+  "Stredná": { bg: "#fef3c7", text: "#b45309" },
+  "Nízka":   { bg: "#dbeafe", text: "#2563eb" },
+  "":        { bg: "transparent", text: "#9ca3af" },
+};
+
+function isOverdue(d: string) {
+  if (!d) return false;
+  return new Date(d + "T00:00:00") < new Date();
+}
 
 // ── EXCEL EXPORT ─────────────────────────────────────────────────────────────
 export async function exportToExcel(projectName: string, tasks: Task[]) {
   const XLSX = await import("xlsx");
 
-  const rows: any[] = [];
+  const wb = XLSX.utils.book_new();
 
-  // Header row
-  rows.push({
-    "Typ": "ÚLOHA",
-    "Názov": "Názov",
-    "Status": "Status",
-    "Priorita": "Priorita",
-    "Termín": "Termín",
-    "Zodpovedný": "Zodpovedný",
-    "Poznámky": "Poznámky",
-    "Tagy": "Tagy",
-    "Komentáre": "Komentáre",
-  });
+  // ── MAIN SHEET ──
+  const wsData: any[][] = [];
 
-  tasks.forEach(task => {
-    // Task row
-    rows.push({
-      "Typ": "Úloha",
-      "Názov": task.name,
-      "Status": task.status,
-      "Priorita": task.priority || "—",
-      "Termín": task.dueDate || "—",
-      "Zodpovedný": task.owner || "—",
-      "Poznámky": task.notes || "",
-      "Tagy": (task.tags ?? []).join(", ") || "—",
-      "Komentáre": (task.comments ?? []).map(c => `${c.author}: ${c.text}`).join(" | ") || "—",
-    });
+  // Header
+  wsData.push(["#", "Typ", "Názov úlohy / Podúlohy", "Status", "Priorita", "Termín", "Zodpovedný", "Poznámky", "Tagy", "Komentáre"]);
 
-    // Subtask rows
+  let rowNum = 1;
+  tasks.forEach((task, ti) => {
+    wsData.push([
+      ti + 1,
+      "Úloha",
+      task.name,
+      task.status,
+      task.priority || "—",
+      task.dueDate || "—",
+      task.owner || "—",
+      task.notes || "",
+      (task.tags ?? []).join(", ") || "—",
+      (task.comments ?? []).map(c => `${c.author}: ${c.text}`).join(" | ") || "—",
+    ]);
+    rowNum++;
+
     task.subtasks.forEach(sub => {
-      rows.push({
-        "Typ": "  └ Podúloha",
-        "Názov": sub.name,
-        "Status": sub.done ? "Hotovo" : sub.status,
-        "Priorita": sub.priority || "—",
-        "Termín": sub.dueDate || "—",
-        "Zodpovedný": sub.owner || "—",
-        "Poznámky": sub.notes || "",
-        "Tagy": "—",
-        "Komentáre": "—",
-      });
+      wsData.push([
+        "",
+        "  └ Podúloha",
+        "      " + sub.name,
+        sub.done ? "Hotovo" : sub.status,
+        sub.priority || "—",
+        sub.dueDate || "—",
+        sub.owner || "—",
+        sub.notes || "",
+        "—",
+        "—",
+      ]);
+      rowNum++;
     });
   });
 
-  const ws = XLSX.utils.json_to_sheet(rows, { skipHeader: true });
-
-  // Column widths
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
   ws["!cols"] = [
-    { wch: 12 }, { wch: 35 }, { wch: 12 }, { wch: 10 },
-    { wch: 12 }, { wch: 16 }, { wch: 30 }, { wch: 20 }, { wch: 40 },
+    { wch: 4 }, { wch: 12 }, { wch: 38 }, { wch: 12 }, { wch: 10 },
+    { wch: 12 }, { wch: 16 }, { wch: 28 }, { wch: 18 }, { wch: 35 },
   ];
 
   // Style header row
-  const range = XLSX.utils.decode_range(ws["!ref"] ?? "A1");
-  for (let C = range.s.c; C <= range.e.c; C++) {
-    const addr = XLSX.utils.encode_cell({ r: 0, c: C });
-    if (!ws[addr]) continue;
-    ws[addr].s = {
-      font: { bold: true, color: { rgb: "FFFFFF" } },
-      fill: { fgColor: { rgb: "6366F1" } },
-      alignment: { horizontal: "center" },
-    };
+  const headerStyle = {
+    font: { bold: true, color: { rgb: "FFFFFF" }, sz: 11 },
+    fill: { patternType: "solid", fgColor: { rgb: "6366F1" } },
+    alignment: { horizontal: "center", vertical: "center", wrapText: true },
+    border: {
+      top: { style: "thin", color: { rgb: "4F46E5" } },
+      bottom: { style: "thin", color: { rgb: "4F46E5" } },
+      left: { style: "thin", color: { rgb: "4F46E5" } },
+      right: { style: "thin", color: { rgb: "4F46E5" } },
+    }
+  };
+
+  const cols = ["A","B","C","D","E","F","G","H","I","J"];
+  cols.forEach(col => {
+    const cell = ws[col + "1"];
+    if (cell) cell.s = headerStyle;
+  });
+
+  // Style data rows
+  const statusFills: Record<string, string> = {
+    "Hotovo": "DCFCE7", "V procese": "FEF3C7", "Uviaznuté": "FEE2E2", "Nezačaté": "F3F4F6",
+  };
+  const statusTexts: Record<string, string> = {
+    "Hotovo": "16A34A", "V procese": "B45309", "Uviaznuté": "DC2626", "Nezačaté": "6B7280",
+  };
+  const priorityFills: Record<string, string> = {
+    "Vysoká": "FEE2E2", "Stredná": "FEF3C7", "Nízka": "DBEAFE",
+  };
+  const priorityTexts: Record<string, string> = {
+    "Vysoká": "DC2626", "Stredná": "B45309", "Nízka": "2563EB",
+  };
+
+  for (let r = 2; r <= wsData.length; r++) {
+    const rowData = wsData[r - 1];
+    const isSubtask = rowData[1]?.toString().includes("Podúloha");
+    const status = rowData[3]?.toString() ?? "";
+    const priority = rowData[4]?.toString() ?? "";
+    const dueDate = rowData[5]?.toString() ?? "";
+    const overdue = dueDate !== "—" && isOverdue(dueDate);
+
+    // Row background - alternate
+    const rowBg = isSubtask ? "F8F9FF" : (r % 2 === 0 ? "FFFFFF" : "F9FAFB");
+
+    cols.forEach((col, ci) => {
+      const addr = col + r;
+      if (!ws[addr]) ws[addr] = { t: "s", v: "" };
+      const cell = ws[addr];
+
+      let fillColor = rowBg;
+      let fontColor = isSubtask ? "6B7280" : "111827";
+      let bold = false;
+      let italic = isSubtask;
+
+      if (ci === 3 && statusFills[status]) { // Status column
+        fillColor = statusFills[status];
+        fontColor = statusTexts[status] ?? fontColor;
+        bold = true;
+      } else if (ci === 4 && priorityFills[priority]) { // Priority column
+        fillColor = priorityFills[priority];
+        fontColor = priorityTexts[priority] ?? fontColor;
+        bold = true;
+      } else if (ci === 5 && overdue) { // Due date overdue
+        fillColor = "FEE2E2";
+        fontColor = "DC2626";
+        bold = true;
+      }
+
+      cell.s = {
+        font: { bold, italic, color: { rgb: fontColor }, sz: isSubtask ? 9 : 10 },
+        fill: { patternType: "solid", fgColor: { rgb: fillColor } },
+        alignment: { vertical: "center", wrapText: ci === 2 },
+        border: {
+          top: { style: "thin", color: { rgb: "E5E7EB" } },
+          bottom: { style: "thin", color: { rgb: "E5E7EB" } },
+          left: { style: "thin", color: { rgb: "E5E7EB" } },
+          right: { style: "thin", color: { rgb: "E5E7EB" } },
+        }
+      };
+    });
   }
 
-  const wb = XLSX.utils.book_new();
+  // Row heights
+  ws["!rows"] = [{ hpt: 22 }]; // header height
+  for (let r = 2; r <= wsData.length; r++) {
+    (ws["!rows"] as any[]).push({ hpt: 18 });
+  }
+
   XLSX.utils.book_append_sheet(wb, ws, projectName.slice(0, 31));
 
-  // Summary sheet
+  // ── SUMMARY SHEET ──
+  const done = tasks.filter(t => t.status === "Hotovo").length;
   const summaryData = [
-    ["Projekt", projectName],
+    ["Súhrn projektu", projectName],
     ["Dátum exportu", new Date().toLocaleDateString("sk-SK")],
+    ["", ""],
     ["Celkom úloh", tasks.length],
-    ["Hotovo", tasks.filter(t => t.status === "Hotovo").length],
-    ["V procese", tasks.filter(t => t.status === "V procese").length],
-    ["Uviaznuté", tasks.filter(t => t.status === "Uviaznuté").length],
-    ["Nezačaté", tasks.filter(t => t.status === "Nezačaté").length],
+    ["✅ Hotovo", done],
+    ["🔄 V procese", tasks.filter(t => t.status === "V procese").length],
+    ["🔴 Uviaznuté", tasks.filter(t => t.status === "Uviaznuté").length],
+    ["⬜ Nezačaté", tasks.filter(t => t.status === "Nezačaté").length],
+    ["", ""],
     ["Celkom podúloh", tasks.reduce((a, t) => a + t.subtasks.length, 0)],
     ["Vysoká priorita", tasks.filter(t => t.priority === "Vysoká").length],
+    ["Dokončených %", tasks.length > 0 ? Math.round((done / tasks.length) * 100) + "%" : "0%"],
   ];
+
   const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
-  wsSummary["!cols"] = [{ wch: 20 }, { wch: 25 }];
+  wsSummary["!cols"] = [{ wch: 20 }, { wch: 30 }];
+
+  // Style summary header
+  if (wsSummary["A1"]) wsSummary["A1"].s = { font: { bold: true, sz: 13, color: { rgb: "FFFFFF" } }, fill: { patternType: "solid", fgColor: { rgb: "6366F1" } } };
+  if (wsSummary["B1"]) wsSummary["B1"].s = { font: { bold: true, sz: 13, color: { rgb: "FFFFFF" } }, fill: { patternType: "solid", fgColor: { rgb: "6366F1" } } };
+
   XLSX.utils.book_append_sheet(wb, wsSummary, "Súhrn");
 
   XLSX.writeFile(wb, `${projectName}-export.xlsx`);
 }
 
-// ── PDF EXPORT ────────────────────────────────────────────────────────────────
-export async function exportToPDF(projectName: string, tasks: Task[]) {
-  const { jsPDF } = await import("jspdf");
-
-  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-
-  const pageW = 210;
-  const margin = 14;
-  const contentW = pageW - margin * 2;
-  let y = 20;
-
-  const PURPLE = [99, 102, 241] as [number, number, number];
-  const GRAY = [107, 114, 128] as [number, number, number];
-  const LIGHT = [243, 244, 246] as [number, number, number];
-  const GREEN = [22, 163, 74] as [number, number, number];
-  const RED = [220, 38, 38] as [number, number, number];
-  const ORANGE = [180, 83, 9] as [number, number, number];
-  const DARK = [17, 24, 39] as [number, number, number];
-
-  const checkPage = (needed: number) => {
-    if (y + needed > 280) {
-      doc.addPage();
-      y = 20;
-    }
-  };
-
-  // ── HEADER ──
-  doc.setFillColor(...PURPLE);
-  doc.rect(0, 0, 210, 28, "F");
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(18);
-  doc.setFont("helvetica", "bold");
-  doc.text(projectName, margin, 14);
-  doc.setFontSize(9);
-  doc.setFont("helvetica", "normal");
-  doc.text(`Export: ${new Date().toLocaleDateString("sk-SK")}`, margin, 22);
-
-  // Stats on the right
+// ── PDF EXPORT (HTML print) ───────────────────────────────────────────────────
+export function exportToPDF(projectName: string, tasks: Task[]) {
+  const today = new Date().toLocaleDateString("sk-SK");
   const done = tasks.filter(t => t.status === "Hotovo").length;
-  const stats = `${tasks.length} úloh · ${done} hotovo`;
-  doc.text(stats, pageW - margin, 22, { align: "right" });
+  const inProgress = tasks.filter(t => t.status === "V procese").length;
+  const stuck = tasks.filter(t => t.status === "Uviaznuté").length;
+  const notStarted = tasks.filter(t => t.status === "Nezačaté").length;
 
-  y = 38;
+  const badge = (text: string, bg: string, color: string) =>
+    `<span style="background:${bg};color:${color};border-radius:5px;padding:2px 8px;font-size:11px;font-weight:700;white-space:nowrap">${text}</span>`;
 
-  // ── SUMMARY BOXES ──
-  const statItems = [
-    { label: "Hotovo", value: tasks.filter(t => t.status === "Hotovo").length, color: GREEN },
-    { label: "V procese", value: tasks.filter(t => t.status === "V procese").length, color: ORANGE },
-    { label: "Uviaznuté", value: tasks.filter(t => t.status === "Uviaznuté").length, color: RED },
-    { label: "Nezačaté", value: tasks.filter(t => t.status === "Nezačaté").length, color: GRAY },
-  ];
+  const taskRows = tasks.map((task, ti) => {
+    const sc = STATUS_COLOR[task.status] ?? STATUS_COLOR["Nezačaté"];
+    const pc = PRIORITY_COLOR[task.priority] ?? PRIORITY_COLOR[""];
+    const overdue = isOverdue(task.dueDate);
+    const dueBg = overdue ? "#fee2e2" : "transparent";
+    const dueColor = overdue ? "#dc2626" : "#374151";
 
-  const boxW = (contentW - 9) / 4;
-  statItems.forEach((item, i) => {
-    const x = margin + i * (boxW + 3);
-    doc.setFillColor(...LIGHT);
-    doc.roundedRect(x, y, boxW, 16, 2, 2, "F");
-    doc.setFillColor(...item.color);
-    doc.roundedRect(x, y, 3, 16, 1, 1, "F");
-    doc.setTextColor(...item.color);
-    doc.setFontSize(14);
-    doc.setFont("helvetica", "bold");
-    doc.text(String(item.value), x + boxW / 2 + 2, y + 9, { align: "center" });
-    doc.setFontSize(7);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(...GRAY);
-    doc.text(item.label, x + boxW / 2 + 2, y + 14, { align: "center" });
-  });
+    const subtaskRows = task.subtasks.map(sub => {
+      const ssc = STATUS_COLOR[sub.done ? "Hotovo" : sub.status] ?? STATUS_COLOR["Nezačaté"];
+      const spc = PRIORITY_COLOR[sub.priority] ?? PRIORITY_COLOR[""];
+      const sOverdue = isOverdue(sub.dueDate);
+      return `<tr style="background:#f8f9ff">
+        <td style="padding:5px 10px;color:#6b7280;font-size:11px">↳</td>
+        <td style="padding:5px 8px;font-size:12px;color:#374151;padding-left:24px">${sub.name}${sub.done ? ' <span style="color:#16a34a;font-size:10px">✓</span>' : ""}</td>
+        <td style="padding:5px 8px;text-align:center">${badge(sub.done ? "Hotovo" : sub.status, ssc.bg, ssc.text)}</td>
+        <td style="padding:5px 8px;text-align:center">${sub.priority ? badge(sub.priority, spc.bg, spc.text) : "—"}</td>
+        <td style="padding:5px 8px;text-align:center;background:${sOverdue ? "#fee2e2" : "transparent"};color:${sOverdue ? "#dc2626" : "#374151"};font-size:12px">${sub.dueDate || "—"}</td>
+        <td style="padding:5px 8px;font-size:12px;color:#6b7280">${sub.owner || "—"}</td>
+        <td style="padding:5px 8px;font-size:11px;color:#6b7280">${sub.notes || "—"}</td>
+      </tr>`;
+    }).join("");
 
-  y += 24;
+    const rowBg = ti % 2 === 0 ? "#ffffff" : "#f9fafb";
+    return `<tr style="background:${rowBg};border-left:3px solid ${sc.border}">
+      <td style="padding:8px 10px;font-weight:700;color:#6b7280;font-size:12px">${ti + 1}</td>
+      <td style="padding:8px;font-weight:700;font-size:13px;color:#111827">${task.name}${(task.tags ?? []).length > 0 ? `<br><span style="font-size:10px;color:#6366f1;font-weight:400">#${task.tags!.join(" #")}</span>` : ""}</td>
+      <td style="padding:8px;text-align:center">${badge(task.status, sc.bg, sc.text)}</td>
+      <td style="padding:8px;text-align:center">${task.priority ? badge(task.priority, pc.bg, pc.text) : "—"}</td>
+      <td style="padding:8px;text-align:center;background:${dueBg};color:${dueColor};font-weight:${overdue ? "700" : "400"};font-size:12px">${task.dueDate || "—"}${overdue ? " ⚠" : ""}</td>
+      <td style="padding:8px;font-size:12px;color:#374151">${task.owner || "—"}</td>
+      <td style="padding:8px;font-size:11px;color:#6b7280">${task.notes || "—"}</td>
+    </tr>
+    ${subtaskRows}`;
+  }).join("");
 
-  // ── TASKS ──
-  tasks.forEach((task, taskIdx) => {
-    checkPage(20);
+  const html = `<!DOCTYPE html>
+<html lang="sk">
+<head>
+<meta charset="UTF-8">
+<title>${projectName} — Export</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #fff; color: #111827; }
+  @page { size: A4 landscape; margin: 12mm; }
+  @media print { .no-print { display: none; } body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+  .header { background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; padding: 20px 28px; border-radius: 10px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; }
+  .header h1 { font-size: 22px; font-weight: 900; }
+  .header p { font-size: 12px; opacity: 0.8; margin-top: 3px; }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
+  .stat { border-radius: 8px; padding: 12px 16px; display: flex; flex-direction: column; gap: 2px; }
+  .stat .val { font-size: 22px; font-weight: 900; }
+  .stat .lbl { font-size: 11px; font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  thead tr { background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; }
+  thead th { padding: 10px 8px; text-align: left; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
+  tbody tr { border-bottom: 1px solid #e5e7eb; }
+  tbody tr:hover { filter: brightness(0.97); }
+  .footer { margin-top: 16px; text-align: center; font-size: 10px; color: #9ca3af; }
+  .print-btn { position: fixed; bottom: 24px; right: 24px; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; border: none; border-radius: 12px; padding: 12px 24px; font-size: 14px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 16px rgba(99,102,241,0.4); }
+</style>
+</head>
+<body>
+<div class="header">
+  <div>
+    <h1>${projectName}</h1>
+    <p>Export: ${today} · ${tasks.length} úloh · ${done} dokončených</p>
+  </div>
+  <div style="text-align:right;font-size:13px;opacity:0.9">
+    Ticklydo Project Export
+  </div>
+</div>
 
-    const statusColor: [number, number, number] =
-      task.status === "Hotovo" ? GREEN :
-      task.status === "V procese" ? ORANGE :
-      task.status === "Uviaznuté" ? RED : GRAY;
+<div class="stats">
+  <div class="stat" style="background:#dcfce7">
+    <div class="val" style="color:#16a34a">${done}</div>
+    <div class="lbl" style="color:#16a34a">✅ Hotovo</div>
+  </div>
+  <div class="stat" style="background:#fef3c7">
+    <div class="val" style="color:#b45309">${inProgress}</div>
+    <div class="lbl" style="color:#b45309">🔄 V procese</div>
+  </div>
+  <div class="stat" style="background:#fee2e2">
+    <div class="val" style="color:#dc2626">${stuck}</div>
+    <div class="lbl" style="color:#dc2626">🔴 Uviaznuté</div>
+  </div>
+  <div class="stat" style="background:#f3f4f6">
+    <div class="val" style="color:#6b7280">${notStarted}</div>
+    <div class="lbl" style="color:#6b7280">⬜ Nezačaté</div>
+  </div>
+</div>
 
-    const priorityColor: [number, number, number] =
-      task.priority === "Vysoká" ? RED :
-      task.priority === "Stredná" ? ORANGE :
-      task.priority === "Nízka" ? [37, 99, 235] : GRAY;
+<table>
+  <thead>
+    <tr>
+      <th style="width:30px">#</th>
+      <th style="width:28%">Úloha / Podúloha</th>
+      <th style="width:100px">Status</th>
+      <th style="width:90px">Priorita</th>
+      <th style="width:100px">Termín</th>
+      <th style="width:110px">Zodpovedný</th>
+      <th>Poznámky</th>
+    </tr>
+  </thead>
+  <tbody>
+    ${taskRows}
+  </tbody>
+</table>
 
-    // Task card background
-    doc.setFillColor(248, 249, 251);
-    doc.roundedRect(margin, y, contentW, 18, 2, 2, "F");
-    doc.setFillColor(...statusColor);
-    doc.roundedRect(margin, y, 3, 18, 1, 1, "F");
+<div class="footer">
+  ${projectName} · Ticklydo export · ${today}
+</div>
 
-    // Task number
-    doc.setFontSize(7);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(...GRAY);
-    doc.text(`#${taskIdx + 1}`, margin + 6, y + 6);
+<button class="print-btn no-print" onclick="window.print()">🖨 Uložiť ako PDF</button>
+</body>
+</html>`;
 
-    // Task name
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(...DARK);
-    const nameMaxW = contentW - 80;
-    const taskName = doc.splitTextToSize(task.name, nameMaxW)[0];
-    doc.text(
-      task.status === "Hotovo" ? taskName : taskName,
-      margin + 14,
-      y + 7
-    );
-    if (task.status === "Hotovo") {
-      const tw = doc.getTextWidth(taskName);
-      doc.setDrawColor(...statusColor);
-      doc.setLineWidth(0.4);
-      doc.line(margin + 14, y + 6.5, margin + 14 + tw, y + 6.5);
-    }
-
-    // Status badge
-    doc.setFillColor(...(statusColor.map(v => Math.min(255, v + 180)) as [number, number, number]));
-    doc.roundedRect(pageW - margin - 72, y + 3, 28, 6, 1, 1, "F");
-    doc.setFontSize(6.5);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(...statusColor);
-    doc.text(task.status, pageW - margin - 72 + 14, y + 7.2, { align: "center" });
-
-    // Priority badge
-    if (task.priority) {
-      doc.setFillColor(...(priorityColor.map(v => Math.min(255, v + 180)) as [number, number, number]));
-      doc.roundedRect(pageW - margin - 42, y + 3, 22, 6, 1, 1, "F");
-      doc.setTextColor(...priorityColor);
-      doc.text(task.priority, pageW - margin - 42 + 11, y + 7.2, { align: "center" });
-    }
-
-    // Meta row
-    doc.setFontSize(7.5);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(...GRAY);
-    let metaParts = [];
-    if (task.dueDate) metaParts.push(`📅 ${task.dueDate}`);
-    if (task.owner) metaParts.push(`👤 ${task.owner}`);
-    if ((task.tags ?? []).length > 0) metaParts.push(`🏷 ${task.tags!.join(", ")}`);
-    if (metaParts.length > 0) doc.text(metaParts.join("   "), margin + 14, y + 14);
-
-    y += 20;
-
-    // Notes
-    if (task.notes) {
-      checkPage(10);
-      doc.setFontSize(7.5);
-      doc.setFont("helvetica", "italic");
-      doc.setTextColor(...GRAY);
-      const noteLines = doc.splitTextToSize(`Poznámky: ${task.notes}`, contentW - 10);
-      noteLines.slice(0, 2).forEach((line: string) => {
-        doc.text(line, margin + 6, y);
-        y += 4;
-      });
-      y += 1;
-    }
-
-    // Comments
-    if ((task.comments ?? []).length > 0) {
-      checkPage(8);
-      doc.setFontSize(7);
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(...PURPLE);
-      doc.text(`Komentáre (${task.comments!.length}):`, margin + 6, y);
-      y += 4;
-      task.comments!.slice(0, 3).forEach(c => {
-        checkPage(5);
-        doc.setFont("helvetica", "normal");
-        doc.setTextColor(...GRAY);
-        const cText = doc.splitTextToSize(`${c.author}: ${c.text}`, contentW - 14)[0];
-        doc.text(cText, margin + 10, y);
-        y += 4;
-      });
-      y += 1;
-    }
-
-    // Subtasks
-    if (task.subtasks.length > 0) {
-      checkPage(8);
-      doc.setFontSize(7.5);
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(...PURPLE);
-      const doneCount = task.subtasks.filter(s => s.done).length;
-      doc.text(`Podúlohy (${doneCount}/${task.subtasks.length}):`, margin + 6, y);
-      y += 4;
-
-      task.subtasks.forEach(sub => {
-        checkPage(7);
-        const subColor: [number, number, number] = sub.done ? GREEN : GRAY;
-        doc.setFillColor(...(subColor.map(v => Math.min(255, v + 190)) as [number, number, number]));
-        doc.roundedRect(margin + 8, y - 3, contentW - 8, 6, 1, 1, "F");
-        doc.setFontSize(7);
-        doc.setFont("helvetica", sub.done ? "bolditalic" : "normal");
-        doc.setTextColor(...subColor);
-        doc.text(sub.done ? "✓" : "○", margin + 11, y + 1);
-        doc.setFont("helvetica", "normal");
-        doc.setTextColor(...(sub.done ? GRAY : DARK));
-        const subName = doc.splitTextToSize(sub.name, contentW - 25)[0];
-        doc.text(subName, margin + 16, y + 1);
-        if (sub.done) {
-          const tw = doc.getTextWidth(subName);
-          doc.setDrawColor(...GRAY);
-          doc.setLineWidth(0.3);
-          doc.line(margin + 16, y + 0.5, margin + 16 + tw, y + 0.5);
-        }
-        if (sub.dueDate) {
-          doc.setFontSize(6.5);
-          doc.setTextColor(...GRAY);
-          doc.text(sub.dueDate, pageW - margin - 4, y + 1, { align: "right" });
-        }
-        y += 6;
-      });
-      y += 2;
-    }
-
-    y += 2;
-
-    // Divider
-    if (taskIdx < tasks.length - 1) {
-      checkPage(4);
-      doc.setDrawColor(229, 231, 235);
-      doc.setLineWidth(0.3);
-      doc.line(margin, y, pageW - margin, y);
-      y += 4;
-    }
-  });
-
-  // ── FOOTER ──
-  const pageCount = (doc as any).internal.getNumberOfPages();
-  for (let i = 1; i <= pageCount; i++) {
-    doc.setPage(i);
-    doc.setFontSize(7);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(...GRAY);
-    doc.text(`${projectName} · Ticklydo export · Strana ${i}/${pageCount}`, pageW / 2, 290, { align: "center" });
+  const win = window.open("", "_blank");
+  if (win) {
+    win.document.write(html);
+    win.document.close();
   }
-
-  doc.save(`${projectName}-export.pdf`);
 }
