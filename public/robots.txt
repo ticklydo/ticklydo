@@ -1,0 +1,15 @@
+User-agent: *
+Allow: /
+Allow: /login
+Allow: /register
+Allow: /privacy
+
+Disallow: /home
+Disallow: /project/
+Disallow: /work
+Disallow: /calendar
+Disallow: /notifications
+Disallow: /profile
+Disallow: /api/
+
+Sitemap: https://ticklydo.com/sitemap.xml
