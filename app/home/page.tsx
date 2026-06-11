@@ -153,7 +153,14 @@ export default function HomePage() {
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
-      if (!user) { setLoading(false); return; }
+  if (!user) {
+    // Počkaj 1s a skontroluj znova — môže byť race condition po prihlásení
+    setTimeout(() => {
+      const currentUser = auth.currentUser;
+      if (!currentUser) setLoading(false);
+    }, 1000);
+    return;
+  }
       const { getFirestore, doc, getDoc } = await import("firebase/firestore");
       const db = getFirestore();
 
