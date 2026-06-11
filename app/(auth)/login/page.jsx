@@ -19,22 +19,14 @@ export default function LoginPage() {
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
       if (user) {
-        // User is genuinely logged in via Firebase — check remember key
         const rememberUntil = localStorage.getItem(REMEMBER_KEY);
         const isWithin30Days = rememberUntil && Date.now() < parseInt(rememberUntil);
-
         if (isWithin30Days) {
           router.replace("/home");
-          return;
         } else {
-          // Token expired or remember key gone — sign out and show login
-          auth.signOut();
-          localStorage.removeItem(REMEMBER_KEY);
           setChecking(false);
         }
       } else {
-        // No user — show login form
-        localStorage.removeItem(REMEMBER_KEY);
         setChecking(false);
       }
     });
@@ -75,13 +67,13 @@ export default function LoginPage() {
       await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: "select_account" });
-      await signInWithPopup(auth, provider);
-      if (rememberMe) {
-        localStorage.setItem(REMEMBER_KEY, String(Date.now() + 30 * 24 * 60 * 60 * 1000));
-      } else {
-        localStorage.removeItem(REMEMBER_KEY);
+      const result = await signInWithPopup(auth, provider);
+      if (result?.user) {
+        if (rememberMe) {
+          localStorage.setItem(REMEMBER_KEY, String(Date.now() + 30 * 24 * 60 * 60 * 1000));
+        }
+        router.push("/home");
       }
-      router.push("/home");
     } catch (err) {
       if (err.code !== "auth/popup-closed-by-user") {
         setError("Google prihlásenie zlyhalo: " + err.code);
