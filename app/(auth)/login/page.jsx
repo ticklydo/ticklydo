@@ -17,21 +17,31 @@ export default function LoginPage() {
   const router = useRouter();
 
   useEffect(() => {
-    // Check if user is already logged in and within 30 days
-    const rememberUntil = localStorage.getItem(REMEMBER_KEY);
-    const isWithin30Days = rememberUntil && Date.now() < parseInt(rememberUntil);
-
     const unsubscribe = auth.onAuthStateChanged((user) => {
-      if (user && isWithin30Days) {
-        router.replace("/home");
+      if (user) {
+        // User is genuinely logged in via Firebase — check remember key
+        const rememberUntil = localStorage.getItem(REMEMBER_KEY);
+        const isWithin30Days = rememberUntil && Date.now() < parseInt(rememberUntil);
+
+        if (isWithin30Days) {
+          router.replace("/home");
+          return;
+        } else {
+          // Token expired or remember key gone — sign out and show login
+          auth.signOut();
+          localStorage.removeItem(REMEMBER_KEY);
+          setChecking(false);
+        }
       } else {
+        // No user — show login form
+        localStorage.removeItem(REMEMBER_KEY);
         setChecking(false);
       }
     });
 
     getRedirectResult(auth).then(result => {
       if (result?.user) {
-        if (rememberMe) localStorage.setItem(REMEMBER_KEY, String(Date.now() + 30 * 24 * 60 * 60 * 1000));
+        localStorage.setItem(REMEMBER_KEY, String(Date.now() + 30 * 24 * 60 * 60 * 1000));
         router.push("/home");
       }
     }).catch(() => {});
@@ -124,7 +134,6 @@ export default function LoginPage() {
         </div>
 
         <div style={{ marginBottom: "20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          {/* Remember me checkbox */}
           <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
             <div
               onClick={() => setRememberMe(v => !v)}
