@@ -564,6 +564,30 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
     setInvites(newInvites);
     await saveSharing(members, newInvites);
 
+    // Notifikácia vlastníkovi o novom členovi
+try {
+  const ownerEmail = user.email;
+  if (ownerEmail) {
+    await fetch("/api/send-notification", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: "member_joined",
+        to: ownerEmail,
+        data: {
+          memberEmail: inviteEmail.trim(),
+          memberName: inviteEmail.trim().split("@")[0],
+          projectName,
+          projectId,
+          role: inviteRole,
+        },
+      }),
+    });
+  }
+} catch (err) {
+  console.error("Notification error:", err);
+}
+
     // ── Odosla\u0165 email cez Resend ──
     try {
       const inviteLink = `${window.location.origin}/join/${user.uid}_${projectId}?token=${token}`;
