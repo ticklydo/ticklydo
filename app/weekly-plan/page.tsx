@@ -72,6 +72,15 @@ export default function WeeklyPlanPage() {
   // ── confirm-delete state for to-do items ──
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
+  // ── responsive: stacked day-cards under this width ──
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth <= 720);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
   const surface = theme.card;
   const lineColor = theme.border;
 
@@ -235,24 +244,30 @@ export default function WeeklyPlanPage() {
         .wp-scroll::-webkit-scrollbar-thumb{background:${theme.border};border-radius:3px}
         .wp-side { display:grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap:16px; }
         @media (max-width: 760px) { .wp-side { grid-template-columns: 1fr; } }
+        @media (max-width: 720px) {
+          .wp-banner { padding: 14px 16px !important; }
+          .wp-banner-label { font-size: 10px !important; }
+          .wp-banner-range { font-size: 15px !important; }
+          .wp-banner-nav button { height: 30px !important; }
+        }
       `}</style>
 
       {/* Banner header */}
-      <div style={{
+      <div className="wp-banner" style={{
         borderRadius: 16, padding: "16px 20px",
         background: grad, color: "#fff",
         display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12,
         boxShadow: `0 6px 20px ${appliedA}33`,
       }}>
         <div>
-          <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "2px", opacity: 0.85, textTransform: "uppercase" }}>Týždenný plán</div>
-          <div style={{ fontSize: 18, fontWeight: 900, marginTop: 2 }}>{rangeLabel}</div>
+          <div className="wp-banner-label" style={{ fontSize: 11, fontWeight: 800, letterSpacing: "2px", opacity: 0.85, textTransform: "uppercase" }}>Týždenný plán</div>
+          <div className="wp-banner-range" style={{ fontSize: 18, fontWeight: 900, marginTop: 2 }}>{rangeLabel}</div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div className="wp-banner-nav" style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <button onClick={() => setWeekStart(addDays(weekStart, -7))} style={{ width: 32, height: 32, borderRadius: 9, background: "rgba(255,255,255,0.18)", border: "none", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
           </button>
-          <button onClick={() => setWeekStart(getMonday(new Date()))} style={{ height: 32, padding: "0 14px", borderRadius: 9, background: "rgba(255,255,255,0.18)", border: "none", color: "#fff", cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: "var(--font-geist-sans)" }}>
+          <button onClick={() => setWeekStart(getMonday(new Date()))} style={{ height: 32, padding: "0 14px", borderRadius: 9, background: "rgba(255,255,255,0.18)", border: "none", color: "#fff", cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: "var(--font-geist-sans)", whiteSpace: "nowrap" }}>
             Dnes
           </button>
           <button onClick={() => setWeekStart(addDays(weekStart, 7))} style={{ width: 32, height: 32, borderRadius: 9, background: "rgba(255,255,255,0.18)", border: "none", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -262,6 +277,69 @@ export default function WeeklyPlanPage() {
       </div>
 
       {/* ── PLANNER TABLE: day headers / main task / events ── */}
+      {isMobile ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {weekDays.map((d, i) => {
+            const dateStr = toDateStr(d);
+            const isEditing = editingDate === dateStr;
+            const today = isToday(d);
+            const dayEvents = eventsForDate(dateStr);
+            return (
+              <div key={"card" + i} style={{
+                background: surface, borderRadius: 14, border: `1px solid ${lineColor}`,
+                borderLeft: today ? `4px solid ${appliedA}` : `1px solid ${lineColor}`,
+                padding: "12px 14px", display: "flex", flexDirection: "column", gap: 8,
+              }}>
+                <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 800, color: today ? appliedA : theme.text }}>{DAY_LONG[i]}</div>
+                  <div style={{ fontSize: 11, color: theme.muted, fontWeight: 600 }}>{d.getDate()}. {MONTHS[d.getMonth()].slice(0, 3)}</div>
+                </div>
+
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: theme.muted, marginBottom: 4 }}>⭐ Priorita dňa</div>
+                  {isEditing ? (
+                    <input
+                      autoFocus
+                      className="wp-input"
+                      defaultValue={mainTasks[dateStr] ?? ""}
+                      onBlur={e => { saveMainTask(dateStr, e.target.value); setEditingDate(null); }}
+                      onKeyDown={e => { if (e.key === "Enter") { saveMainTask(dateStr, e.currentTarget.value); setEditingDate(null); } if (e.key === "Escape") setEditingDate(null); }}
+                      placeholder="napíš úlohu..."
+                      style={{ width: "100%", background: theme.card2, border: `1.5px solid ${appliedA}`, borderRadius: 7, padding: "8px 10px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontWeight: 700, fontSize: 13, outline: "none", boxSizing: "border-box" }}
+                    />
+                  ) : (
+                    <div onClick={() => setEditingDate(dateStr)} style={{
+                      cursor: "pointer", borderRadius: 7, padding: "8px 10px",
+                      background: theme.card2,
+                      fontSize: 13, fontWeight: 700, lineHeight: 1.35,
+                      color: mainTasks[dateStr] ? theme.text : theme.muted,
+                    }}>
+                      {mainTasks[dateStr] || "+ pridať"}
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: theme.muted, marginBottom: 4 }}>🗓️ Udalosti</div>
+                  {dayEvents.length === 0 ? (
+                    <div style={{ fontSize: 11.5, color: theme.muted, fontStyle: "italic" }}>—</div>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      {dayEvents.map(ev => (
+                        <div key={ev.id} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5 }}>
+                          <div style={{ width: 5, height: 5, borderRadius: "50%", background: ev.color || appliedA, flexShrink: 0 }} />
+                          {ev.time && <span style={{ color: theme.muted, fontWeight: 700, flexShrink: 0 }}>{ev.time}</span>}
+                          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ev.title}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
       <div className="wp-scroll" style={{ overflowX: "auto", borderRadius: 14, border: `1px solid ${lineColor}` }}>
         <div style={{ display: "grid", gridTemplateColumns: `${LABEL_COL}px repeat(7, minmax(118px, 1fr))`, minWidth: LABEL_COL + 7 * 118, background: surface }}>
 
@@ -341,17 +419,18 @@ export default function WeeklyPlanPage() {
           })}
         </div>
       </div>
+      )}
 
       {/* ── HABIT TRACKER GRID ── */}
       <div style={{ background: surface, borderRadius: 14, border: `1px solid ${lineColor}`, overflow: "hidden" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderBottom: `1px solid ${lineColor}` }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderBottom: `1px solid ${lineColor}`, flexWrap: "wrap", gap: 8 }}>
           <div style={{ fontSize: 13, fontWeight: 800, display: "flex", alignItems: "center", gap: 6 }}>🔁 Opakujúce sa činnosti</div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={copyRecurringFromPrevWeek} style={{ background: "none", border: `1px solid ${lineColor}`, borderRadius: 7, padding: "5px 10px", color: theme.muted, fontSize: 10.5, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}>
-              Skopírovať min. týždeň
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button onClick={copyRecurringFromPrevWeek} style={{ background: "none", border: `1px solid ${lineColor}`, borderRadius: 7, padding: "5px 10px", color: theme.muted, fontSize: 10.5, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)", whiteSpace: "nowrap" }}>
+              {isMobile ? "Skopírovať min." : "Skopírovať min. týždeň"}
             </button>
-            <button onClick={() => setShowAddHabit(v => !v)} style={{ background: appliedA + "16", border: `1px solid ${appliedA}33`, borderRadius: 7, padding: "5px 10px", color: appliedA, fontSize: 10.5, fontWeight: 800, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}>
-              + Nová
+            <button onClick={() => setShowAddHabit(v => !v)} style={{ background: appliedA + "16", border: `1px solid ${appliedA}33`, borderRadius: 7, padding: "5px 10px", color: appliedA, fontSize: 10.5, fontWeight: 800, cursor: "pointer", fontFamily: "var(--font-geist-sans)", whiteSpace: "nowrap" }}>
+              {showAddHabit ? "✕ Zavrieť" : "+ Nová"}
             </button>
           </div>
         </div>
