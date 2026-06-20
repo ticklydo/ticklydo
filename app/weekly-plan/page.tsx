@@ -69,6 +69,11 @@ export default function WeeklyPlanPage() {
   const [newRecurringDays, setNewRecurringDays] = useState<string[]>([]);
   const [newTodoText, setNewTodoText] = useState("");
 
+  // ── editing an existing recurring habit (name + days) ──
+  const [editingRecurringId, setEditingRecurringId] = useState<string | null>(null);
+  const [editRecurringName, setEditRecurringName] = useState("");
+  const [editRecurringDays, setEditRecurringDays] = useState<string[]>([]);
+
   // ── confirm-delete state for to-do items ──
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
@@ -166,6 +171,31 @@ export default function WeeklyPlanPage() {
     const updated = recurring.filter(r => r.id !== id);
     setRecurring(updated);
     save({ recurring: updated });
+  };
+
+  const startEditRecurring = (r: Recurring) => {
+    setShowAddHabit(false);
+    setEditingRecurringId(r.id);
+    setEditRecurringName(r.name);
+    setEditRecurringDays(r.days);
+  };
+
+  const cancelEditRecurring = () => {
+    setEditingRecurringId(null);
+    setEditRecurringName("");
+    setEditRecurringDays([]);
+  };
+
+  const saveEditRecurring = () => {
+    if (!editingRecurringId || !editRecurringName.trim() || editRecurringDays.length === 0) return;
+    const updated = recurring.map(r =>
+      r.id === editingRecurringId
+        ? { ...r, name: editRecurringName.trim(), days: editRecurringDays }
+        : r
+    );
+    setRecurring(updated);
+    save({ recurring: updated });
+    cancelEditRecurring();
   };
 
   const copyRecurringFromPrevWeek = async () => {
@@ -428,7 +458,7 @@ export default function WeeklyPlanPage() {
             <button onClick={copyRecurringFromPrevWeek} style={{ background: "none", border: `1px solid ${lineColor}`, borderRadius: 7, padding: "5px 10px", color: theme.muted, fontSize: 10.5, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)", whiteSpace: "nowrap" }}>
               {isMobile ? "Skopírovať min." : "Skopírovať min. týždeň"}
             </button>
-            <button onClick={() => setShowAddHabit(v => !v)} style={{ background: appliedA + "16", border: `1px solid ${appliedA}33`, borderRadius: 7, padding: "5px 10px", color: appliedA, fontSize: 10.5, fontWeight: 800, cursor: "pointer", fontFamily: "var(--font-geist-sans)", whiteSpace: "nowrap" }}>
+            <button onClick={() => { cancelEditRecurring(); setShowAddHabit(v => !v); }} style={{ background: appliedA + "16", border: `1px solid ${appliedA}33`, borderRadius: 7, padding: "5px 10px", color: appliedA, fontSize: 10.5, fontWeight: 800, cursor: "pointer", fontFamily: "var(--font-geist-sans)", whiteSpace: "nowrap" }}>
               {showAddHabit ? "✕ Zavrieť" : "+ Nová"}
             </button>
           </div>
@@ -469,10 +499,17 @@ export default function WeeklyPlanPage() {
 
               {recurring.map((r, ri) => {
                 const isLast = ri === recurring.length - 1;
+                const isEditingThis = editingRecurringId === r.id;
                 return (
                   <React.Fragment key={r.id}>
-                    <div style={{ padding: "9px 16px", fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, borderBottom: isLast ? "none" : `1px solid ${lineColor}` }}>
-                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</span>
+                    <div style={{ padding: "9px 16px", fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, borderBottom: isLast && !isEditingThis ? "none" : `1px solid ${lineColor}` }}>
+                      <span
+                        onClick={() => isEditingThis ? cancelEditRecurring() : startEditRecurring(r)}
+                        style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "pointer" }}
+                        title="Upraviť názov a dni"
+                      >
+                        {r.name}
+                      </span>
                       <span onClick={() => deleteRecurring(r.id)} style={{ cursor: "pointer", color: "#ef4444", opacity: 0.6, flexShrink: 0 }}>
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                       </span>
@@ -482,7 +519,7 @@ export default function WeeklyPlanPage() {
                       const dateStr = toDateStr(weekDays[di]);
                       const done = r.doneDates.includes(dateStr);
                       return (
-                        <div key={ds} style={{ display: "flex", alignItems: "center", justifyContent: "center", borderBottom: isLast ? "none" : `1px solid ${lineColor}`, borderLeft: `1px solid ${lineColor}` }}>
+                        <div key={ds} style={{ display: "flex", alignItems: "center", justifyContent: "center", borderBottom: isLast && !isEditingThis ? "none" : `1px solid ${lineColor}`, borderLeft: `1px solid ${lineColor}` }}>
                           {applies ? (
                             <div onClick={() => toggleRecurringDone(r.id, dateStr)} style={{ width: 18, height: 18, borderRadius: 5, cursor: "pointer", border: `1.5px solid ${done ? appliedA : lineColor}`, background: done ? appliedA : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
                               {done && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
@@ -493,6 +530,30 @@ export default function WeeklyPlanPage() {
                         </div>
                       );
                     })}
+                    {isEditingThis && (
+                      <div style={{ gridColumn: "1 / -1", padding: "12px 16px", background: theme.card2, borderBottom: isLast ? "none" : `1px solid ${lineColor}`, display: "flex", flexDirection: "column", gap: 8 }}>
+                        <input
+                          autoFocus
+                          value={editRecurringName}
+                          onChange={e => setEditRecurringName(e.target.value)}
+                          placeholder="Názov činnosti"
+                          className="wp-input"
+                          style={{ width: "100%", background: surface, border: `1.5px solid ${lineColor}`, borderRadius: 9, padding: "8px 11px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontWeight: 600, fontSize: 12.5, outline: "none", boxSizing: "border-box" }}
+                        />
+                        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                          {DAY_SHORT.map(ds => {
+                            const active = editRecurringDays.includes(ds);
+                            return (
+                              <div key={ds} onClick={() => setEditRecurringDays(p => active ? p.filter(x => x !== ds) : [...p, ds])} style={{ padding: "5px 11px", borderRadius: 7, cursor: "pointer", fontSize: 11, fontWeight: 700, background: active ? appliedA : surface, color: active ? "#fff" : theme.muted, border: `1px solid ${active ? appliedA : lineColor}` }}>{ds}</div>
+                            );
+                          })}
+                        </div>
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <button onClick={cancelEditRecurring} style={{ flex: 1, background: surface, border: `1px solid ${lineColor}`, borderRadius: 9, padding: "8px", color: theme.muted, fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}>Zrušiť</button>
+                          <button onClick={saveEditRecurring} disabled={!editRecurringName.trim() || editRecurringDays.length === 0} style={{ flex: 1, background: !editRecurringName.trim() || editRecurringDays.length === 0 ? lineColor : grad, border: "none", borderRadius: 9, padding: "8px", color: "#fff", fontWeight: 800, fontSize: 12, cursor: !editRecurringName.trim() || editRecurringDays.length === 0 ? "default" : "pointer", fontFamily: "var(--font-geist-sans)" }}>Uložiť</button>
+                        </div>
+                      </div>
+                    )}
                   </React.Fragment>
                 );
               })}
