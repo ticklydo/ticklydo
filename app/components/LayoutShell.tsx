@@ -79,7 +79,10 @@ function Shell({ children }: { children: ReactNode }) {
       <Sidebar />
       <main style={{
         flex: 1,
+        minHeight: 0,
+        minWidth: 0,
         overflowY: "auto",
+        WebkitOverflowScrolling: "touch",
         display: "flex",
         flexDirection: "column",
       }}>
