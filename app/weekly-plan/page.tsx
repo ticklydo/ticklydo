@@ -259,6 +259,7 @@ export default function WeeklyPlanPage() {
         background: grad, color: "#fff",
         display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12,
         boxShadow: `0 6px 20px ${appliedA}33`,
+        flexShrink: 0,
       }}>
         <div>
           <div className="wp-banner-label" style={{ fontSize: 11, fontWeight: 800, letterSpacing: "2px", opacity: 0.85, textTransform: "uppercase" }}>Týždenný plán</div>
@@ -279,7 +280,7 @@ export default function WeeklyPlanPage() {
 
       {/* ── PLANNER TABLE: day headers / main task / events ── */}
       {isMobile ? (
-        <div style={{ background: surface, borderRadius: 12, border: `1px solid ${lineColor}`, overflow: "hidden" }}>
+        <div style={{ background: surface, borderRadius: 12, border: `1px solid ${lineColor}`, flexShrink: 0 }}>
           {weekDays.map((d, i) => {
             const dateStr = toDateStr(d);
             const isEditing = editingDate === dateStr;
@@ -338,7 +339,7 @@ export default function WeeklyPlanPage() {
           })}
         </div>
       ) : (
-      <div className="wp-scroll" style={{ overflowX: "auto", borderRadius: 14, border: `1px solid ${lineColor}` }}>
+      <div className="wp-scroll" style={{ overflowX: "auto", borderRadius: 14, border: `1px solid ${lineColor}`, flexShrink: 0 }}>
         <div style={{ display: "grid", gridTemplateColumns: `${LABEL_COL}px repeat(7, minmax(118px, 1fr))`, minWidth: LABEL_COL + 7 * 118, background: surface }}>
 
           {/* header row */}
@@ -420,7 +421,7 @@ export default function WeeklyPlanPage() {
       )}
 
       {/* ── HABIT TRACKER GRID ── */}
-      <div style={{ background: surface, borderRadius: 14, border: `1px solid ${lineColor}`, overflow: "hidden" }}>
+      <div style={{ background: surface, borderRadius: 14, border: `1px solid ${lineColor}`, overflow: "hidden", flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderBottom: `1px solid ${lineColor}`, flexWrap: "wrap", gap: 8 }}>
           <div style={{ fontSize: 13, fontWeight: 800, display: "flex", alignItems: "center", gap: 6 }}>🔁 Opakujúce sa činnosti</div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -501,7 +502,7 @@ export default function WeeklyPlanPage() {
       </div>
 
       {/* ── TODO LIST ── */}
-      <div style={{ background: surface, borderRadius: 14, border: `1px solid ${lineColor}`, padding: 18, display: "flex", flexDirection: "column", gap: 12, maxWidth: 520, position: "relative" }}>
+      <div style={{ background: surface, borderRadius: 14, border: `1px solid ${lineColor}`, padding: 18, display: "flex", flexDirection: "column", gap: 12, maxWidth: 520, position: "relative", flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ fontSize: 13, fontWeight: 800 }}>✅ To-do list týždňa</div>
           <div style={{ fontSize: 11, fontWeight: 800, color: appliedA }}>{todoPct}%</div>
