@@ -245,10 +245,11 @@ export default function WeeklyPlanPage() {
         .wp-side { display:grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap:16px; }
         @media (max-width: 760px) { .wp-side { grid-template-columns: 1fr; } }
         @media (max-width: 720px) {
-          .wp-banner { padding: 14px 16px !important; }
-          .wp-banner-label { font-size: 10px !important; }
-          .wp-banner-range { font-size: 15px !important; }
-          .wp-banner-nav button { height: 30px !important; }
+          .wp-banner { padding: 10px 14px !important; border-radius: 12px !important; }
+          .wp-banner-label { font-size: 9px !important; letter-spacing: 1px !important; }
+          .wp-banner-range { font-size: 13px !important; margin-top: 0 !important; }
+          .wp-banner-nav button { height: 26px !important; width: 26px !important; padding: 0 10px !important; font-size: 11px !important; }
+          .wp-banner-nav button svg { width: 11px !important; height: 11px !important; }
         }
       `}</style>
 
@@ -278,25 +279,28 @@ export default function WeeklyPlanPage() {
 
       {/* ── PLANNER TABLE: day headers / main task / events ── */}
       {isMobile ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ background: surface, borderRadius: 12, border: `1px solid ${lineColor}`, overflow: "hidden" }}>
           {weekDays.map((d, i) => {
             const dateStr = toDateStr(d);
             const isEditing = editingDate === dateStr;
             const today = isToday(d);
             const dayEvents = eventsForDate(dateStr);
             return (
-              <div key={"card" + i} style={{
-                background: surface, borderRadius: 14, border: `1px solid ${lineColor}`,
-                borderLeft: today ? `4px solid ${appliedA}` : `1px solid ${lineColor}`,
-                padding: "12px 14px", display: "flex", flexDirection: "column", gap: 8,
+              <div key={"row" + i} style={{
+                display: "flex", alignItems: "flex-start", gap: 8,
+                padding: "8px 10px",
+                borderBottom: i < 6 ? `1px solid ${lineColor}` : "none",
+                borderLeft: today ? `3px solid ${appliedA}` : "3px solid transparent",
+                background: today ? appliedA + "08" : "transparent",
               }}>
-                <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 800, color: today ? appliedA : theme.text }}>{DAY_LONG[i]}</div>
-                  <div style={{ fontSize: 11, color: theme.muted, fontWeight: 600 }}>{d.getDate()}. {MONTHS[d.getMonth()].slice(0, 3)}</div>
+                {/* day label */}
+                <div style={{ width: 52, flexShrink: 0, paddingTop: 2 }}>
+                  <div style={{ fontSize: 11.5, fontWeight: 800, color: today ? appliedA : theme.text, lineHeight: 1.2 }}>{DAY_SHORT[i]}</div>
+                  <div style={{ fontSize: 9.5, color: theme.muted, fontWeight: 600 }}>{d.getDate()}.{d.getMonth() + 1}.</div>
                 </div>
 
-                <div>
-                  <div style={{ fontSize: 10, fontWeight: 800, color: theme.muted, marginBottom: 4 }}>⭐ Priorita dňa</div>
+                {/* priority + events */}
+                <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 3 }}>
                   {isEditing ? (
                     <input
                       autoFocus
@@ -305,30 +309,24 @@ export default function WeeklyPlanPage() {
                       onBlur={e => { saveMainTask(dateStr, e.target.value); setEditingDate(null); }}
                       onKeyDown={e => { if (e.key === "Enter") { saveMainTask(dateStr, e.currentTarget.value); setEditingDate(null); } if (e.key === "Escape") setEditingDate(null); }}
                       placeholder="napíš úlohu..."
-                      style={{ width: "100%", background: theme.card2, border: `1.5px solid ${appliedA}`, borderRadius: 7, padding: "8px 10px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontWeight: 700, fontSize: 13, outline: "none", boxSizing: "border-box" }}
+                      style={{ width: "100%", background: theme.card2, border: `1.5px solid ${appliedA}`, borderRadius: 6, padding: "4px 7px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontWeight: 700, fontSize: 12, outline: "none", boxSizing: "border-box" }}
                     />
                   ) : (
                     <div onClick={() => setEditingDate(dateStr)} style={{
-                      cursor: "pointer", borderRadius: 7, padding: "8px 10px",
-                      background: theme.card2,
-                      fontSize: 13, fontWeight: 700, lineHeight: 1.35,
+                      cursor: "pointer", fontSize: 12.5, fontWeight: 700, lineHeight: 1.3,
                       color: mainTasks[dateStr] ? theme.text : theme.muted,
+                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                     }}>
-                      {mainTasks[dateStr] || "+ pridať"}
+                      {mainTasks[dateStr] || "+ pridať prioritu"}
                     </div>
                   )}
-                </div>
 
-                <div>
-                  <div style={{ fontSize: 10, fontWeight: 800, color: theme.muted, marginBottom: 4 }}>🗓️ Udalosti</div>
-                  {dayEvents.length === 0 ? (
-                    <div style={{ fontSize: 11.5, color: theme.muted, fontStyle: "italic" }}>—</div>
-                  ) : (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  {dayEvents.length === 0 ? null : (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                       {dayEvents.map(ev => (
-                        <div key={ev.id} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5 }}>
-                          <div style={{ width: 5, height: 5, borderRadius: "50%", background: ev.color || appliedA, flexShrink: 0 }} />
-                          {ev.time && <span style={{ color: theme.muted, fontWeight: 700, flexShrink: 0 }}>{ev.time}</span>}
+                        <div key={ev.id} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: theme.muted }}>
+                          <div style={{ width: 4, height: 4, borderRadius: "50%", background: ev.color || appliedA, flexShrink: 0 }} />
+                          {ev.time && <span style={{ fontWeight: 700, flexShrink: 0 }}>{ev.time}</span>}
                           <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ev.title}</span>
                         </div>
                       ))}
