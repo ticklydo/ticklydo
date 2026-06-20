@@ -234,7 +234,7 @@ export default function WeeklyPlanPage() {
   const todoToDelete = todos.find(t => t.id === confirmDeleteId) || null;
 
   return (
-    <div style={{ flex: 1, overflowY: "auto", padding: "20px 20px 80px", display: "flex", flexDirection: "column", gap: 18, background: theme.bg, color: theme.text, fontFamily: "var(--font-geist-sans)" }}>
+    <div style={{ flex: "1 1 auto", minHeight: 0, height: "100%", overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "20px 20px 80px", display: "flex", flexDirection: "column", gap: 18, background: theme.bg, color: theme.text, fontFamily: "var(--font-geist-sans)" }}>
       <style>{`
         @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
         @keyframes wpFadeIn{from{opacity:0}to{opacity:1}}
