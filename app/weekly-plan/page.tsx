@@ -127,7 +127,6 @@ export default function WeeklyPlanPage() {
   const [newDailyTodoText, setNewDailyTodoText] = useState<Record<string, string>>({});
   // ktorý "prázdny riadok" (index) je práve aktívny na zápis, pre daný deň (key = dateStr)
   const [activeDailyRow, setActiveDailyRow] = useState<Record<string, number | null>>({});
-  const MIN_DAILY_ROWS = 15;
   const [confirmDeleteDaily, setConfirmDeleteDaily] = useState<{ date: string; id: string } | null>(null);
 
   // ── responsive: stacked day-cards under this width ──
@@ -138,6 +137,8 @@ export default function WeeklyPlanPage() {
     window.addEventListener("resize", check);
     return () => window.removeEventListener("resize", check);
   }, []);
+
+  const MIN_DAILY_ROWS = isMobile ? 5 : 15;
 
   const surface = theme.card;
   const lineColor = theme.border;
@@ -551,7 +552,78 @@ export default function WeeklyPlanPage() {
 
         {recurring.length === 0 ? (
           <div style={{ padding: "20px 16px", fontSize: 12, color: theme.muted, fontStyle: "italic", textAlign: "center" }}>Žiadne opakujúce sa činnosti</div>
+        ) : isMobile ? (
+          /* ── MOBILE: pre každú činnosť 7 riadkov (Po–Ne) pod sebou ── */
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            {recurring.map((r, ri) => {
+              const isLast = ri === recurring.length - 1;
+              const isEditingThis = editingRecurringId === r.id;
+              return (
+                <div key={r.id} style={{ borderBottom: isLast && !isEditingThis ? "none" : `1px solid ${lineColor}` }}>
+                  <div style={{ padding: "9px 12px 4px", fontSize: 12.5, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
+                    <span
+                      onClick={() => isEditingThis ? cancelEditRecurring() : startEditRecurring(r)}
+                      style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "pointer" }}
+                      title="Upraviť názov a dni"
+                    >
+                      {r.name}
+                    </span>
+                    <span onClick={() => requestDeleteRecurring(r.id)} style={{ cursor: "pointer", color: "#ef4444", opacity: 0.6, flexShrink: 0 }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", padding: "0 12px 10px" }}>
+                    {DAY_SHORT.map((ds, di) => {
+                      const applies = r.days.includes(ds);
+                      const dateStr = toDateStr(weekDays[di]);
+                      const done = r.doneDates.includes(dateStr);
+                      const dayColor = DAY_COLORS[di];
+                      return (
+                        <div key={ds} style={{ display: "flex", alignItems: "center", gap: 8, padding: "3px 0" }}>
+                          {applies ? (
+                            <div onClick={() => toggleRecurringDone(r.id, dateStr)} style={{ width: 16, height: 16, borderRadius: 4, flexShrink: 0, cursor: "pointer", border: `1.5px solid ${done ? dayColor : lineColor}`, background: done ? dayColor : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                              {done && <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
+                            </div>
+                          ) : (
+                            <div style={{ width: 16, height: 16, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                              <div style={{ width: 4, height: 4, borderRadius: "50%", background: lineColor }} />
+                            </div>
+                          )}
+                          <span style={{ fontSize: 11.5, fontWeight: 700, color: applies ? DAY_COLORS[di] : theme.muted }}>{DAY_LONG[di]}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {isEditingThis && (
+                    <div style={{ padding: "12px 16px", background: theme.card2, borderBottom: isLast ? "none" : `1px solid ${lineColor}`, display: "flex", flexDirection: "column", gap: 8 }}>
+                      <input
+                        autoFocus
+                        value={editRecurringName}
+                        onChange={e => setEditRecurringName(e.target.value)}
+                        placeholder="Názov činnosti"
+                        className="wp-input"
+                        style={{ width: "100%", background: surface, border: `1.5px solid ${lineColor}`, borderRadius: 9, padding: "8px 11px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontWeight: 600, fontSize: 12.5, outline: "none", boxSizing: "border-box" }}
+                      />
+                      <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                        {DAY_SHORT.map(ds => {
+                          const active = editRecurringDays.includes(ds);
+                          return (
+                            <div key={ds} onClick={() => setEditRecurringDays(p => active ? p.filter(x => x !== ds) : [...p, ds])} style={{ padding: "5px 11px", borderRadius: 7, cursor: "pointer", fontSize: 11, fontWeight: 700, background: active ? appliedA : surface, color: active ? "#fff" : theme.muted, border: `1px solid ${active ? appliedA : lineColor}` }}>{ds}</div>
+                          );
+                        })}
+                      </div>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <button onClick={cancelEditRecurring} style={{ flex: 1, background: surface, border: `1px solid ${lineColor}`, borderRadius: 9, padding: "8px", color: theme.muted, fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}>Zrušiť</button>
+                        <button onClick={saveEditRecurring} disabled={!editRecurringName.trim() || editRecurringDays.length === 0} style={{ flex: 1, background: !editRecurringName.trim() || editRecurringDays.length === 0 ? lineColor : grad, border: "none", borderRadius: 9, padding: "8px", color: "#fff", fontWeight: 800, fontSize: 12, cursor: !editRecurringName.trim() || editRecurringDays.length === 0 ? "default" : "pointer", fontFamily: "var(--font-geist-sans)" }}>Uložiť</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         ) : (
+          /* ── DESKTOP: dni ako stĺpce ── */
           <div className="wp-scroll" style={{ overflowX: "auto" }}>
             <div style={{ display: "grid", gridTemplateColumns: `minmax(70px, 1fr) repeat(7, 28px)` }}>
               {/* header */}
@@ -684,6 +756,155 @@ export default function WeeklyPlanPage() {
             </div>
             <div style={{ fontSize: isMobile ? 8 : 9, padding: "1px 0", visibility: "hidden" }}>.</div>
           </div>
+          {isMobile ? (
+            /* ── MOBILE: každý deň ako samostatný blok pod sebou ── */
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              {weekDays.map((d, i) => {
+                const dateStr = toDateStr(d);
+                const today = isToday(d);
+                const isEditing = editingDate === dateStr;
+                const dayEvents = eventsForDate(dateStr);
+                const isAdding = addEventForDate === dateStr;
+                const dayTodos = dailyTodos[dateStr] || [];
+                const activeRow = activeDailyRow[dateStr] ?? null;
+                const emptyRowsCount = Math.max(MIN_DAILY_ROWS - dayTodos.length, activeRow !== null ? activeRow - dayTodos.length + 1 : 0);
+                const isLastDay = i === 6;
+                return (
+                  <div key={"day" + i} style={{ borderBottom: isLastDay ? "none" : `1px solid ${lineColor}`, background: today ? appliedA + "08" : "transparent" }}>
+                    {/* deň header */}
+                    <div style={{ padding: "8px 12px", display: "flex", alignItems: "baseline", justifyContent: "space-between", background: today ? appliedA + "16" : theme.card2 }}>
+                      <span style={{ fontSize: 12.5, fontWeight: 800, color: today ? appliedA : theme.text }}>{DAY_LONG[i]}</span>
+                      <span style={{ fontSize: 10, color: theme.muted, fontWeight: 600 }}>{d.getDate()}.{d.getMonth() + 1}.</span>
+                    </div>
+
+                    {/* Hlavná úloha */}
+                    <div style={{ padding: "6px 12px" }}>
+                      <div style={{ fontSize: 8.5, fontWeight: 800, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.3px", marginBottom: 2 }}>Hlavná úloha</div>
+                      {isEditing ? (
+                        <input
+                          autoFocus
+                          className="wp-input"
+                          defaultValue={mainTasks[dateStr] ?? ""}
+                          onBlur={e => { saveMainTask(dateStr, e.target.value); setEditingDate(null); }}
+                          onKeyDown={e => { if (e.key === "Enter") { saveMainTask(dateStr, e.currentTarget.value); setEditingDate(null); } if (e.key === "Escape") setEditingDate(null); }}
+                          placeholder="napíš úlohu..."
+                          style={{ width: "100%", background: theme.card2, border: `1.5px solid ${appliedA}`, borderRadius: 6, padding: "5px 8px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontWeight: 700, fontSize: 12, outline: "none", boxSizing: "border-box" }}
+                        />
+                      ) : (
+                        <div onClick={() => setEditingDate(dateStr)} style={{ cursor: "pointer", fontSize: 12, fontWeight: 700, color: mainTasks[dateStr] ? theme.text : theme.muted }}>
+                          {mainTasks[dateStr] || "+ pridať prioritu"}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Udalosť */}
+                    <div style={{ padding: "6px 12px", position: "relative" }}>
+                      <div style={{ fontSize: 8.5, fontWeight: 800, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.3px", marginBottom: 2 }}>Udalosť</div>
+                      {dayEvents.length === 0 ? (
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <span style={{ fontSize: 11, color: theme.muted }}>—</span>
+                          <span onClick={() => isAdding ? cancelAddEvent() : openAddEvent(dateStr)} style={{ fontSize: 12, fontWeight: 800, color: appliedA, cursor: "pointer" }}>{isAdding ? "✕" : "+"}</span>
+                        </div>
+                      ) : (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                          {dayEvents.map((ev, evi) => (
+                            <div key={ev.id} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5 }}>
+                              <div style={{ width: 5, height: 5, borderRadius: "50%", background: ev.color || appliedA, flexShrink: 0 }} />
+                              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{ev.time ? `${ev.time} ` : ""}{ev.title}</span>
+                              {evi === dayEvents.length - 1 && (
+                                <span onClick={() => isAdding ? cancelAddEvent() : openAddEvent(dateStr)} style={{ fontSize: 12, fontWeight: 800, color: appliedA, cursor: "pointer", flexShrink: 0 }}>{isAdding ? "✕" : "+"}</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {isAdding && (
+                        <div onClick={e => e.stopPropagation()} style={{ marginTop: 6, background: theme.card2, border: `1px solid ${lineColor}`, borderRadius: 10, padding: 10, display: "flex", flexDirection: "column", gap: 6 }}>
+                          <input
+                            autoFocus
+                            value={newEventTitle}
+                            onChange={e => setNewEventTitle(e.target.value)}
+                            placeholder="Názov udalosti"
+                            className="wp-input"
+                            style={{ width: "100%", background: surface, border: `1.5px solid ${lineColor}`, borderRadius: 7, padding: "6px 8px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontWeight: 600, fontSize: 11.5, outline: "none", boxSizing: "border-box" }}
+                          />
+                          <input
+                            type="time"
+                            value={newEventTime}
+                            onChange={e => setNewEventTime(e.target.value)}
+                            className="wp-input"
+                            style={{ width: "100%", background: surface, border: `1.5px solid ${lineColor}`, borderRadius: 7, padding: "6px 8px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontWeight: 600, fontSize: 11.5, outline: "none", boxSizing: "border-box" }}
+                          />
+                          <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+                            {LOGO_PALETTE.map(c => (
+                              <div
+                                key={c.id}
+                                className="wp-todo-swatch"
+                                onClick={() => setNewEventColor(c.value)}
+                                title={c.label}
+                                style={{ width: 16, height: 16, borderRadius: "50%", background: c.value, cursor: "pointer", border: newEventColor === c.value ? `2px solid ${theme.text}` : "2px solid transparent", boxShadow: `0 0 0 1.5px ${surface}` }}
+                              />
+                            ))}
+                          </div>
+                          <div style={{ display: "flex", gap: 6 }}>
+                            <button onClick={cancelAddEvent} style={{ flex: 1, background: surface, border: `1px solid ${lineColor}`, borderRadius: 7, padding: "6px", color: theme.muted, fontWeight: 700, fontSize: 11, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}>Zrušiť</button>
+                            <button onClick={saveNewEvent} disabled={!newEventTitle.trim()} style={{ flex: 1, background: !newEventTitle.trim() ? lineColor : grad, border: "none", borderRadius: 7, padding: "6px", color: "#fff", fontWeight: 800, fontSize: 11, cursor: !newEventTitle.trim() ? "default" : "pointer", fontFamily: "var(--font-geist-sans)" }}>Uložiť</button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Úlohy dňa */}
+                    <div style={{ padding: "6px 12px 12px" }}>
+                      <div style={{ fontSize: 8.5, fontWeight: 800, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.3px", marginBottom: 4 }}>Úlohy dňa</div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                        {dayTodos.map(t => (
+                          <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <div
+                              onClick={() => toggleDailyTodo(dateStr, t.id)}
+                              style={{ width: 16, height: 16, borderRadius: 4, flexShrink: 0, cursor: "pointer", border: `1.5px solid ${t.done ? appliedA : lineColor}`, background: t.done ? appliedA : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}
+                            >
+                              {t.done && <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
+                            </div>
+                            <span style={{ fontSize: 12, flex: 1, minWidth: 0, color: t.done ? theme.muted : theme.text, textDecoration: t.done ? "line-through" : "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.text}</span>
+                            <span onClick={() => requestDeleteDailyTodo(dateStr, t.id)} style={{ cursor: "pointer", color: "#ef4444", opacity: 0.55, flexShrink: 0, fontSize: 11 }}>✕</span>
+                          </div>
+                        ))}
+                        {Array.from({ length: emptyRowsCount }, (_, ei) => {
+                          const rowIndex = dayTodos.length + ei;
+                          const isActive = activeRow === rowIndex;
+                          return (
+                            <div key={"empty" + rowIndex} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                              <div style={{ width: 16, height: 16, borderRadius: 4, flexShrink: 0, border: `1.5px dashed ${lineColor}` }} />
+                              {isActive ? (
+                                <input
+                                  autoFocus
+                                  value={newDailyTodoText[dateStr] || ""}
+                                  onChange={e => setNewDailyTodoText(p => ({ ...p, [dateStr]: e.target.value }))}
+                                  onKeyDown={e => { if (e.key === "Enter") addDailyTodo(dateStr); if (e.key === "Escape") setActiveDailyRow(p => ({ ...p, [dateStr]: null })); }}
+                                  onBlur={() => { if (!(newDailyTodoText[dateStr] || "").trim()) setActiveDailyRow(p => ({ ...p, [dateStr]: null })); }}
+                                  placeholder="napíš úlohu..."
+                                  className="wp-input"
+                                  style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", outline: "none", color: theme.text, fontFamily: "var(--font-geist-sans)", fontSize: 12, padding: "2px 3px" }}
+                                />
+                              ) : (
+                                <div onClick={() => setActiveDailyRow(p => ({ ...p, [dateStr]: rowIndex }))} style={{ flex: 1, minWidth: 0, height: 19, cursor: "pointer", borderBottom: `1px dashed ${lineColor}` }} />
+                              )}
+                            </div>
+                          );
+                        })}
+                        <div onClick={() => setActiveDailyRow(p => ({ ...p, [dateStr]: dayTodos.length + emptyRowsCount }))} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", marginTop: 2, opacity: 0.7 }}>
+                          <span style={{ fontSize: 13, fontWeight: 800, color: appliedA, lineHeight: 1 }}>+</span>
+                          <span style={{ fontSize: 11.5, color: theme.muted }}>pridať riadok</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
           <div style={{ display: "grid", gridTemplateColumns: `repeat(7, minmax(${isMobile ? 62 : 86}px, 1fr))`, gridTemplateRows: "auto auto auto auto", flex: 1, minWidth: isMobile ? 62 * 7 : undefined }}>
             {/* day header row */}
             {weekDays.map((d, i) => {
@@ -931,6 +1152,7 @@ export default function WeeklyPlanPage() {
               );
             })}
           </div>
+          )}
         </div>
       </div>
 
