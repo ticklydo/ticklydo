@@ -509,7 +509,7 @@ export default function WeeklyPlanPage() {
         </div>
 
       {/* ── TO-DO LIST (vľavo) + OPAKUJÚCE SA ČINNOSTI (vpravo) — vedľa seba ── */}
-      <div className="wp-bottom-row" style={{ display: "flex", flexDirection: "column", gap: 14, flexShrink: 0, width: isMobile ? 200 : 340 }}>
+      <div className="wp-bottom-row" style={{ display: "flex", flexDirection: "column", gap: 14, flexShrink: 0, width: isMobile ? "100%" : 340 }}>
 
       {/* ── HABIT TRACKER GRID ── */}
       <div style={{ background: surface, borderRadius: 14, border: `1px solid ${lineColor}`, overflow: "hidden", flexShrink: 0 }}>
