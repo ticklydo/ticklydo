@@ -104,7 +104,6 @@ export default function WeeklyPlanPage() {
   const [newRecurringName, setNewRecurringName] = useState("");
   const [newRecurringDays, setNewRecurringDays] = useState<string[]>([]);
   const [newTodoText, setNewTodoText] = useState("");
-  const [newTodoColor, setNewTodoColor] = useState<string>(LOGO_PALETTE[0].value);
 
   // ── editing an existing recurring habit (name + days) ──
   const [editingRecurringId, setEditingRecurringId] = useState<string | null>(null);
@@ -116,9 +115,6 @@ export default function WeeklyPlanPage() {
 
   // ── confirm-delete state for recurring habits ──
   const [confirmDeleteRecurringId, setConfirmDeleteRecurringId] = useState<string | null>(null);
-
-  // ── color-picker popover for an existing todo ──
-  const [colorPickerForId, setColorPickerForId] = useState<string | null>(null);
 
   // ── rýchle pridanie udalosti z bunky "Udalosti" v týždennom pláne ──
   const [addEventForDate, setAddEventForDate] = useState<string | null>(null);
@@ -181,7 +177,6 @@ export default function WeeklyPlanPage() {
   // reset any pending delete-confirmation when switching weeks
   useEffect(() => {
     setConfirmDeleteId(null);
-    setColorPickerForId(null);
   }, [weekId]);
 
   // keď sa zmení týždeň, posuň zobrazený mesiac tak, aby vždy obsahoval ten týždeň
@@ -280,7 +275,7 @@ export default function WeeklyPlanPage() {
 
   const addTodo = () => {
     if (!newTodoText.trim()) return;
-    const updated = [...todos, { id: genId(), text: newTodoText.trim(), done: false, color: newTodoColor }];
+    const updated = [...todos, { id: genId(), text: newTodoText.trim(), done: false }];
     setTodos(updated);
     save({ todos: updated });
     setNewTodoText("");
@@ -290,13 +285,6 @@ export default function WeeklyPlanPage() {
     const updated = todos.map(t => t.id === id ? { ...t, done: !t.done } : t);
     setTodos(updated);
     save({ todos: updated });
-  };
-
-  const setTodoColor = (id: string, color: string) => {
-    const updated = todos.map(t => t.id === id ? { ...t, color } : t);
-    setTodos(updated);
-    save({ todos: updated });
-    setColorPickerForId(null);
   };
 
   // Krok 1: klik na košík len OTVORÍ potvrdenie (nemaže hneď)
@@ -478,7 +466,7 @@ export default function WeeklyPlanPage() {
         </div>
 
         {/* Dni týždňa: Po–Ne ako STĹPCE, priorita + udalosti ako riadky */}
-        <div className="wp-scroll" style={{ flex: 1, minWidth: 0, overflowX: "auto", background: surface, borderRadius: 12, border: `1px solid ${lineColor}` }}>
+        <div className="wp-scroll" style={{ flex: 1, minWidth: 0, overflowX: "auto", background: surface, borderRadius: 12, border: `1px solid ${lineColor}`, paddingTop: isMobile ? 36 : 44 }}>
           <div style={{ display: "grid", gridTemplateColumns: `${isMobile ? 20 : 26}px repeat(7, minmax(${isMobile ? 62 : 86}px, 1fr))`, minWidth: isMobile ? 20 + 62 * 7 : undefined }}>
             {/* corner */}
             <div style={{ borderBottom: `1px solid ${lineColor}`, background: theme.card2 }} />
@@ -649,75 +637,30 @@ export default function WeeklyPlanPage() {
 
         <div style={{ display: "flex", flexDirection: "column" }}>
           {todos.map((t, ti) => {
-            const tColor = t.color || LOGO_PALETTE[0].value;
-            const pickerOpen = colorPickerForId === t.id;
             return (
-              <div key={t.id} style={{ position: "relative", borderBottom: ti < todos.length - 1 ? `1px dashed ${lineColor}` : "none" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 2px" }}>
-                  {/* farebný štítok kategórie — klik otvorí výber farby */}
-                  <div
-                    onClick={() => setColorPickerForId(pickerOpen ? null : t.id)}
-                    title="Zmeniť farbu kategórie"
-                    style={{ width: 10, height: 10, borderRadius: "50%", background: tColor, flexShrink: 0, cursor: "pointer", boxShadow: `0 0 0 2px ${surface}, 0 0 0 3px ${tColor}55` }}
-                  />
-                  <div onClick={() => toggleTodo(t.id)} style={{ width: 18, height: 18, borderRadius: 5, flexShrink: 0, cursor: "pointer", border: `1.5px solid ${t.done ? tColor : lineColor}`, background: t.done ? tColor : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    {t.done && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
-                  </div>
-                  <div style={{ flex: 1, fontSize: 13, color: t.done ? theme.muted : theme.text, textDecoration: t.done ? "line-through" : "none", minWidth: 0, wordBreak: "break-word" }}>{t.text}</div>
-                  <div onClick={() => requestDeleteTodo(t.id)} style={{ cursor: "pointer", color: "#ef4444", flexShrink: 0, opacity: 0.6 }}>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
-                  </div>
+              <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 2px", borderBottom: ti < todos.length - 1 ? `1px dashed ${lineColor}` : "none" }}>
+                <div onClick={() => toggleTodo(t.id)} style={{ width: 18, height: 18, borderRadius: 5, flexShrink: 0, cursor: "pointer", border: `1.5px solid ${t.done ? appliedA : lineColor}`, background: t.done ? appliedA : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {t.done && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
                 </div>
-
-                {pickerOpen && (
-                  <div style={{ display: "flex", gap: 7, padding: "2px 2px 10px 22px", flexWrap: "wrap" }}>
-                    {LOGO_PALETTE.map(c => (
-                      <div
-                        key={c.id}
-                        className="wp-todo-swatch"
-                        onClick={() => setTodoColor(t.id, c.value)}
-                        title={c.label}
-                        style={{
-                          width: 18, height: 18, borderRadius: "50%", background: c.value, cursor: "pointer",
-                          border: tColor === c.value ? `2px solid ${theme.text}` : "2px solid transparent",
-                          boxShadow: `0 0 0 1.5px ${surface}`,
-                        }}
-                      />
-                    ))}
-                  </div>
-                )}
+                <div style={{ flex: 1, fontSize: 13, color: t.done ? theme.muted : theme.text, textDecoration: t.done ? "line-through" : "none", minWidth: 0, wordBreak: "break-word" }}>{t.text}</div>
+                <div onClick={() => requestDeleteTodo(t.id)} style={{ cursor: "pointer", color: "#ef4444", flexShrink: 0, opacity: 0.6 }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+                </div>
               </div>
             );
           })}
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4, paddingTop: 12, borderTop: `1px solid ${lineColor}` }}>
-          <div style={{ display: "flex", gap: 6 }}>
-            {LOGO_PALETTE.map(c => (
-              <div
-                key={c.id}
-                className="wp-todo-swatch"
-                onClick={() => setNewTodoColor(c.value)}
-                title={c.label}
-                style={{
-                  width: 18, height: 18, borderRadius: "50%", background: c.value, cursor: "pointer",
-                  border: newTodoColor === c.value ? `2px solid ${theme.text}` : "2px solid transparent",
-                  boxShadow: `0 0 0 1.5px ${surface}`,
-                }}
-              />
-            ))}
-          </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <input
-              value={newTodoText}
-              onChange={e => setNewTodoText(e.target.value)}
-              onKeyDown={e => { if (e.key === "Enter") addTodo(); }}
-              placeholder="Nová úloha..."
-              className="wp-input"
-              style={{ flex: 1, background: theme.card2, border: `1.5px solid ${lineColor}`, borderRadius: 9, padding: "8px 11px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontWeight: 600, fontSize: 12.5, outline: "none", boxSizing: "border-box" }}
-            />
-            <button onClick={addTodo} disabled={!newTodoText.trim()} style={{ background: !newTodoText.trim() ? lineColor : grad, border: "none", borderRadius: 9, padding: "0 16px", color: "#fff", fontWeight: 800, fontSize: 13, cursor: !newTodoText.trim() ? "default" : "pointer", fontFamily: "var(--font-geist-sans)" }}>+</button>
-          </div>
+        <div style={{ display: "flex", gap: 8, marginTop: 4, paddingTop: 12, borderTop: `1px solid ${lineColor}` }}>
+          <input
+            value={newTodoText}
+            onChange={e => setNewTodoText(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter") addTodo(); }}
+            placeholder="Nová úloha..."
+            className="wp-input"
+            style={{ flex: 1, background: theme.card2, border: `1.5px solid ${lineColor}`, borderRadius: 9, padding: "8px 11px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontWeight: 600, fontSize: 12.5, outline: "none", boxSizing: "border-box" }}
+          />
+          <button onClick={addTodo} disabled={!newTodoText.trim()} style={{ background: !newTodoText.trim() ? lineColor : grad, border: "none", borderRadius: 9, padding: "0 16px", color: "#fff", fontWeight: 800, fontSize: 13, cursor: !newTodoText.trim() ? "default" : "pointer", fontFamily: "var(--font-geist-sans)" }}>+</button>
         </div>
       </div>
 
