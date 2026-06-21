@@ -552,84 +552,14 @@ export default function WeeklyPlanPage() {
 
         {recurring.length === 0 ? (
           <div style={{ padding: "20px 16px", fontSize: 12, color: theme.muted, fontStyle: "italic", textAlign: "center" }}>Žiadne opakujúce sa činnosti</div>
-        ) : isMobile ? (
-          /* ── MOBILE: pre každú činnosť 7 riadkov (Po–Ne) pod sebou ── */
-          <div style={{ display: "flex", flexDirection: "column" }}>
-            {recurring.map((r, ri) => {
-              const isLast = ri === recurring.length - 1;
-              const isEditingThis = editingRecurringId === r.id;
-              return (
-                <div key={r.id} style={{ borderBottom: isLast && !isEditingThis ? "none" : `1px solid ${lineColor}` }}>
-                  <div style={{ padding: "9px 12px 4px", fontSize: 12.5, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
-                    <span
-                      onClick={() => isEditingThis ? cancelEditRecurring() : startEditRecurring(r)}
-                      style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "pointer" }}
-                      title="Upraviť názov a dni"
-                    >
-                      {r.name}
-                    </span>
-                    <span onClick={() => requestDeleteRecurring(r.id)} style={{ cursor: "pointer", color: "#ef4444", opacity: 0.6, flexShrink: 0 }}>
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                    </span>
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column", padding: "0 12px 10px" }}>
-                    {DAY_SHORT.map((ds, di) => {
-                      const applies = r.days.includes(ds);
-                      const dateStr = toDateStr(weekDays[di]);
-                      const done = r.doneDates.includes(dateStr);
-                      const dayColor = DAY_COLORS[di];
-                      return (
-                        <div key={ds} style={{ display: "flex", alignItems: "center", gap: 8, padding: "3px 0" }}>
-                          {applies ? (
-                            <div onClick={() => toggleRecurringDone(r.id, dateStr)} style={{ width: 16, height: 16, borderRadius: 4, flexShrink: 0, cursor: "pointer", border: `1.5px solid ${done ? dayColor : lineColor}`, background: done ? dayColor : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                              {done && <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
-                            </div>
-                          ) : (
-                            <div style={{ width: 16, height: 16, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                              <div style={{ width: 4, height: 4, borderRadius: "50%", background: lineColor }} />
-                            </div>
-                          )}
-                          <span style={{ fontSize: 11.5, fontWeight: 700, color: applies ? DAY_COLORS[di] : theme.muted }}>{DAY_LONG[di]}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  {isEditingThis && (
-                    <div style={{ padding: "12px 16px", background: theme.card2, borderBottom: isLast ? "none" : `1px solid ${lineColor}`, display: "flex", flexDirection: "column", gap: 8 }}>
-                      <input
-                        autoFocus
-                        value={editRecurringName}
-                        onChange={e => setEditRecurringName(e.target.value)}
-                        placeholder="Názov činnosti"
-                        className="wp-input"
-                        style={{ width: "100%", background: surface, border: `1.5px solid ${lineColor}`, borderRadius: 9, padding: "8px 11px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontWeight: 600, fontSize: 12.5, outline: "none", boxSizing: "border-box" }}
-                      />
-                      <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                        {DAY_SHORT.map(ds => {
-                          const active = editRecurringDays.includes(ds);
-                          return (
-                            <div key={ds} onClick={() => setEditRecurringDays(p => active ? p.filter(x => x !== ds) : [...p, ds])} style={{ padding: "5px 11px", borderRadius: 7, cursor: "pointer", fontSize: 11, fontWeight: 700, background: active ? appliedA : surface, color: active ? "#fff" : theme.muted, border: `1px solid ${active ? appliedA : lineColor}` }}>{ds}</div>
-                          );
-                        })}
-                      </div>
-                      <div style={{ display: "flex", gap: 8 }}>
-                        <button onClick={cancelEditRecurring} style={{ flex: 1, background: surface, border: `1px solid ${lineColor}`, borderRadius: 9, padding: "8px", color: theme.muted, fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}>Zrušiť</button>
-                        <button onClick={saveEditRecurring} disabled={!editRecurringName.trim() || editRecurringDays.length === 0} style={{ flex: 1, background: !editRecurringName.trim() || editRecurringDays.length === 0 ? lineColor : grad, border: "none", borderRadius: 9, padding: "8px", color: "#fff", fontWeight: 800, fontSize: 12, cursor: !editRecurringName.trim() || editRecurringDays.length === 0 ? "default" : "pointer", fontFamily: "var(--font-geist-sans)" }}>Uložiť</button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
         ) : (
-          /* ── DESKTOP: dni ako stĺpce ── */
+          /* ── Dni ako stĺpce — šírka sa prizpôsobí, aby sa zmestili bez scrollovania ── */
           <div className="wp-scroll" style={{ overflowX: "auto" }}>
-            <div style={{ display: "grid", gridTemplateColumns: `minmax(70px, 1fr) repeat(7, 28px)` }}>
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? `minmax(56px, 1fr) repeat(7, 1fr)` : `minmax(70px, 1fr) repeat(7, 28px)` }}>
               {/* header */}
-              <div style={{ padding: "8px 8px", fontSize: 10, fontWeight: 800, color: theme.muted, borderBottom: `1px solid ${lineColor}` }} />
+              <div style={{ padding: isMobile ? "8px 4px" : "8px 8px", fontSize: 10, fontWeight: 800, color: theme.muted, borderBottom: `1px solid ${lineColor}` }} />
               {DAY_SHORT.map((ds, i) => (
-                <div key={ds} style={{ padding: "8px 2px", textAlign: "center", fontSize: 9, fontWeight: 800, color: DAY_COLORS[i], borderBottom: `1px solid ${lineColor}`, borderLeft: i === 0 ? `1px solid ${lineColor}` : "none" }}>{ds}</div>
+                <div key={ds} style={{ padding: isMobile ? "8px 1px" : "8px 2px", textAlign: "center", fontSize: isMobile ? 8.5 : 9, fontWeight: 800, color: DAY_COLORS[i], borderBottom: `1px solid ${lineColor}`, borderLeft: i === 0 ? `1px solid ${lineColor}` : "none" }}>{ds}</div>
               ))}
 
               {recurring.map((r, ri) => {
@@ -637,7 +567,7 @@ export default function WeeklyPlanPage() {
                 const isEditingThis = editingRecurringId === r.id;
                 return (
                   <React.Fragment key={r.id}>
-                    <div style={{ padding: "9px 8px", fontSize: 11.5, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, borderBottom: isLast && !isEditingThis ? "none" : `1px solid ${lineColor}` }}>
+                    <div style={{ padding: isMobile ? "9px 4px" : "9px 8px", fontSize: isMobile ? 10.5 : 11.5, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 4, borderBottom: isLast && !isEditingThis ? "none" : `1px solid ${lineColor}` }}>
                       <span
                         onClick={() => isEditingThis ? cancelEditRecurring() : startEditRecurring(r)}
                         style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "pointer" }}
@@ -657,8 +587,8 @@ export default function WeeklyPlanPage() {
                       return (
                         <div key={ds} style={{ display: "flex", alignItems: "center", justifyContent: "center", borderBottom: isLast && !isEditingThis ? "none" : `1px solid ${lineColor}`, borderLeft: `1px solid ${lineColor}` }}>
                           {applies ? (
-                            <div onClick={() => toggleRecurringDone(r.id, dateStr)} style={{ width: 16, height: 16, borderRadius: 4, cursor: "pointer", border: `1.5px solid ${done ? dayColor : lineColor}`, background: done ? dayColor : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                              {done && <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
+                            <div onClick={() => toggleRecurringDone(r.id, dateStr)} style={{ width: isMobile ? 18 : 16, height: isMobile ? 18 : 16, borderRadius: 4, cursor: "pointer", border: `1.5px solid ${done ? dayColor : lineColor}`, background: done ? dayColor : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                              {done && <svg width={isMobile ? 10 : 9} height={isMobile ? 10 : 9} viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
                             </div>
                           ) : (
                             <div style={{ width: 4, height: 4, borderRadius: "50%", background: lineColor }} />
