@@ -452,6 +452,9 @@ export default function WeeklyPlanPage() {
       {/* ── MESAČNÝ KALENDÁR (vľavo) + DNI TÝŽDŇA (vpravo) — vedľa seba ── */}
       <div style={{ display: "flex", gap: 14, alignItems: "flex-start", flexWrap: "nowrap", flexShrink: 0 }}>
 
+        {/* Ľavý stĺpec: kalendár hore, opakujúce sa činnosti + to-do list hneď pod ním (bez medzery) */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 14, flexShrink: 0, width: isMobile ? 200 : 340 }}>
+
         {/* Mesačný kalendár so zvýrazneným aktuálnym týždňom */}
         <div style={{ background: surface, borderRadius: 16, border: `1px solid ${lineColor}`, padding: isMobile ? 10 : 14, flexShrink: 0, width: isMobile ? 200 : 340 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
@@ -503,6 +506,174 @@ export default function WeeklyPlanPage() {
             })}
           </div>
         </div>
+
+      {/* ── TO-DO LIST (vľavo) + OPAKUJÚCE SA ČINNOSTI (vpravo) — vedľa seba ── */}
+      <div className="wp-bottom-row" style={{ display: "flex", flexDirection: "column", gap: 14, flexShrink: 0, width: isMobile ? 200 : 340 }}>
+
+      {/* ── HABIT TRACKER GRID ── */}
+      <div style={{ background: surface, borderRadius: 14, border: `1px solid ${lineColor}`, overflow: "hidden", flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderBottom: `1px solid ${lineColor}`, flexWrap: "wrap", gap: 8 }}>
+          <div style={{ fontSize: 13, fontWeight: 800, display: "flex", alignItems: "center", gap: 7 }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={appliedA} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+            Opakujúce sa činnosti
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button onClick={copyRecurringFromPrevWeek} style={{ background: "none", border: `1px solid ${lineColor}`, borderRadius: 7, padding: "5px 10px", color: theme.muted, fontSize: 10.5, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)", whiteSpace: "nowrap" }}>
+              {isMobile ? "Skopírovať min." : "Skopírovať min. týždeň"}
+            </button>
+            <button onClick={() => { cancelEditRecurring(); setShowAddHabit(v => !v); }} style={{ background: appliedA + "16", border: `1px solid ${appliedA}33`, borderRadius: 7, padding: "5px 10px", color: appliedA, fontSize: 10.5, fontWeight: 800, cursor: "pointer", fontFamily: "var(--font-geist-sans)", whiteSpace: "nowrap" }}>
+              {showAddHabit ? "✕ Zavrieť" : "+ Nová"}
+            </button>
+          </div>
+        </div>
+
+        {showAddHabit && (
+          <div style={{ padding: "12px 16px", borderBottom: `1px solid ${lineColor}`, display: "flex", flexDirection: "column", gap: 8, background: theme.card2 }}>
+            <input
+              autoFocus
+              value={newRecurringName}
+              onChange={e => setNewRecurringName(e.target.value)}
+              placeholder="Názov činnosti (napr. Cvičenie)"
+              className="wp-input"
+              style={{ width: "100%", background: surface, border: `1.5px solid ${lineColor}`, borderRadius: 9, padding: "8px 11px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontWeight: 600, fontSize: 12.5, outline: "none", boxSizing: "border-box" }}
+            />
+            <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+              {DAY_SHORT.map(ds => {
+                const active = newRecurringDays.includes(ds);
+                return (
+                  <div key={ds} onClick={() => setNewRecurringDays(p => active ? p.filter(x => x !== ds) : [...p, ds])} style={{ padding: "5px 11px", borderRadius: 7, cursor: "pointer", fontSize: 11, fontWeight: 700, background: active ? appliedA : surface, color: active ? "#fff" : theme.muted, border: `1px solid ${active ? appliedA : lineColor}` }}>{ds}</div>
+                );
+              })}
+            </div>
+            <button onClick={addRecurring} disabled={!newRecurringName.trim() || newRecurringDays.length === 0} style={{ background: !newRecurringName.trim() || newRecurringDays.length === 0 ? lineColor : grad, border: "none", borderRadius: 9, padding: "8px", color: "#fff", fontWeight: 800, fontSize: 12, cursor: !newRecurringName.trim() || newRecurringDays.length === 0 ? "default" : "pointer", fontFamily: "var(--font-geist-sans)" }}>Pridať</button>
+          </div>
+        )}
+
+        {recurring.length === 0 ? (
+          <div style={{ padding: "20px 16px", fontSize: 12, color: theme.muted, fontStyle: "italic", textAlign: "center" }}>Žiadne opakujúce sa činnosti</div>
+        ) : (
+          <div className="wp-scroll" style={{ overflowX: "auto" }}>
+            <div style={{ display: "grid", gridTemplateColumns: `minmax(70px, 1fr) repeat(7, 28px)` }}>
+              {/* header */}
+              <div style={{ padding: "8px 8px", fontSize: 10, fontWeight: 800, color: theme.muted, borderBottom: `1px solid ${lineColor}` }} />
+              {DAY_SHORT.map((ds, i) => (
+                <div key={ds} style={{ padding: "8px 2px", textAlign: "center", fontSize: 9, fontWeight: 800, color: DAY_COLORS[i], borderBottom: `1px solid ${lineColor}`, borderLeft: i === 0 ? `1px solid ${lineColor}` : "none" }}>{ds}</div>
+              ))}
+
+              {recurring.map((r, ri) => {
+                const isLast = ri === recurring.length - 1;
+                const isEditingThis = editingRecurringId === r.id;
+                return (
+                  <React.Fragment key={r.id}>
+                    <div style={{ padding: "9px 8px", fontSize: 11.5, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, borderBottom: isLast && !isEditingThis ? "none" : `1px solid ${lineColor}` }}>
+                      <span
+                        onClick={() => isEditingThis ? cancelEditRecurring() : startEditRecurring(r)}
+                        style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "pointer" }}
+                        title="Upraviť názov a dni"
+                      >
+                        {r.name}
+                      </span>
+                      <span onClick={() => requestDeleteRecurring(r.id)} style={{ cursor: "pointer", color: "#ef4444", opacity: 0.6, flexShrink: 0 }}>
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                      </span>
+                    </div>
+                    {DAY_SHORT.map((ds, di) => {
+                      const applies = r.days.includes(ds);
+                      const dateStr = toDateStr(weekDays[di]);
+                      const done = r.doneDates.includes(dateStr);
+                      const dayColor = DAY_COLORS[di];
+                      return (
+                        <div key={ds} style={{ display: "flex", alignItems: "center", justifyContent: "center", borderBottom: isLast && !isEditingThis ? "none" : `1px solid ${lineColor}`, borderLeft: `1px solid ${lineColor}` }}>
+                          {applies ? (
+                            <div onClick={() => toggleRecurringDone(r.id, dateStr)} style={{ width: 16, height: 16, borderRadius: 4, cursor: "pointer", border: `1.5px solid ${done ? dayColor : lineColor}`, background: done ? dayColor : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                              {done && <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
+                            </div>
+                          ) : (
+                            <div style={{ width: 4, height: 4, borderRadius: "50%", background: lineColor }} />
+                          )}
+                        </div>
+                      );
+                    })}
+                    {isEditingThis && (
+                      <div style={{ gridColumn: "1 / -1", padding: "12px 16px", background: theme.card2, borderBottom: isLast ? "none" : `1px solid ${lineColor}`, display: "flex", flexDirection: "column", gap: 8 }}>
+                        <input
+                          autoFocus
+                          value={editRecurringName}
+                          onChange={e => setEditRecurringName(e.target.value)}
+                          placeholder="Názov činnosti"
+                          className="wp-input"
+                          style={{ width: "100%", background: surface, border: `1.5px solid ${lineColor}`, borderRadius: 9, padding: "8px 11px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontWeight: 600, fontSize: 12.5, outline: "none", boxSizing: "border-box" }}
+                        />
+                        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                          {DAY_SHORT.map(ds => {
+                            const active = editRecurringDays.includes(ds);
+                            return (
+                              <div key={ds} onClick={() => setEditRecurringDays(p => active ? p.filter(x => x !== ds) : [...p, ds])} style={{ padding: "5px 11px", borderRadius: 7, cursor: "pointer", fontSize: 11, fontWeight: 700, background: active ? appliedA : surface, color: active ? "#fff" : theme.muted, border: `1px solid ${active ? appliedA : lineColor}` }}>{ds}</div>
+                            );
+                          })}
+                        </div>
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <button onClick={cancelEditRecurring} style={{ flex: 1, background: surface, border: `1px solid ${lineColor}`, borderRadius: 9, padding: "8px", color: theme.muted, fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}>Zrušiť</button>
+                          <button onClick={saveEditRecurring} disabled={!editRecurringName.trim() || editRecurringDays.length === 0} style={{ flex: 1, background: !editRecurringName.trim() || editRecurringDays.length === 0 ? lineColor : grad, border: "none", borderRadius: 9, padding: "8px", color: "#fff", fontWeight: 800, fontSize: 12, cursor: !editRecurringName.trim() || editRecurringDays.length === 0 ? "default" : "pointer", fontFamily: "var(--font-geist-sans)" }}>Uložiť</button>
+                        </div>
+                      </div>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── TODO LIST ── */}
+      <div style={{ background: surface, borderRadius: 14, border: `1px solid ${lineColor}`, padding: 18, display: "flex", flexDirection: "column", gap: 12, position: "relative", flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ fontSize: 13, fontWeight: 800, display: "flex", alignItems: "center", gap: 7 }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={appliedA} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            To-do list týždňa
+          </div>
+          <div style={{ fontSize: 11, fontWeight: 800, color: appliedA }}>{todoPct}%</div>
+        </div>
+
+        <div style={{ height: 6, borderRadius: 3, background: lineColor, overflow: "hidden" }}>
+          <div style={{ height: "100%", width: `${todoPct}%`, background: grad, transition: "width .3s ease" }} />
+        </div>
+
+        {todos.length === 0 && <div style={{ fontSize: 12, color: theme.muted, fontStyle: "italic" }}>Žiadne úlohy v zozname</div>}
+
+        <div style={{ display: "flex", flexDirection: "column" }}>
+          {todos.map((t, ti) => {
+            return (
+              <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 2px", borderBottom: ti < todos.length - 1 ? `1px dashed ${lineColor}` : "none" }}>
+                <div onClick={() => toggleTodo(t.id)} style={{ width: 18, height: 18, borderRadius: 5, flexShrink: 0, cursor: "pointer", border: `1.5px solid ${t.done ? appliedA : lineColor}`, background: t.done ? appliedA : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {t.done && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
+                </div>
+                <div style={{ flex: 1, fontSize: 13, color: t.done ? theme.muted : theme.text, textDecoration: t.done ? "line-through" : "none", minWidth: 0, wordBreak: "break-word" }}>{t.text}</div>
+                <div onClick={() => requestDeleteTodo(t.id)} style={{ cursor: "pointer", color: "#ef4444", flexShrink: 0, opacity: 0.6 }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div style={{ display: "flex", gap: 8, marginTop: 4, paddingTop: 12, borderTop: `1px solid ${lineColor}` }}>
+          <input
+            value={newTodoText}
+            onChange={e => setNewTodoText(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter") addTodo(); }}
+            placeholder="Nová úloha..."
+            className="wp-input"
+            style={{ flex: 1, background: theme.card2, border: `1.5px solid ${lineColor}`, borderRadius: 9, padding: "8px 11px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontWeight: 600, fontSize: 12.5, outline: "none", boxSizing: "border-box" }}
+          />
+          <button onClick={addTodo} disabled={!newTodoText.trim()} style={{ background: !newTodoText.trim() ? lineColor : grad, border: "none", borderRadius: 9, padding: "0 16px", color: "#fff", fontWeight: 800, fontSize: 13, cursor: !newTodoText.trim() ? "default" : "pointer", fontFamily: "var(--font-geist-sans)" }}>+</button>
+        </div>
+      </div>
+
+      </div>
+
+      </div>
 
         {/* Dni týždňa: Po–Ne ako STĹPCE, priorita + udalosti ako riadky */}
         <div className="wp-scroll" style={{ flex: 1, minWidth: 0, overflowX: "auto", background: surface, borderRadius: 12, border: `1px solid ${lineColor}`, display: "flex", flexDirection: "column" }}>
@@ -764,171 +935,6 @@ export default function WeeklyPlanPage() {
       </div>
 
 
-      {/* ── TO-DO LIST (vľavo) + OPAKUJÚCE SA ČINNOSTI (vpravo) — vedľa seba ── */}
-      <div className="wp-bottom-row" style={{ display: "flex", flexDirection: "column", gap: 14, flexShrink: 0, width: isMobile ? 200 : 340 }}>
-
-      {/* ── HABIT TRACKER GRID ── */}
-      <div style={{ background: surface, borderRadius: 14, border: `1px solid ${lineColor}`, overflow: "hidden", flexShrink: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderBottom: `1px solid ${lineColor}`, flexWrap: "wrap", gap: 8 }}>
-          <div style={{ fontSize: 13, fontWeight: 800, display: "flex", alignItems: "center", gap: 7 }}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={appliedA} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
-            Opakujúce sa činnosti
-          </div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button onClick={copyRecurringFromPrevWeek} style={{ background: "none", border: `1px solid ${lineColor}`, borderRadius: 7, padding: "5px 10px", color: theme.muted, fontSize: 10.5, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)", whiteSpace: "nowrap" }}>
-              {isMobile ? "Skopírovať min." : "Skopírovať min. týždeň"}
-            </button>
-            <button onClick={() => { cancelEditRecurring(); setShowAddHabit(v => !v); }} style={{ background: appliedA + "16", border: `1px solid ${appliedA}33`, borderRadius: 7, padding: "5px 10px", color: appliedA, fontSize: 10.5, fontWeight: 800, cursor: "pointer", fontFamily: "var(--font-geist-sans)", whiteSpace: "nowrap" }}>
-              {showAddHabit ? "✕ Zavrieť" : "+ Nová"}
-            </button>
-          </div>
-        </div>
-
-        {showAddHabit && (
-          <div style={{ padding: "12px 16px", borderBottom: `1px solid ${lineColor}`, display: "flex", flexDirection: "column", gap: 8, background: theme.card2 }}>
-            <input
-              autoFocus
-              value={newRecurringName}
-              onChange={e => setNewRecurringName(e.target.value)}
-              placeholder="Názov činnosti (napr. Cvičenie)"
-              className="wp-input"
-              style={{ width: "100%", background: surface, border: `1.5px solid ${lineColor}`, borderRadius: 9, padding: "8px 11px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontWeight: 600, fontSize: 12.5, outline: "none", boxSizing: "border-box" }}
-            />
-            <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-              {DAY_SHORT.map(ds => {
-                const active = newRecurringDays.includes(ds);
-                return (
-                  <div key={ds} onClick={() => setNewRecurringDays(p => active ? p.filter(x => x !== ds) : [...p, ds])} style={{ padding: "5px 11px", borderRadius: 7, cursor: "pointer", fontSize: 11, fontWeight: 700, background: active ? appliedA : surface, color: active ? "#fff" : theme.muted, border: `1px solid ${active ? appliedA : lineColor}` }}>{ds}</div>
-                );
-              })}
-            </div>
-            <button onClick={addRecurring} disabled={!newRecurringName.trim() || newRecurringDays.length === 0} style={{ background: !newRecurringName.trim() || newRecurringDays.length === 0 ? lineColor : grad, border: "none", borderRadius: 9, padding: "8px", color: "#fff", fontWeight: 800, fontSize: 12, cursor: !newRecurringName.trim() || newRecurringDays.length === 0 ? "default" : "pointer", fontFamily: "var(--font-geist-sans)" }}>Pridať</button>
-          </div>
-        )}
-
-        {recurring.length === 0 ? (
-          <div style={{ padding: "20px 16px", fontSize: 12, color: theme.muted, fontStyle: "italic", textAlign: "center" }}>Žiadne opakujúce sa činnosti</div>
-        ) : (
-          <div className="wp-scroll" style={{ overflowX: "auto" }}>
-            <div style={{ display: "grid", gridTemplateColumns: `minmax(70px, 1fr) repeat(7, 28px)` }}>
-              {/* header */}
-              <div style={{ padding: "8px 8px", fontSize: 10, fontWeight: 800, color: theme.muted, borderBottom: `1px solid ${lineColor}` }} />
-              {DAY_SHORT.map((ds, i) => (
-                <div key={ds} style={{ padding: "8px 2px", textAlign: "center", fontSize: 9, fontWeight: 800, color: DAY_COLORS[i], borderBottom: `1px solid ${lineColor}`, borderLeft: i === 0 ? `1px solid ${lineColor}` : "none" }}>{ds}</div>
-              ))}
-
-              {recurring.map((r, ri) => {
-                const isLast = ri === recurring.length - 1;
-                const isEditingThis = editingRecurringId === r.id;
-                return (
-                  <React.Fragment key={r.id}>
-                    <div style={{ padding: "9px 8px", fontSize: 11.5, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, borderBottom: isLast && !isEditingThis ? "none" : `1px solid ${lineColor}` }}>
-                      <span
-                        onClick={() => isEditingThis ? cancelEditRecurring() : startEditRecurring(r)}
-                        style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "pointer" }}
-                        title="Upraviť názov a dni"
-                      >
-                        {r.name}
-                      </span>
-                      <span onClick={() => requestDeleteRecurring(r.id)} style={{ cursor: "pointer", color: "#ef4444", opacity: 0.6, flexShrink: 0 }}>
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                      </span>
-                    </div>
-                    {DAY_SHORT.map((ds, di) => {
-                      const applies = r.days.includes(ds);
-                      const dateStr = toDateStr(weekDays[di]);
-                      const done = r.doneDates.includes(dateStr);
-                      const dayColor = DAY_COLORS[di];
-                      return (
-                        <div key={ds} style={{ display: "flex", alignItems: "center", justifyContent: "center", borderBottom: isLast && !isEditingThis ? "none" : `1px solid ${lineColor}`, borderLeft: `1px solid ${lineColor}` }}>
-                          {applies ? (
-                            <div onClick={() => toggleRecurringDone(r.id, dateStr)} style={{ width: 16, height: 16, borderRadius: 4, cursor: "pointer", border: `1.5px solid ${done ? dayColor : lineColor}`, background: done ? dayColor : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                              {done && <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
-                            </div>
-                          ) : (
-                            <div style={{ width: 4, height: 4, borderRadius: "50%", background: lineColor }} />
-                          )}
-                        </div>
-                      );
-                    })}
-                    {isEditingThis && (
-                      <div style={{ gridColumn: "1 / -1", padding: "12px 16px", background: theme.card2, borderBottom: isLast ? "none" : `1px solid ${lineColor}`, display: "flex", flexDirection: "column", gap: 8 }}>
-                        <input
-                          autoFocus
-                          value={editRecurringName}
-                          onChange={e => setEditRecurringName(e.target.value)}
-                          placeholder="Názov činnosti"
-                          className="wp-input"
-                          style={{ width: "100%", background: surface, border: `1.5px solid ${lineColor}`, borderRadius: 9, padding: "8px 11px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontWeight: 600, fontSize: 12.5, outline: "none", boxSizing: "border-box" }}
-                        />
-                        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                          {DAY_SHORT.map(ds => {
-                            const active = editRecurringDays.includes(ds);
-                            return (
-                              <div key={ds} onClick={() => setEditRecurringDays(p => active ? p.filter(x => x !== ds) : [...p, ds])} style={{ padding: "5px 11px", borderRadius: 7, cursor: "pointer", fontSize: 11, fontWeight: 700, background: active ? appliedA : surface, color: active ? "#fff" : theme.muted, border: `1px solid ${active ? appliedA : lineColor}` }}>{ds}</div>
-                            );
-                          })}
-                        </div>
-                        <div style={{ display: "flex", gap: 8 }}>
-                          <button onClick={cancelEditRecurring} style={{ flex: 1, background: surface, border: `1px solid ${lineColor}`, borderRadius: 9, padding: "8px", color: theme.muted, fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}>Zrušiť</button>
-                          <button onClick={saveEditRecurring} disabled={!editRecurringName.trim() || editRecurringDays.length === 0} style={{ flex: 1, background: !editRecurringName.trim() || editRecurringDays.length === 0 ? lineColor : grad, border: "none", borderRadius: 9, padding: "8px", color: "#fff", fontWeight: 800, fontSize: 12, cursor: !editRecurringName.trim() || editRecurringDays.length === 0 ? "default" : "pointer", fontFamily: "var(--font-geist-sans)" }}>Uložiť</button>
-                        </div>
-                      </div>
-                    )}
-                  </React.Fragment>
-                );
-              })}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* ── TODO LIST ── */}
-      <div style={{ background: surface, borderRadius: 14, border: `1px solid ${lineColor}`, padding: 18, display: "flex", flexDirection: "column", gap: 12, position: "relative", flexShrink: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ fontSize: 13, fontWeight: 800, display: "flex", alignItems: "center", gap: 7 }}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={appliedA} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-            To-do list týždňa
-          </div>
-          <div style={{ fontSize: 11, fontWeight: 800, color: appliedA }}>{todoPct}%</div>
-        </div>
-
-        <div style={{ height: 6, borderRadius: 3, background: lineColor, overflow: "hidden" }}>
-          <div style={{ height: "100%", width: `${todoPct}%`, background: grad, transition: "width .3s ease" }} />
-        </div>
-
-        {todos.length === 0 && <div style={{ fontSize: 12, color: theme.muted, fontStyle: "italic" }}>Žiadne úlohy v zozname</div>}
-
-        <div style={{ display: "flex", flexDirection: "column" }}>
-          {todos.map((t, ti) => {
-            return (
-              <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 2px", borderBottom: ti < todos.length - 1 ? `1px dashed ${lineColor}` : "none" }}>
-                <div onClick={() => toggleTodo(t.id)} style={{ width: 18, height: 18, borderRadius: 5, flexShrink: 0, cursor: "pointer", border: `1.5px solid ${t.done ? appliedA : lineColor}`, background: t.done ? appliedA : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  {t.done && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
-                </div>
-                <div style={{ flex: 1, fontSize: 13, color: t.done ? theme.muted : theme.text, textDecoration: t.done ? "line-through" : "none", minWidth: 0, wordBreak: "break-word" }}>{t.text}</div>
-                <div onClick={() => requestDeleteTodo(t.id)} style={{ cursor: "pointer", color: "#ef4444", flexShrink: 0, opacity: 0.6 }}>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        <div style={{ display: "flex", gap: 8, marginTop: 4, paddingTop: 12, borderTop: `1px solid ${lineColor}` }}>
-          <input
-            value={newTodoText}
-            onChange={e => setNewTodoText(e.target.value)}
-            onKeyDown={e => { if (e.key === "Enter") addTodo(); }}
-            placeholder="Nová úloha..."
-            className="wp-input"
-            style={{ flex: 1, background: theme.card2, border: `1.5px solid ${lineColor}`, borderRadius: 9, padding: "8px 11px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontWeight: 600, fontSize: 12.5, outline: "none", boxSizing: "border-box" }}
-          />
-          <button onClick={addTodo} disabled={!newTodoText.trim()} style={{ background: !newTodoText.trim() ? lineColor : grad, border: "none", borderRadius: 9, padding: "0 16px", color: "#fff", fontWeight: 800, fontSize: 13, cursor: !newTodoText.trim() ? "default" : "pointer", fontFamily: "var(--font-geist-sans)" }}>+</button>
-        </div>
-      </div>
-
-      </div>
 
       {/* ── CONFIRM DELETE MODAL (to-do úlohy) ── */}
       {confirmDeleteId && (
