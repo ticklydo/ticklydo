@@ -316,18 +316,12 @@ export default function WeeklyPlanPage() {
 
   const rangeLabel = `${weekDays[0].getDate()}. ${MONTHS[weekDays[0].getMonth()]} – ${weekDays[6].getDate()}. ${MONTHS[weekDays[6].getMonth()]}`;
 
-  const border = (r: boolean, b: boolean) => ({
-    borderRight: r ? `1px solid ${lineColor}` : "none",
-    borderBottom: b ? `1px solid ${lineColor}` : "none",
-  });
-
   if (loading && uid === null) return (
     <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", background: theme.bg }}>
       <div style={{ width: 32, height: 32, borderRadius: "50%", border: `3px solid ${theme.border}`, borderTopColor: appliedA, animation: "spin .8s linear infinite" }} />
     </div>
   );
 
-  const LABEL_COL = 130;
   const todoToDelete = todos.find(t => t.id === confirmDeleteId) || null;
   const recurringToDelete = recurring.find(r => r.id === confirmDeleteRecurringId) || null;
   const monthGrid = getMonthGrid(viewMonth);
@@ -386,62 +380,63 @@ export default function WeeklyPlanPage() {
         </div>
       </div>
 
-      {/* ── MESAČNÝ KALENDÁR so zvýrazneným aktuálnym týždňom ── */}
-      <div style={{ background: surface, borderRadius: 16, border: `1px solid ${lineColor}`, padding: 16, flexShrink: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-          <div style={{ fontSize: 13, fontWeight: 800 }}>{MONTHS_NOM[viewMonth.getMonth()]} {viewMonth.getFullYear()}</div>
-          <div style={{ display: "flex", gap: 6 }}>
-            <button onClick={() => setViewMonth(new Date(viewMonth.getFullYear(), viewMonth.getMonth() - 1, 1))} style={{ width: 26, height: 26, borderRadius: 7, background: theme.card2, border: `1px solid ${lineColor}`, color: theme.muted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-            </button>
-            <button onClick={() => setViewMonth(new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 1))} style={{ width: 26, height: 26, borderRadius: 7, background: theme.card2, border: `1px solid ${lineColor}`, color: theme.muted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-            </button>
+      {/* ── MESAČNÝ KALENDÁR (vľavo) + DNI TÝŽDŇA (vpravo) — vedľa seba ── */}
+      <div style={{ display: "flex", gap: 14, alignItems: "flex-start", flexWrap: "nowrap", flexShrink: 0 }}>
+
+        {/* Mesačný kalendár so zvýrazneným aktuálnym týždňom */}
+        <div style={{ background: surface, borderRadius: 16, border: `1px solid ${lineColor}`, padding: isMobile ? 10 : 14, flexShrink: 0, width: isMobile ? 168 : 250 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+            <div style={{ fontSize: isMobile ? 11 : 12.5, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{MONTHS_NOM[viewMonth.getMonth()]} {viewMonth.getFullYear()}</div>
+            <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+              <button onClick={() => setViewMonth(new Date(viewMonth.getFullYear(), viewMonth.getMonth() - 1, 1))} style={{ width: isMobile ? 18 : 22, height: isMobile ? 18 : 22, borderRadius: 6, background: theme.card2, border: `1px solid ${lineColor}`, color: theme.muted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+              </button>
+              <button onClick={() => setViewMonth(new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 1))} style={{ width: isMobile ? 18 : 22, height: isMobile ? 18 : 22, borderRadius: 6, background: theme.card2, border: `1px solid ${lineColor}`, color: theme.muted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: isMobile ? 1.5 : 3 }}>
+            {DAY_MICRO.map((d, i) => (
+              <div key={"dm" + i} style={{ textAlign: "center", fontSize: isMobile ? 8 : 9, fontWeight: 800, color: theme.muted, padding: "1px 0" }}>{d}</div>
+            ))}
+            {monthGrid.map((d, i) => {
+              const inMonth = d.getMonth() === viewMonth.getMonth();
+              const today = isToday(d);
+              const inSelectedWeek = d >= weekStart && d <= weekEnd;
+              return (
+                <div
+                  key={"mg" + i}
+                  className="wp-month-cell"
+                  onClick={() => jumpToWeekOf(d)}
+                  style={{
+                    height: isMobile ? 20 : 26, borderRadius: isMobile ? 5 : 7, cursor: "pointer",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: isMobile ? 9 : 10.5, fontWeight: today ? 900 : 600,
+                    color: !inMonth ? theme.muted : today ? "#fff" : theme.text,
+                    opacity: inMonth ? 1 : 0.35,
+                    background: today
+                      ? appliedA
+                      : inSelectedWeek
+                        ? appliedA + "22"
+                        : "transparent",
+                    border: inSelectedWeek && !today ? `1px solid ${appliedA}55` : "1px solid transparent",
+                    borderTopLeftRadius: inSelectedWeek && isSameDay(d, weekStart) ? (isMobile ? 5 : 7) : (inSelectedWeek ? 0 : (isMobile ? 5 : 7)),
+                    borderBottomLeftRadius: inSelectedWeek && isSameDay(d, weekStart) ? (isMobile ? 5 : 7) : (inSelectedWeek ? 0 : (isMobile ? 5 : 7)),
+                    borderTopRightRadius: inSelectedWeek && isSameDay(d, weekEnd) ? (isMobile ? 5 : 7) : (inSelectedWeek ? 0 : (isMobile ? 5 : 7)),
+                    borderBottomRightRadius: inSelectedWeek && isSameDay(d, weekEnd) ? (isMobile ? 5 : 7) : (inSelectedWeek ? 0 : (isMobile ? 5 : 7)),
+                  }}
+                >
+                  {d.getDate()}
+                </div>
+              );
+            })}
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4 }}>
-          {DAY_MICRO.map((d, i) => (
-            <div key={"dm" + i} style={{ textAlign: "center", fontSize: 10, fontWeight: 800, color: theme.muted, padding: "2px 0" }}>{d}</div>
-          ))}
-          {monthGrid.map((d, i) => {
-            const inMonth = d.getMonth() === viewMonth.getMonth();
-            const today = isToday(d);
-            const inSelectedWeek = d >= weekStart && d <= weekEnd;
-            const isWeekEdge = isSameDay(d, weekStart) || isSameDay(d, weekEnd);
-            return (
-              <div
-                key={"mg" + i}
-                className="wp-month-cell"
-                onClick={() => jumpToWeekOf(d)}
-                style={{
-                  height: 34, borderRadius: 9, cursor: "pointer",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 11.5, fontWeight: today ? 900 : 600,
-                  color: !inMonth ? theme.muted : today ? "#fff" : theme.text,
-                  opacity: inMonth ? 1 : 0.35,
-                  background: today
-                    ? appliedA
-                    : inSelectedWeek
-                      ? appliedA + "22"
-                      : "transparent",
-                  border: inSelectedWeek && !today ? `1.5px solid ${appliedA}55` : "1.5px solid transparent",
-                  borderTopLeftRadius: inSelectedWeek && isSameDay(d, weekStart) ? 9 : (inSelectedWeek ? 0 : 9),
-                  borderBottomLeftRadius: inSelectedWeek && isSameDay(d, weekStart) ? 9 : (inSelectedWeek ? 0 : 9),
-                  borderTopRightRadius: inSelectedWeek && isSameDay(d, weekEnd) ? 9 : (inSelectedWeek ? 0 : 9),
-                  borderBottomRightRadius: inSelectedWeek && isSameDay(d, weekEnd) ? 9 : (inSelectedWeek ? 0 : 9),
-                }}
-              >
-                {d.getDate()}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* ── PLANNER TABLE: day headers / main task / events ── */}
-      {isMobile ? (
-        <div style={{ background: surface, borderRadius: 12, border: `1px solid ${lineColor}`, flexShrink: 0 }}>
+        {/* Dni týždňa: priorita + udalosti, riadok na deň */}
+        <div style={{ flex: 1, minWidth: 0, background: surface, borderRadius: 12, border: `1px solid ${lineColor}` }}>
           {weekDays.map((d, i) => {
             const dateStr = toDateStr(d);
             const isEditing = editingDate === dateStr;
@@ -449,16 +444,16 @@ export default function WeeklyPlanPage() {
             const dayEvents = eventsForDate(dateStr);
             return (
               <div key={"row" + i} style={{
-                display: "flex", alignItems: "flex-start", gap: 8,
-                padding: "8px 10px",
+                display: "flex", alignItems: "flex-start", gap: isMobile ? 6 : 10,
+                padding: isMobile ? "6px 8px" : "9px 12px",
                 borderBottom: i < 6 ? `1px solid ${lineColor}` : "none",
                 borderLeft: today ? `3px solid ${appliedA}` : "3px solid transparent",
                 background: today ? appliedA + "08" : "transparent",
               }}>
                 {/* day label */}
-                <div style={{ width: 52, flexShrink: 0, paddingTop: 2 }}>
-                  <div style={{ fontSize: 11.5, fontWeight: 800, color: today ? appliedA : theme.text, lineHeight: 1.2 }}>{DAY_SHORT[i]}</div>
-                  <div style={{ fontSize: 9.5, color: theme.muted, fontWeight: 600 }}>{d.getDate()}.{d.getMonth() + 1}.</div>
+                <div style={{ width: isMobile ? 30 : 80, flexShrink: 0, paddingTop: 2 }}>
+                  <div style={{ fontSize: isMobile ? 10.5 : 12, fontWeight: 800, color: today ? appliedA : theme.text, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{isMobile ? DAY_SHORT[i] : DAY_LONG[i]}</div>
+                  <div style={{ fontSize: isMobile ? 8.5 : 10, color: theme.muted, fontWeight: 600 }}>{d.getDate()}.{d.getMonth() + 1}.</div>
                 </div>
 
                 {/* priority + events */}
@@ -471,22 +466,22 @@ export default function WeeklyPlanPage() {
                       onBlur={e => { saveMainTask(dateStr, e.target.value); setEditingDate(null); }}
                       onKeyDown={e => { if (e.key === "Enter") { saveMainTask(dateStr, e.currentTarget.value); setEditingDate(null); } if (e.key === "Escape") setEditingDate(null); }}
                       placeholder="napíš úlohu..."
-                      style={{ width: "100%", background: theme.card2, border: `1.5px solid ${appliedA}`, borderRadius: 6, padding: "4px 7px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontWeight: 700, fontSize: 12, outline: "none", boxSizing: "border-box" }}
+                      style={{ width: "100%", background: theme.card2, border: `1.5px solid ${appliedA}`, borderRadius: 6, padding: "4px 7px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontWeight: 700, fontSize: isMobile ? 11 : 12.5, outline: "none", boxSizing: "border-box" }}
                     />
                   ) : (
                     <div onClick={() => setEditingDate(dateStr)} style={{
-                      cursor: "pointer", fontSize: 12.5, fontWeight: 700, lineHeight: 1.3,
+                      cursor: "pointer", fontSize: isMobile ? 11 : 12.5, fontWeight: 700, lineHeight: 1.3,
                       color: mainTasks[dateStr] ? theme.text : theme.muted,
                       overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                     }}>
-                      {mainTasks[dateStr] || "+ pridať prioritu"}
+                      {mainTasks[dateStr] || (isMobile ? "+ priorita" : "+ pridať prioritu")}
                     </div>
                   )}
 
                   {dayEvents.length === 0 ? null : (
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                       {dayEvents.map(ev => (
-                        <div key={ev.id} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: theme.muted }}>
+                        <div key={ev.id} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: isMobile ? 9 : 10.5, color: theme.muted }}>
                           <div style={{ width: 4, height: 4, borderRadius: "50%", background: ev.color || appliedA, flexShrink: 0 }} />
                           {ev.time && <span style={{ fontWeight: 700, flexShrink: 0 }}>{ev.time}</span>}
                           <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ev.title}</span>
@@ -499,87 +494,7 @@ export default function WeeklyPlanPage() {
             );
           })}
         </div>
-      ) : (
-      <div className="wp-scroll" style={{ overflowX: "auto", borderRadius: 14, border: `1px solid ${lineColor}`, flexShrink: 0 }}>
-        <div style={{ display: "grid", gridTemplateColumns: `${LABEL_COL}px repeat(7, minmax(118px, 1fr))`, minWidth: LABEL_COL + 7 * 118, background: surface }}>
-
-          {/* header row */}
-          <div style={{ ...border(true, true), padding: "10px 12px", display: "flex", alignItems: "center", background: theme.card2 }} />
-          {weekDays.map((d, i) => {
-            const today = isToday(d);
-            return (
-              <div key={"h" + i} style={{
-                ...border(i < 6, true), padding: "10px 8px", textAlign: "center",
-                background: today ? appliedA + "14" : theme.card2,
-              }}>
-                <div style={{ fontSize: 11.5, fontWeight: 800, color: today ? appliedA : theme.text }}>{DAY_LONG[i]}</div>
-                <div style={{ fontSize: 10, color: theme.muted, fontWeight: 600, marginTop: 1 }}>{d.getDate()}. {MONTHS[d.getMonth()].slice(0, 3)}</div>
-              </div>
-            );
-          })}
-
-          {/* main task row */}
-          <div style={{ ...border(true, true), padding: "10px 12px", fontSize: 11, fontWeight: 800, color: theme.muted, display: "flex", alignItems: "center", gap: 6 }}>
-            ⭐ Priorita dňa
-          </div>
-          {weekDays.map((d, i) => {
-            const dateStr = toDateStr(d);
-            const isEditing = editingDate === dateStr;
-            const today = isToday(d);
-            return (
-              <div key={"m" + i} style={{ ...border(i < 6, true), padding: 6, background: today ? appliedA + "08" : "transparent" }}>
-                {isEditing ? (
-                  <input
-                    autoFocus
-                    className="wp-input"
-                    defaultValue={mainTasks[dateStr] ?? ""}
-                    onBlur={e => { saveMainTask(dateStr, e.target.value); setEditingDate(null); }}
-                    onKeyDown={e => { if (e.key === "Enter") { saveMainTask(dateStr, e.currentTarget.value); setEditingDate(null); } if (e.key === "Escape") setEditingDate(null); }}
-                    placeholder="napíš úlohu..."
-                    style={{ width: "100%", background: theme.card2, border: `1.5px solid ${appliedA}`, borderRadius: 7, padding: "6px 8px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontWeight: 700, fontSize: 12, outline: "none", boxSizing: "border-box" }}
-                  />
-                ) : (
-                  <div onClick={() => setEditingDate(dateStr)} style={{
-                    cursor: "pointer", borderRadius: 7, padding: "6px 8px", minHeight: 30,
-                    fontSize: 12, fontWeight: 700, lineHeight: 1.35,
-                    color: mainTasks[dateStr] ? theme.text : theme.muted,
-                  }}>
-                    {mainTasks[dateStr] || "+ pridať"}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-
-          {/* events row */}
-          <div style={{ ...border(true, false), padding: "10px 12px", fontSize: 11, fontWeight: 800, color: theme.muted, display: "flex", alignItems: "center", gap: 6 }}>
-            🗓️ Udalosti
-          </div>
-          {weekDays.map((d, i) => {
-            const dateStr = toDateStr(d);
-            const dayEvents = eventsForDate(dateStr);
-            const today = isToday(d);
-            return (
-              <div key={"e" + i} style={{ ...border(i < 6, false), padding: "8px 8px", minHeight: 54, background: today ? appliedA + "08" : "transparent" }}>
-                {dayEvents.length === 0 ? (
-                  <div style={{ fontSize: 10.5, color: theme.muted, fontStyle: "italic" }}>—</div>
-                ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                    {dayEvents.map(ev => (
-                      <div key={ev.id} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10.5 }}>
-                        <div style={{ width: 5, height: 5, borderRadius: "50%", background: ev.color || appliedA, flexShrink: 0 }} />
-                        {ev.time && <span style={{ color: theme.muted, fontWeight: 700, flexShrink: 0 }}>{ev.time}</span>}
-                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ev.title}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
       </div>
-      )}
 
       {/* ── HABIT TRACKER GRID ── */}
       <div style={{ background: surface, borderRadius: 14, border: `1px solid ${lineColor}`, overflow: "hidden", flexShrink: 0 }}>
