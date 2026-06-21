@@ -450,7 +450,7 @@ export default function WeeklyPlanPage() {
       </div>
 
       {/* ── MESAČNÝ KALENDÁR (vľavo) + DNI TÝŽDŇA (vpravo) — vedľa seba ── */}
-      <div style={{ display: "flex", gap: 14, alignItems: "stretch", flexWrap: "nowrap", flexShrink: 0 }}>
+      <div style={{ display: "flex", gap: 14, alignItems: "flex-start", flexWrap: "nowrap", flexShrink: 0 }}>
 
         {/* Mesačný kalendár so zvýrazneným aktuálnym týždňom */}
         <div style={{ background: surface, borderRadius: 16, border: `1px solid ${lineColor}`, padding: isMobile ? 10 : 14, flexShrink: 0, width: isMobile ? 200 : 340 }}>
@@ -513,7 +513,7 @@ export default function WeeklyPlanPage() {
             </div>
             <div style={{ fontSize: isMobile ? 8 : 9, padding: "1px 0", visibility: "hidden" }}>.</div>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: `repeat(7, minmax(${isMobile ? 62 : 86}px, 1fr))`, gridTemplateRows: "auto auto auto 1fr", flex: 1, minWidth: isMobile ? 62 * 7 : undefined }}>
+          <div style={{ display: "grid", gridTemplateColumns: `repeat(7, minmax(${isMobile ? 62 : 86}px, 1fr))`, gridTemplateRows: "auto auto auto auto", flex: 1, minWidth: isMobile ? 62 * 7 : undefined }}>
             {/* day header row */}
             {weekDays.map((d, i) => {
               const today = isToday(d);
