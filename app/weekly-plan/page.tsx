@@ -125,6 +125,9 @@ export default function WeeklyPlanPage() {
 
   // ── denný to-do list (samostatný checklist pre každý deň) ──
   const [newDailyTodoText, setNewDailyTodoText] = useState<Record<string, string>>({});
+  // ktorý "prázdny riadok" (index) je práve aktívny na zápis, pre daný deň (key = dateStr)
+  const [activeDailyRow, setActiveDailyRow] = useState<Record<string, number | null>>({});
+  const MIN_DAILY_ROWS = 15;
   const [confirmDeleteDaily, setConfirmDeleteDaily] = useState<{ date: string; id: string } | null>(null);
 
   // ── responsive: stacked day-cards under this width ──
@@ -318,6 +321,7 @@ export default function WeeklyPlanPage() {
     setDailyTodos(updated);
     save({ dailyTodos: updated });
     setNewDailyTodoText(p => ({ ...p, [dateStr]: "" }));
+    setActiveDailyRow(p => ({ ...p, [dateStr]: null }));
   };
 
   const toggleDailyTodo = (dateStr: string, id: string) => {
@@ -674,6 +678,9 @@ export default function WeeklyPlanPage() {
               const dateStr = toDateStr(d);
               const dayTodos = dailyTodos[dateStr] || [];
               const today = isToday(d);
+              const activeRow = activeDailyRow[dateStr] ?? null;
+              // počet prázdnych riadkov pripravených navyše (vždy aspoň MIN_DAILY_ROWS, alebo viac ak si aktívny riadok presahuje za hranicu)
+              const emptyRowsCount = Math.max(MIN_DAILY_ROWS - dayTodos.length, activeRow !== null ? activeRow - dayTodos.length + 1 : 0);
               return (
                 <div key={"dt" + i} style={{
                   padding: isMobile ? "4px 4px" : "6px 6px",
@@ -685,6 +692,7 @@ export default function WeeklyPlanPage() {
                     Úlohy dňa
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1 }}>
+                    {/* vyplnené úlohy */}
                     {dayTodos.map(t => (
                       <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 4 }}>
                         <div
@@ -707,15 +715,45 @@ export default function WeeklyPlanPage() {
                         <span onClick={() => requestDeleteDailyTodo(dateStr, t.id)} style={{ cursor: "pointer", color: "#ef4444", opacity: 0.55, flexShrink: 0, fontSize: 9 }}>✕</span>
                       </div>
                     ))}
-                    <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 1 }}>
-                      <input
-                        value={newDailyTodoText[dateStr] || ""}
-                        onChange={e => setNewDailyTodoText(p => ({ ...p, [dateStr]: e.target.value }))}
-                        onKeyDown={e => { if (e.key === "Enter") addDailyTodo(dateStr); }}
-                        placeholder="+ úloha"
-                        className="wp-input"
-                        style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", outline: "none", color: theme.text, fontFamily: "var(--font-geist-sans)", fontSize: isMobile ? 9.5 : 10.5, padding: "1px 2px" }}
-                      />
+
+                    {/* prázdne pripravené riadky (papierový plánovač) — klik otvorí inline pole na zápis */}
+                    {Array.from({ length: emptyRowsCount }, (_, ei) => {
+                      const rowIndex = dayTodos.length + ei;
+                      const isActive = activeRow === rowIndex;
+                      return (
+                        <div key={"empty" + rowIndex} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                          <div style={{
+                            width: 12, height: 12, borderRadius: 3, flexShrink: 0,
+                            border: `1.3px dashed ${lineColor}`,
+                          }} />
+                          {isActive ? (
+                            <input
+                              autoFocus
+                              value={newDailyTodoText[dateStr] || ""}
+                              onChange={e => setNewDailyTodoText(p => ({ ...p, [dateStr]: e.target.value }))}
+                              onKeyDown={e => { if (e.key === "Enter") addDailyTodo(dateStr); if (e.key === "Escape") setActiveDailyRow(p => ({ ...p, [dateStr]: null })); }}
+                              onBlur={() => { if (!(newDailyTodoText[dateStr] || "").trim()) setActiveDailyRow(p => ({ ...p, [dateStr]: null })); }}
+                              placeholder="napíš úlohu..."
+                              className="wp-input"
+                              style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", outline: "none", color: theme.text, fontFamily: "var(--font-geist-sans)", fontSize: isMobile ? 9.5 : 10.5, padding: "1px 2px" }}
+                            />
+                          ) : (
+                            <div
+                              onClick={() => setActiveDailyRow(p => ({ ...p, [dateStr]: rowIndex }))}
+                              style={{ flex: 1, minWidth: 0, height: isMobile ? 12 : 13, cursor: "pointer", borderBottom: `1px dashed ${lineColor}` }}
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    {/* posledný riadok — pridá ďalší prázdny riadok navyše */}
+                    <div
+                      onClick={() => setActiveDailyRow(p => ({ ...p, [dateStr]: dayTodos.length + emptyRowsCount }))}
+                      style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer", marginTop: 1, opacity: 0.7 }}
+                    >
+                      <span style={{ fontSize: isMobile ? 10 : 11, fontWeight: 800, color: appliedA, lineHeight: 1 }}>+</span>
+                      <span style={{ fontSize: isMobile ? 8.5 : 9.5, color: theme.muted }}>pridať riadok</span>
                     </div>
                   </div>
                 </div>
