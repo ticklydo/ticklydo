@@ -772,11 +772,11 @@ export default function WeeklyPlanPage() {
           <div style={{ padding: "20px 16px", fontSize: 12, color: theme.muted, fontStyle: "italic", textAlign: "center" }}>Žiadne opakujúce sa činnosti</div>
         ) : (
           <div className="wp-scroll" style={{ overflowX: "auto" }}>
-            <div style={{ display: "grid", gridTemplateColumns: `1fr repeat(7, 38px)`, minWidth: 300 }}>
+            <div style={{ display: "grid", gridTemplateColumns: `minmax(70px, 1fr) repeat(7, 28px)` }}>
               {/* header */}
-              <div style={{ padding: "8px 16px", fontSize: 10, fontWeight: 800, color: theme.muted, borderBottom: `1px solid ${lineColor}` }} />
+              <div style={{ padding: "8px 8px", fontSize: 10, fontWeight: 800, color: theme.muted, borderBottom: `1px solid ${lineColor}` }} />
               {DAY_SHORT.map((ds, i) => (
-                <div key={ds} style={{ padding: "8px 4px", textAlign: "center", fontSize: 10, fontWeight: 800, color: DAY_COLORS[i], borderBottom: `1px solid ${lineColor}`, borderLeft: i === 0 ? `1px solid ${lineColor}` : "none" }}>{ds}</div>
+                <div key={ds} style={{ padding: "8px 2px", textAlign: "center", fontSize: 9, fontWeight: 800, color: DAY_COLORS[i], borderBottom: `1px solid ${lineColor}`, borderLeft: i === 0 ? `1px solid ${lineColor}` : "none" }}>{ds}</div>
               ))}
 
               {recurring.map((r, ri) => {
@@ -784,7 +784,7 @@ export default function WeeklyPlanPage() {
                 const isEditingThis = editingRecurringId === r.id;
                 return (
                   <React.Fragment key={r.id}>
-                    <div style={{ padding: "9px 16px", fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, borderBottom: isLast && !isEditingThis ? "none" : `1px solid ${lineColor}` }}>
+                    <div style={{ padding: "9px 8px", fontSize: 11.5, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, borderBottom: isLast && !isEditingThis ? "none" : `1px solid ${lineColor}` }}>
                       <span
                         onClick={() => isEditingThis ? cancelEditRecurring() : startEditRecurring(r)}
                         style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "pointer" }}
@@ -793,7 +793,7 @@ export default function WeeklyPlanPage() {
                         {r.name}
                       </span>
                       <span onClick={() => requestDeleteRecurring(r.id)} style={{ cursor: "pointer", color: "#ef4444", opacity: 0.6, flexShrink: 0 }}>
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                       </span>
                     </div>
                     {DAY_SHORT.map((ds, di) => {
@@ -804,8 +804,8 @@ export default function WeeklyPlanPage() {
                       return (
                         <div key={ds} style={{ display: "flex", alignItems: "center", justifyContent: "center", borderBottom: isLast && !isEditingThis ? "none" : `1px solid ${lineColor}`, borderLeft: `1px solid ${lineColor}` }}>
                           {applies ? (
-                            <div onClick={() => toggleRecurringDone(r.id, dateStr)} style={{ width: 18, height: 18, borderRadius: 5, cursor: "pointer", border: `1.5px solid ${done ? dayColor : lineColor}`, background: done ? dayColor : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                              {done && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
+                            <div onClick={() => toggleRecurringDone(r.id, dateStr)} style={{ width: 16, height: 16, borderRadius: 4, cursor: "pointer", border: `1.5px solid ${done ? dayColor : lineColor}`, background: done ? dayColor : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                              {done && <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
                             </div>
                           ) : (
                             <div style={{ width: 4, height: 4, borderRadius: "50%", background: lineColor }} />
