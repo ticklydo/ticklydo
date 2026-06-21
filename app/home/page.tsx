@@ -105,6 +105,35 @@ function timeAgo(ts: number) {
   return `Pred ${d} dňami`;
 }
 
+// ── Pomocné funkcie pre mini kalendár (rovnaká logika ako v Týždennom pláne) ──
+const MONTHS_NOM = ["Január", "Február", "Marec", "Apríl", "Máj", "Jún", "Júl", "August", "September", "Október", "November", "December"];
+const DAY_MICRO = ["P", "U", "S", "Š", "P", "S", "N"];
+
+function pad(n: number) { return n < 10 ? `0${n}` : `${n}`; }
+function toDateStr(d: Date) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
+function getMonday(d: Date) {
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  const monday = new Date(d);
+  monday.setDate(d.getDate() + diff);
+  monday.setHours(0, 0, 0, 0);
+  return monday;
+}
+function addDays(d: Date, n: number) {
+  const r = new Date(d);
+  r.setDate(r.getDate() + n);
+  return r;
+}
+function isToday(d: Date) {
+  const t = new Date();
+  return d.getFullYear() === t.getFullYear() && d.getMonth() === t.getMonth() && d.getDate() === t.getDate();
+}
+function getMonthGrid(viewMonth: Date) {
+  const firstOfMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth(), 1);
+  const gridStart = getMonday(firstOfMonth);
+  return Array.from({ length: 42 }, (_, i) => addDays(gridStart, i));
+}
+
 const ONBOARDING_STEPS = [
   {
     emoji: "👋",
@@ -148,6 +177,12 @@ export default function HomePage() {
   const [newName, setNewName] = useState("");
   const [newGradIdx, setNewGradIdx] = useState(0);
   const [newIconId, setNewIconId] = useState("doc");
+
+  // Mini kalendár pre Plánovač widget — vždy zobrazuje aktuálny mesiac/týždeň
+  const [plannerViewMonth] = useState<Date>(() => new Date());
+  const plannerWeekStart = getMonday(new Date());
+  const plannerWeekEnd = addDays(plannerWeekStart, 6);
+  const plannerMonthGrid = getMonthGrid(plannerViewMonth);
 
   const avatarFn = AVATARS[avatarId] ?? AVATARS.robot;
 
@@ -376,7 +411,10 @@ export default function HomePage() {
 
   return (
     <div style={{ flex: 1, overflowY: "auto", padding: "28px 28px 80px", display: "flex", flexDirection: "column", gap: 20, background: theme.bg, color: theme.text, fontFamily: "var(--font-geist-sans)", transition: "background .3s, color .3s" }}>
-      <style>{`@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}} @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}} @keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}`}</style>
+      <style>{`@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}} @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}} @keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+        .home-planner-cell { transition: background .15s ease, transform .1s ease; }
+        .home-planner-cell:hover { transform: scale(1.04); }
+      `}</style>
 
       {/* ONBOARDING MODAL */}
       {showOnboarding && (
@@ -474,6 +512,61 @@ export default function HomePage() {
           {avatarFn(appliedA, appliedB)}
         </div>
         Vitaj{userName ? `, ${userName}` : ""}
+      </div>
+
+      {/* ── PLÁNOVAČ widget — prepojenie na Týždenný plán ── */}
+      <div
+        onClick={() => router.push("/weekly-plan")}
+        style={{
+          maxWidth: 520, background: surface, border: `1px solid ${theme.border}`, borderRadius: 18,
+          padding: 16, cursor: "pointer", transition: "transform .2s, box-shadow .2s",
+        }}
+        onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 10px 28px rgba(0,0,0,0.12)"; }}
+        onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+          <div style={{ width: 34, height: 34, borderRadius: 10, background: grad, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          </div>
+          <div>
+            <div style={{ fontSize: 14.5, fontWeight: 800 }}>Plánovač</div>
+            <div style={{ fontSize: 11, color: theme.muted, fontWeight: 600 }}>{MONTHS_NOM[plannerViewMonth.getMonth()]} {plannerViewMonth.getFullYear()}</div>
+          </div>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 3 }}>
+          {DAY_MICRO.map((d, i) => (
+            <div key={"pdm" + i} style={{ textAlign: "center", fontSize: 9, fontWeight: 800, color: theme.muted, padding: "1px 0" }}>{d}</div>
+          ))}
+          {plannerMonthGrid.map((d, i) => {
+            const inMonth = d.getMonth() === plannerViewMonth.getMonth();
+            const today = isToday(d);
+            const inSelectedWeek = d >= plannerWeekStart && d <= plannerWeekEnd;
+            const isWeekStart = toDateStr(d) === toDateStr(plannerWeekStart);
+            const isWeekEnd = toDateStr(d) === toDateStr(plannerWeekEnd);
+            return (
+              <div
+                key={"pmg" + i}
+                className="home-planner-cell"
+                style={{
+                  height: 24, borderRadius: 7,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 10, fontWeight: today ? 900 : 600,
+                  color: !inMonth ? theme.muted : today ? "#fff" : theme.text,
+                  opacity: inMonth ? 1 : 0.35,
+                  background: today ? appliedA : inSelectedWeek ? appliedA + "22" : "transparent",
+                  border: inSelectedWeek && !today ? `1px solid ${appliedA}55` : "1px solid transparent",
+                  borderTopLeftRadius: inSelectedWeek && isWeekStart ? 7 : (inSelectedWeek ? 0 : 7),
+                  borderBottomLeftRadius: inSelectedWeek && isWeekStart ? 7 : (inSelectedWeek ? 0 : 7),
+                  borderTopRightRadius: inSelectedWeek && isWeekEnd ? 7 : (inSelectedWeek ? 0 : 7),
+                  borderBottomRightRadius: inSelectedWeek && isWeekEnd ? 7 : (inSelectedWeek ? 0 : 7),
+                }}
+              >
+                {d.getDate()}
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {/* Starred */}
