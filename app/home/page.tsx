@@ -516,7 +516,7 @@ export default function HomePage() {
       )}
 
       {/* Header + Plánovač — na desktope vedľa seba, na mobile pod sebou */}
-      <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", alignItems: isMobile ? "stretch" : "flex-start", justifyContent: "space-between", gap: 20 }}>
+      <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", alignItems: isMobile ? "stretch" : "flex-start", justifyContent: "space-between", gap: 20, maxWidth: 620 }}>
 
         {/* Header */}
         <div style={{ fontSize: 22, fontWeight: 900, display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
