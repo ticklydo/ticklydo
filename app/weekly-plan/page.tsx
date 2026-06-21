@@ -466,7 +466,12 @@ export default function WeeklyPlanPage() {
         </div>
 
         {/* Dni týždňa: Po–Ne ako STĹPCE, priorita + udalosti ako riadky */}
-        <div className="wp-scroll" style={{ flex: 1, minWidth: 0, overflowX: "auto", background: surface, borderRadius: 12, border: `1px solid ${lineColor}`, paddingTop: isMobile ? 36 : 44 }}>
+        <div className="wp-scroll" style={{ flex: 1, minWidth: 0, overflowX: "auto", background: surface, borderRadius: 12, border: `1px solid ${lineColor}` }}>
+          {/* spacer presne kopírujúci štruktúru kalendára (title riadok + mikro-riadok dní), aby sa dátumové riadky zarovnali na rovnakej výške */}
+          <div style={{ padding: isMobile ? "10px 0 0" : "14px 0 0" }}>
+            <div style={{ height: isMobile ? 18 : 22, marginBottom: 8 }} />
+            <div style={{ fontSize: isMobile ? 8 : 9, padding: "1px 0", visibility: "hidden" }}>.</div>
+          </div>
           <div style={{ display: "grid", gridTemplateColumns: `${isMobile ? 20 : 26}px repeat(7, minmax(${isMobile ? 62 : 86}px, 1fr))`, minWidth: isMobile ? 20 + 62 * 7 : undefined }}>
             {/* corner */}
             <div style={{ borderBottom: `1px solid ${lineColor}`, background: theme.card2 }} />
