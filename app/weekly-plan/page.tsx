@@ -435,29 +435,42 @@ export default function WeeklyPlanPage() {
           </div>
         </div>
 
-        {/* Dni týždňa: priorita + udalosti, riadok na deň */}
-        <div style={{ flex: 1, minWidth: 0, background: surface, borderRadius: 12, border: `1px solid ${lineColor}` }}>
-          {weekDays.map((d, i) => {
-            const dateStr = toDateStr(d);
-            const isEditing = editingDate === dateStr;
-            const today = isToday(d);
-            const dayEvents = eventsForDate(dateStr);
-            return (
-              <div key={"row" + i} style={{
-                display: "flex", alignItems: "flex-start", gap: isMobile ? 6 : 10,
-                padding: isMobile ? "6px 8px" : "9px 12px",
-                borderBottom: i < 6 ? `1px solid ${lineColor}` : "none",
-                borderLeft: today ? `3px solid ${appliedA}` : "3px solid transparent",
-                background: today ? appliedA + "08" : "transparent",
-              }}>
-                {/* day label */}
-                <div style={{ width: isMobile ? 30 : 80, flexShrink: 0, paddingTop: 2 }}>
-                  <div style={{ fontSize: isMobile ? 10.5 : 12, fontWeight: 800, color: today ? appliedA : theme.text, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{isMobile ? DAY_SHORT[i] : DAY_LONG[i]}</div>
-                  <div style={{ fontSize: isMobile ? 8.5 : 10, color: theme.muted, fontWeight: 600 }}>{d.getDate()}.{d.getMonth() + 1}.</div>
+        {/* Dni týždňa: Po–Ne ako STĹPCE, priorita + udalosti ako riadky */}
+        <div className="wp-scroll" style={{ flex: 1, minWidth: 0, overflowX: "auto", background: surface, borderRadius: 12, border: `1px solid ${lineColor}` }}>
+          <div style={{ display: "grid", gridTemplateColumns: `${isMobile ? 18 : 24}px repeat(7, minmax(${isMobile ? 54 : 76}px, 1fr))`, minWidth: isMobile ? 18 + 54 * 7 : undefined }}>
+            {/* corner */}
+            <div style={{ borderBottom: `1px solid ${lineColor}`, background: theme.card2 }} />
+            {/* day header row */}
+            {weekDays.map((d, i) => {
+              const today = isToday(d);
+              return (
+                <div key={"h" + i} style={{
+                  padding: isMobile ? "5px 2px" : "7px 4px", textAlign: "center",
+                  borderBottom: `1px solid ${lineColor}`,
+                  borderLeft: `1px solid ${lineColor}`,
+                  background: today ? appliedA + "16" : theme.card2,
+                }}>
+                  <div style={{ fontSize: isMobile ? 9.5 : 10.5, fontWeight: 800, color: today ? appliedA : theme.text }}>{DAY_SHORT[i]}</div>
+                  <div style={{ fontSize: isMobile ? 7.5 : 8.5, color: theme.muted, fontWeight: 600 }}>{d.getDate()}.{d.getMonth() + 1}.</div>
                 </div>
+              );
+            })}
 
-                {/* priority + events */}
-                <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 3 }}>
+            {/* priority row label */}
+            <div title="Priorita dňa" style={{ display: "flex", alignItems: "center", justifyContent: "center", fontSize: isMobile ? 9 : 10, borderBottom: `1px solid ${lineColor}` }}>⭐</div>
+            {/* priority row */}
+            {weekDays.map((d, i) => {
+              const dateStr = toDateStr(d);
+              const isEditing = editingDate === dateStr;
+              const today = isToday(d);
+              return (
+                <div key={"m" + i} style={{
+                  padding: isMobile ? 3 : 4,
+                  borderBottom: `1px solid ${lineColor}`,
+                  borderLeft: `1px solid ${lineColor}`,
+                  background: today ? appliedA + "08" : "transparent",
+                  minHeight: isMobile ? 30 : 38,
+                }}>
                   {isEditing ? (
                     <input
                       autoFocus
@@ -465,34 +478,54 @@ export default function WeeklyPlanPage() {
                       defaultValue={mainTasks[dateStr] ?? ""}
                       onBlur={e => { saveMainTask(dateStr, e.target.value); setEditingDate(null); }}
                       onKeyDown={e => { if (e.key === "Enter") { saveMainTask(dateStr, e.currentTarget.value); setEditingDate(null); } if (e.key === "Escape") setEditingDate(null); }}
-                      placeholder="napíš úlohu..."
-                      style={{ width: "100%", background: theme.card2, border: `1.5px solid ${appliedA}`, borderRadius: 6, padding: "4px 7px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontWeight: 700, fontSize: isMobile ? 11 : 12.5, outline: "none", boxSizing: "border-box" }}
+                      placeholder="..."
+                      style={{ width: "100%", background: theme.card2, border: `1.5px solid ${appliedA}`, borderRadius: 5, padding: "3px 5px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontWeight: 700, fontSize: isMobile ? 9.5 : 10.5, outline: "none", boxSizing: "border-box" }}
                     />
                   ) : (
                     <div onClick={() => setEditingDate(dateStr)} style={{
-                      cursor: "pointer", fontSize: isMobile ? 11 : 12.5, fontWeight: 700, lineHeight: 1.3,
+                      cursor: "pointer", fontSize: isMobile ? 9.5 : 10.5, fontWeight: 700, lineHeight: 1.25,
                       color: mainTasks[dateStr] ? theme.text : theme.muted,
-                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                      padding: "2px 3px",
+                      overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical",
+                      wordBreak: "break-word",
                     }}>
-                      {mainTasks[dateStr] || (isMobile ? "+ priorita" : "+ pridať prioritu")}
+                      {mainTasks[dateStr] || "+ "}
                     </div>
                   )}
+                </div>
+              );
+            })}
 
-                  {dayEvents.length === 0 ? null : (
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {/* events row label */}
+            <div title="Udalosti" style={{ display: "flex", alignItems: "center", justifyContent: "center", fontSize: isMobile ? 9 : 10 }}>🗓️</div>
+            {/* events row */}
+            {weekDays.map((d, i) => {
+              const dateStr = toDateStr(d);
+              const dayEvents = eventsForDate(dateStr);
+              const today = isToday(d);
+              return (
+                <div key={"e" + i} style={{
+                  padding: isMobile ? "3px 3px" : "4px 4px",
+                  borderLeft: `1px solid ${lineColor}`,
+                  background: today ? appliedA + "08" : "transparent",
+                  minHeight: isMobile ? 26 : 32,
+                }}>
+                  {dayEvents.length === 0 ? (
+                    <div style={{ fontSize: isMobile ? 8.5 : 9.5, color: theme.muted, textAlign: "center" }}>—</div>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                       {dayEvents.map(ev => (
-                        <div key={ev.id} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: isMobile ? 9 : 10.5, color: theme.muted }}>
+                        <div key={ev.id} style={{ display: "flex", alignItems: "center", gap: 3, fontSize: isMobile ? 8 : 9 }}>
                           <div style={{ width: 4, height: 4, borderRadius: "50%", background: ev.color || appliedA, flexShrink: 0 }} />
-                          {ev.time && <span style={{ fontWeight: 700, flexShrink: 0 }}>{ev.time}</span>}
-                          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ev.title}</span>
+                          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ev.time ? `${ev.time} ` : ""}{ev.title}</span>
                         </div>
                       ))}
                     </div>
                   )}
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       </div>
 
