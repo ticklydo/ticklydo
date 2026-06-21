@@ -102,7 +102,7 @@ export default function WeeklyPlanPage() {
 
   const [showAddHabit, setShowAddHabit] = useState(false);
   const [newRecurringName, setNewRecurringName] = useState("");
-  const [newRecurringDays, setNewRecurringDays] = useState<string[]>([]);
+  const [newRecurringDays, setNewRecurringDays] = useState<string[]>([...DAY_SHORT]);
   const [newTodoText, setNewTodoText] = useState("");
 
   // ── editing an existing recurring habit (name + days) ──
@@ -213,7 +213,7 @@ export default function WeeklyPlanPage() {
     setRecurring(updated);
     save({ recurring: updated });
     setNewRecurringName("");
-    setNewRecurringDays([]);
+    setNewRecurringDays([...DAY_SHORT]);
     setShowAddHabit(false);
   };
 
