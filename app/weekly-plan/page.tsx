@@ -467,14 +467,14 @@ export default function WeeklyPlanPage() {
 
         {/* Dni týždňa: Po–Ne ako STĹPCE, priorita + udalosti ako riadky */}
         <div className="wp-scroll" style={{ flex: 1, minWidth: 0, overflowX: "auto", background: surface, borderRadius: 12, border: `1px solid ${lineColor}`, display: "flex", flexDirection: "column" }}>
-          {/* spacer presne kopírujúci štruktúru kalendára (title riadok + mikro-riadok dní), aby sa dátumové riadky zarovnali na rovnakej výške */}
-          <div style={{ padding: isMobile ? "10px 0 0" : "14px 0 0", flexShrink: 0 }}>
-            <div style={{ height: isMobile ? 18 : 22, marginBottom: 8 }} />
+          {/* nadpis na rovnakej výške ako "Jún 2026" v kalendári vedľa */}
+          <div style={{ padding: isMobile ? "10px 12px 0" : "14px 14px 0", flexShrink: 0 }}>
+            <div style={{ height: isMobile ? 18 : 22, marginBottom: 8, display: "flex", alignItems: "center" }}>
+              <span style={{ fontSize: isMobile ? 11 : 12.5, fontWeight: 800 }}>Prehľad týždňa</span>
+            </div>
             <div style={{ fontSize: isMobile ? 8 : 9, padding: "1px 0", visibility: "hidden" }}>.</div>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: `${isMobile ? 20 : 26}px repeat(7, minmax(${isMobile ? 62 : 86}px, 1fr))`, gridTemplateRows: "auto auto 1fr", flex: 1, minWidth: isMobile ? 20 + 62 * 7 : undefined }}>
-            {/* corner */}
-            <div style={{ borderBottom: `1px solid ${lineColor}`, background: theme.card2 }} />
+          <div style={{ display: "grid", gridTemplateColumns: `repeat(7, minmax(${isMobile ? 62 : 86}px, 1fr))`, gridTemplateRows: "auto auto auto auto 1fr", flex: 1, minWidth: isMobile ? 62 * 7 : undefined }}>
             {/* day header row */}
             {weekDays.map((d, i) => {
               const today = isToday(d);
@@ -482,7 +482,7 @@ export default function WeeklyPlanPage() {
                 <div key={"h" + i} style={{
                   padding: isMobile ? "5px 2px" : "7px 4px", textAlign: "center",
                   borderBottom: `1px solid ${lineColor}`,
-                  borderLeft: `1px solid ${lineColor}`,
+                  borderLeft: i === 0 ? "none" : `1px solid ${lineColor}`,
                   background: today ? appliedA + "16" : theme.card2,
                 }}>
                   <div style={{ fontSize: isMobile ? 10.5 : 11.5, fontWeight: 800, color: today ? appliedA : theme.text }}>{DAY_SHORT[i]}</div>
@@ -491,10 +491,11 @@ export default function WeeklyPlanPage() {
               );
             })}
 
-            {/* priority row label */}
-            <div title="Priorita dňa" style={{ display: "flex", alignItems: "center", justifyContent: "center", color: theme.muted, borderBottom: `1px solid ${lineColor}` }}>
-              <svg width={isMobile ? 13 : 14} height={isMobile ? 13 : 14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            {/* "Hlavná úloha" nadpis cez celú šírku */}
+            <div style={{ gridColumn: "1 / -1", padding: isMobile ? "6px 8px 2px" : "8px 10px 3px", fontSize: isMobile ? 10.5 : 11.5, fontWeight: 800, color: theme.text, borderBottom: `1px solid ${lineColor}` }}>
+              Hlavná úloha
             </div>
+
             {/* priority row */}
             {weekDays.map((d, i) => {
               const dateStr = toDateStr(d);
@@ -504,7 +505,7 @@ export default function WeeklyPlanPage() {
                 <div key={"m" + i} style={{
                   padding: isMobile ? 4 : 6,
                   borderBottom: `1px solid ${lineColor}`,
-                  borderLeft: `1px solid ${lineColor}`,
+                  borderLeft: i === 0 ? "none" : `1px solid ${lineColor}`,
                   background: today ? appliedA + "08" : "transparent",
                   minHeight: isMobile ? 34 : 42,
                 }}>
@@ -533,10 +534,11 @@ export default function WeeklyPlanPage() {
               );
             })}
 
-            {/* events row label */}
-            <div title="Udalosti" style={{ display: "flex", alignItems: "center", justifyContent: "center", color: theme.muted }}>
-              <svg width={isMobile ? 13 : 14} height={isMobile ? 13 : 14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            {/* "Udalosť" nadpis cez celú šírku */}
+            <div style={{ gridColumn: "1 / -1", padding: isMobile ? "6px 8px 2px" : "8px 10px 3px", fontSize: isMobile ? 10.5 : 11.5, fontWeight: 800, color: theme.text, borderBottom: `1px solid ${lineColor}` }}>
+              Udalosť
             </div>
+
             {/* events row */}
             {weekDays.map((d, i) => {
               const dateStr = toDateStr(d);
@@ -547,7 +549,7 @@ export default function WeeklyPlanPage() {
                 <div key={"e" + i} style={{
                   position: "relative",
                   padding: isMobile ? "4px 4px" : "6px 6px",
-                  borderLeft: `1px solid ${lineColor}`,
+                  borderLeft: i === 0 ? "none" : `1px solid ${lineColor}`,
                   background: today ? appliedA + "08" : "transparent",
                   minHeight: isMobile ? 30 : 38,
                   display: "flex", flexDirection: "column", justifyContent: "center",
