@@ -411,7 +411,7 @@ export default function WeeklyPlanPage() {
       </div>
 
       {/* ── MESAČNÝ KALENDÁR (vľavo) + DNI TÝŽDŇA (vpravo) — vedľa seba ── */}
-      <div style={{ display: "flex", gap: 14, alignItems: "flex-start", flexWrap: "nowrap", flexShrink: 0 }}>
+      <div style={{ display: "flex", gap: 14, alignItems: "stretch", flexWrap: "nowrap", flexShrink: 0 }}>
 
         {/* Mesačný kalendár so zvýrazneným aktuálnym týždňom */}
         <div style={{ background: surface, borderRadius: 16, border: `1px solid ${lineColor}`, padding: isMobile ? 10 : 14, flexShrink: 0, width: isMobile ? 168 : 250 }}>
@@ -466,13 +466,13 @@ export default function WeeklyPlanPage() {
         </div>
 
         {/* Dni týždňa: Po–Ne ako STĹPCE, priorita + udalosti ako riadky */}
-        <div className="wp-scroll" style={{ flex: 1, minWidth: 0, overflowX: "auto", background: surface, borderRadius: 12, border: `1px solid ${lineColor}` }}>
+        <div className="wp-scroll" style={{ flex: 1, minWidth: 0, overflowX: "auto", background: surface, borderRadius: 12, border: `1px solid ${lineColor}`, display: "flex", flexDirection: "column" }}>
           {/* spacer presne kopírujúci štruktúru kalendára (title riadok + mikro-riadok dní), aby sa dátumové riadky zarovnali na rovnakej výške */}
-          <div style={{ padding: isMobile ? "10px 0 0" : "14px 0 0" }}>
+          <div style={{ padding: isMobile ? "10px 0 0" : "14px 0 0", flexShrink: 0 }}>
             <div style={{ height: isMobile ? 18 : 22, marginBottom: 8 }} />
             <div style={{ fontSize: isMobile ? 8 : 9, padding: "1px 0", visibility: "hidden" }}>.</div>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: `${isMobile ? 20 : 26}px repeat(7, minmax(${isMobile ? 62 : 86}px, 1fr))`, minWidth: isMobile ? 20 + 62 * 7 : undefined }}>
+          <div style={{ display: "grid", gridTemplateColumns: `${isMobile ? 20 : 26}px repeat(7, minmax(${isMobile ? 62 : 86}px, 1fr))`, gridTemplateRows: "auto auto 1fr", flex: 1, minWidth: isMobile ? 20 + 62 * 7 : undefined }}>
             {/* corner */}
             <div style={{ borderBottom: `1px solid ${lineColor}`, background: theme.card2 }} />
             {/* day header row */}
@@ -550,29 +550,38 @@ export default function WeeklyPlanPage() {
                   borderLeft: `1px solid ${lineColor}`,
                   background: today ? appliedA + "08" : "transparent",
                   minHeight: isMobile ? 30 : 38,
+                  display: "flex", flexDirection: "column", justifyContent: "center",
                 }}>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                    {dayEvents.length === 0 ? (
-                      <div style={{ fontSize: isMobile ? 10 : 11, color: theme.muted, textAlign: "center" }}>—</div>
-                    ) : (
-                      dayEvents.map(ev => (
+                  {dayEvents.length === 0 ? (
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                      <span style={{ fontSize: isMobile ? 10 : 11, color: theme.muted }}>—</span>
+                      <span
+                        onClick={() => isAdding ? cancelAddEvent() : openAddEvent(dateStr)}
+                        title="Pridať udalosť"
+                        style={{ fontSize: isMobile ? 11 : 12, fontWeight: 800, color: appliedA, cursor: "pointer", lineHeight: 1, opacity: 0.85 }}
+                      >
+                        {isAdding ? "✕" : "+"}
+                      </span>
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                      {dayEvents.map((ev, evi) => (
                         <div key={ev.id} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: isMobile ? 9.5 : 10.5 }}>
                           <div style={{ width: 5, height: 5, borderRadius: "50%", background: ev.color || appliedA, flexShrink: 0 }} />
-                          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ev.time ? `${ev.time} ` : ""}{ev.title}</span>
+                          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{ev.time ? `${ev.time} ` : ""}{ev.title}</span>
+                          {evi === dayEvents.length - 1 && (
+                            <span
+                              onClick={() => isAdding ? cancelAddEvent() : openAddEvent(dateStr)}
+                              title="Pridať udalosť"
+                              style={{ fontSize: isMobile ? 11 : 12, fontWeight: 800, color: appliedA, cursor: "pointer", lineHeight: 1, opacity: 0.85, flexShrink: 0 }}
+                            >
+                              {isAdding ? "✕" : "+"}
+                            </span>
+                          )}
                         </div>
-                      ))
-                    )}
-                    <div
-                      onClick={() => isAdding ? cancelAddEvent() : openAddEvent(dateStr)}
-                      title="Pridať udalosť"
-                      style={{
-                        fontSize: isMobile ? 11 : 12, fontWeight: 800, color: appliedA, cursor: "pointer",
-                        textAlign: "center", lineHeight: 1, opacity: 0.85,
-                      }}
-                    >
-                      {isAdding ? "✕" : "+"}
+                      ))}
                     </div>
-                  </div>
+                  )}
 
                   {isAdding && (
                     <div
