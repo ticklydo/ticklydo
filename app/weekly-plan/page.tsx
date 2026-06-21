@@ -37,6 +37,17 @@ const LOGO_PALETTE = [
   { id: "blue", label: "Modrá", value: "#3b82f6" },
 ];
 
+// ── Farba pre každý deň v týždni (Po → Ne) v habit trackeri — 7 farieb z palety loga + 1 navyše ──
+const DAY_COLORS = [
+  "#8b5cf6", // Po — fialová
+  "#ec4899", // Ut — ružová
+  "#fb7185", // St — koralová
+  "#f97316", // Št — oranžová
+  "#eab308", // Pi — žltá
+  "#14b8a6", // So — tyrkysová
+  "#3b82f6", // Ne — modrá
+];
+
 function genId() { return Math.random().toString(36).slice(2, 10); }
 function pad(n: number) { return n < 10 ? `0${n}` : `${n}`; }
 function toDateStr(d: Date) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
@@ -614,7 +625,7 @@ export default function WeeklyPlanPage() {
               {/* header */}
               <div style={{ padding: "8px 16px", fontSize: 10, fontWeight: 800, color: theme.muted, borderBottom: `1px solid ${lineColor}` }} />
               {DAY_SHORT.map((ds, i) => (
-                <div key={ds} style={{ padding: "8px 4px", textAlign: "center", fontSize: 10, fontWeight: 800, color: theme.muted, borderBottom: `1px solid ${lineColor}`, borderLeft: i === 0 ? `1px solid ${lineColor}` : "none" }}>{ds}</div>
+                <div key={ds} style={{ padding: "8px 4px", textAlign: "center", fontSize: 10, fontWeight: 800, color: DAY_COLORS[i], borderBottom: `1px solid ${lineColor}`, borderLeft: i === 0 ? `1px solid ${lineColor}` : "none" }}>{ds}</div>
               ))}
 
               {recurring.map((r, ri) => {
@@ -638,10 +649,11 @@ export default function WeeklyPlanPage() {
                       const applies = r.days.includes(ds);
                       const dateStr = toDateStr(weekDays[di]);
                       const done = r.doneDates.includes(dateStr);
+                      const dayColor = DAY_COLORS[di];
                       return (
                         <div key={ds} style={{ display: "flex", alignItems: "center", justifyContent: "center", borderBottom: isLast && !isEditingThis ? "none" : `1px solid ${lineColor}`, borderLeft: `1px solid ${lineColor}` }}>
                           {applies ? (
-                            <div onClick={() => toggleRecurringDone(r.id, dateStr)} style={{ width: 18, height: 18, borderRadius: 5, cursor: "pointer", border: `1.5px solid ${done ? appliedA : lineColor}`, background: done ? appliedA : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            <div onClick={() => toggleRecurringDone(r.id, dateStr)} style={{ width: 18, height: 18, borderRadius: 5, cursor: "pointer", border: `1.5px solid ${done ? dayColor : lineColor}`, background: done ? dayColor : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
                               {done && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
                             </div>
                           ) : (
