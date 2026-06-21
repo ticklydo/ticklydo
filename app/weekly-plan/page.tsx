@@ -450,13 +450,13 @@ export default function WeeklyPlanPage() {
       </div>
 
       {/* ── MESAČNÝ KALENDÁR (vľavo) + DNI TÝŽDŇA (vpravo) — vedľa seba ── */}
-      <div style={{ display: "flex", gap: 14, alignItems: "flex-start", flexWrap: "nowrap", flexShrink: 0 }}>
+      <div style={{ display: "flex", gap: 14, alignItems: "flex-start", flexWrap: isMobile ? "wrap" : "nowrap", flexShrink: 0 }}>
 
         {/* Ľavý stĺpec: kalendár hore, opakujúce sa činnosti + to-do list hneď pod ním (bez medzery) */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 14, flexShrink: 0, width: isMobile ? 200 : 340 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14, flexShrink: 0, width: isMobile ? "100%" : 340 }}>
 
         {/* Mesačný kalendár so zvýrazneným aktuálnym týždňom */}
-        <div style={{ background: surface, borderRadius: 16, border: `1px solid ${lineColor}`, padding: isMobile ? 10 : 14, flexShrink: 0, width: isMobile ? 200 : 340 }}>
+        <div style={{ background: surface, borderRadius: 16, border: `1px solid ${lineColor}`, padding: isMobile ? 10 : 14, flexShrink: 0, width: isMobile ? "100%" : 340 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
             <div style={{ fontSize: isMobile ? 11 : 12.5, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{MONTHS_NOM[viewMonth.getMonth()]} {viewMonth.getFullYear()}</div>
             <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
@@ -676,7 +676,7 @@ export default function WeeklyPlanPage() {
       </div>
 
         {/* Dni týždňa: Po–Ne ako STĹPCE, priorita + udalosti ako riadky */}
-        <div className="wp-scroll" style={{ flex: 1, minWidth: 0, overflowX: "auto", background: surface, borderRadius: 12, border: `1px solid ${lineColor}`, display: "flex", flexDirection: "column" }}>
+        <div className="wp-scroll" style={{ flex: isMobile ? "1 1 100%" : 1, width: isMobile ? "100%" : "auto", minWidth: 0, overflowX: "auto", background: surface, borderRadius: 12, border: `1px solid ${lineColor}`, display: "flex", flexDirection: "column" }}>
           {/* nadpis na rovnakej výške ako "Jún 2026" v kalendári vedľa */}
           <div style={{ padding: isMobile ? "10px 12px 0" : "14px 14px 0", flexShrink: 0 }}>
             <div style={{ height: isMobile ? 18 : 22, marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "center" }}>
