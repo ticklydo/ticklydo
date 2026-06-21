@@ -485,7 +485,7 @@ export default function WeeklyPlanPage() {
                   borderLeft: i === 0 ? "none" : `1px solid ${lineColor}`,
                   background: today ? appliedA + "16" : theme.card2,
                 }}>
-                  <div style={{ fontSize: isMobile ? 10.5 : 11.5, fontWeight: 800, color: today ? appliedA : theme.text }}>{DAY_SHORT[i]}</div>
+                  <div style={{ fontSize: isMobile ? 10.5 : 11.5, fontWeight: 800, color: today ? appliedA : theme.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{isMobile ? DAY_SHORT[i] : DAY_LONG[i]}</div>
                   <div style={{ fontSize: isMobile ? 8.5 : 9.5, color: theme.muted, fontWeight: 600 }}>{d.getDate()}.{d.getMonth() + 1}.</div>
                 </div>
               );
