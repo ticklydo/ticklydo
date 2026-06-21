@@ -691,28 +691,28 @@ export default function WeeklyPlanPage() {
                   <div style={{ fontSize: isMobile ? 8 : 8.5, fontWeight: 800, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.3px", padding: "1px 4px 2px", flexShrink: 0 }}>
                     Úlohy dňa
                   </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1 }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1 }}>
                     {/* vyplnené úlohy */}
                     {dayTodos.map(t => (
-                      <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 6 }}>
                         <div
                           onClick={() => toggleDailyTodo(dateStr, t.id)}
                           style={{
-                            width: 12, height: 12, borderRadius: 3, flexShrink: 0, cursor: "pointer",
-                            border: `1.3px solid ${t.done ? appliedA : lineColor}`,
+                            width: 16, height: 16, borderRadius: 4, flexShrink: 0, cursor: "pointer",
+                            border: `1.5px solid ${t.done ? appliedA : lineColor}`,
                             background: t.done ? appliedA : "transparent",
                             display: "flex", alignItems: "center", justifyContent: "center",
                           }}
                         >
-                          {t.done && <svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
+                          {t.done && <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
                         </div>
                         <span style={{
-                          fontSize: isMobile ? 9.5 : 10.5, flex: 1, minWidth: 0,
+                          fontSize: isMobile ? 11.5 : 12.5, flex: 1, minWidth: 0,
                           color: t.done ? theme.muted : theme.text,
                           textDecoration: t.done ? "line-through" : "none",
                           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                         }}>{t.text}</span>
-                        <span onClick={() => requestDeleteDailyTodo(dateStr, t.id)} style={{ cursor: "pointer", color: "#ef4444", opacity: 0.55, flexShrink: 0, fontSize: 9 }}>✕</span>
+                        <span onClick={() => requestDeleteDailyTodo(dateStr, t.id)} style={{ cursor: "pointer", color: "#ef4444", opacity: 0.55, flexShrink: 0, fontSize: 11 }}>✕</span>
                       </div>
                     ))}
 
@@ -721,10 +721,10 @@ export default function WeeklyPlanPage() {
                       const rowIndex = dayTodos.length + ei;
                       const isActive = activeRow === rowIndex;
                       return (
-                        <div key={"empty" + rowIndex} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        <div key={"empty" + rowIndex} style={{ display: "flex", alignItems: "center", gap: 6 }}>
                           <div style={{
-                            width: 12, height: 12, borderRadius: 3, flexShrink: 0,
-                            border: `1.3px dashed ${lineColor}`,
+                            width: 16, height: 16, borderRadius: 4, flexShrink: 0,
+                            border: `1.5px dashed ${lineColor}`,
                           }} />
                           {isActive ? (
                             <input
@@ -735,12 +735,12 @@ export default function WeeklyPlanPage() {
                               onBlur={() => { if (!(newDailyTodoText[dateStr] || "").trim()) setActiveDailyRow(p => ({ ...p, [dateStr]: null })); }}
                               placeholder="napíš úlohu..."
                               className="wp-input"
-                              style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", outline: "none", color: theme.text, fontFamily: "var(--font-geist-sans)", fontSize: isMobile ? 9.5 : 10.5, padding: "1px 2px" }}
+                              style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", outline: "none", color: theme.text, fontFamily: "var(--font-geist-sans)", fontSize: isMobile ? 11.5 : 12.5, padding: "2px 3px" }}
                             />
                           ) : (
                             <div
                               onClick={() => setActiveDailyRow(p => ({ ...p, [dateStr]: rowIndex }))}
-                              style={{ flex: 1, minWidth: 0, height: isMobile ? 12 : 13, cursor: "pointer", borderBottom: `1px dashed ${lineColor}` }}
+                              style={{ flex: 1, minWidth: 0, height: isMobile ? 17 : 19, cursor: "pointer", borderBottom: `1px dashed ${lineColor}` }}
                             />
                           )}
                         </div>
@@ -750,10 +750,10 @@ export default function WeeklyPlanPage() {
                     {/* posledný riadok — pridá ďalší prázdny riadok navyše */}
                     <div
                       onClick={() => setActiveDailyRow(p => ({ ...p, [dateStr]: dayTodos.length + emptyRowsCount }))}
-                      style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer", marginTop: 1, opacity: 0.7 }}
+                      style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", marginTop: 2, opacity: 0.7 }}
                     >
-                      <span style={{ fontSize: isMobile ? 10 : 11, fontWeight: 800, color: appliedA, lineHeight: 1 }}>+</span>
-                      <span style={{ fontSize: isMobile ? 8.5 : 9.5, color: theme.muted }}>pridať riadok</span>
+                      <span style={{ fontSize: isMobile ? 12 : 13, fontWeight: 800, color: appliedA, lineHeight: 1 }}>+</span>
+                      <span style={{ fontSize: isMobile ? 10.5 : 11.5, color: theme.muted }}>pridať riadok</span>
                     </div>
                   </div>
                 </div>
