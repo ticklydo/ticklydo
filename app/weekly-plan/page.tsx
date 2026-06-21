@@ -469,12 +469,12 @@ export default function WeeklyPlanPage() {
         <div className="wp-scroll" style={{ flex: 1, minWidth: 0, overflowX: "auto", background: surface, borderRadius: 12, border: `1px solid ${lineColor}`, display: "flex", flexDirection: "column" }}>
           {/* nadpis na rovnakej výške ako "Jún 2026" v kalendári vedľa */}
           <div style={{ padding: isMobile ? "10px 12px 0" : "14px 14px 0", flexShrink: 0 }}>
-            <div style={{ height: isMobile ? 18 : 22, marginBottom: 8, display: "flex", alignItems: "center" }}>
+            <div style={{ height: isMobile ? 18 : 22, marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "center" }}>
               <span style={{ fontSize: isMobile ? 11 : 12.5, fontWeight: 800 }}>Prehľad týždňa</span>
             </div>
             <div style={{ fontSize: isMobile ? 8 : 9, padding: "1px 0", visibility: "hidden" }}>.</div>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: `repeat(7, minmax(${isMobile ? 62 : 86}px, 1fr))`, gridTemplateRows: "auto auto auto auto 1fr", flex: 1, minWidth: isMobile ? 62 * 7 : undefined }}>
+          <div style={{ display: "grid", gridTemplateColumns: `repeat(7, minmax(${isMobile ? 62 : 86}px, 1fr))`, gridTemplateRows: "auto auto 1fr", flex: 1, minWidth: isMobile ? 62 * 7 : undefined }}>
             {/* day header row */}
             {weekDays.map((d, i) => {
               const today = isToday(d);
@@ -491,12 +491,7 @@ export default function WeeklyPlanPage() {
               );
             })}
 
-            {/* "Hlavná úloha" nadpis cez celú šírku */}
-            <div style={{ gridColumn: "1 / -1", padding: isMobile ? "6px 8px 2px" : "8px 10px 3px", fontSize: isMobile ? 10.5 : 11.5, fontWeight: 800, color: theme.text, borderBottom: `1px solid ${lineColor}` }}>
-              Hlavná úloha
-            </div>
-
-            {/* priority row */}
+            {/* priority row — s malým labelom "Hlavná úloha" v každej bunke */}
             {weekDays.map((d, i) => {
               const dateStr = toDateStr(d);
               const isEditing = editingDate === dateStr;
@@ -507,8 +502,11 @@ export default function WeeklyPlanPage() {
                   borderBottom: `1px solid ${lineColor}`,
                   borderLeft: i === 0 ? "none" : `1px solid ${lineColor}`,
                   background: today ? appliedA + "08" : "transparent",
-                  minHeight: isMobile ? 34 : 42,
+                  minHeight: isMobile ? 48 : 58,
                 }}>
+                  <div style={{ fontSize: isMobile ? 8 : 8.5, fontWeight: 800, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.3px", padding: "1px 4px 2px" }}>
+                    Hlavná úloha
+                  </div>
                   {isEditing ? (
                     <input
                       autoFocus
@@ -523,7 +521,7 @@ export default function WeeklyPlanPage() {
                     <div onClick={() => setEditingDate(dateStr)} style={{
                       cursor: "pointer", fontSize: isMobile ? 10.5 : 11.5, fontWeight: 700, lineHeight: 1.3,
                       color: mainTasks[dateStr] ? theme.text : theme.muted,
-                      padding: "3px 4px",
+                      padding: "1px 4px",
                       overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical",
                       wordBreak: "break-word",
                     }}>
@@ -534,12 +532,7 @@ export default function WeeklyPlanPage() {
               );
             })}
 
-            {/* "Udalosť" nadpis cez celú šírku */}
-            <div style={{ gridColumn: "1 / -1", padding: isMobile ? "6px 8px 2px" : "8px 10px 3px", fontSize: isMobile ? 10.5 : 11.5, fontWeight: 800, color: theme.text, borderBottom: `1px solid ${lineColor}` }}>
-              Udalosť
-            </div>
-
-            {/* events row */}
+            {/* events row — s malým labelom "Udalosť" v každej bunke */}
             {weekDays.map((d, i) => {
               const dateStr = toDateStr(d);
               const dayEvents = eventsForDate(dateStr);
@@ -551,9 +544,13 @@ export default function WeeklyPlanPage() {
                   padding: isMobile ? "4px 4px" : "6px 6px",
                   borderLeft: i === 0 ? "none" : `1px solid ${lineColor}`,
                   background: today ? appliedA + "08" : "transparent",
-                  minHeight: isMobile ? 30 : 38,
-                  display: "flex", flexDirection: "column", justifyContent: "center",
+                  minHeight: isMobile ? 44 : 54,
+                  display: "flex", flexDirection: "column",
                 }}>
+                  <div style={{ fontSize: isMobile ? 8 : 8.5, fontWeight: 800, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.3px", padding: "1px 4px 2px", flexShrink: 0 }}>
+                    Udalosť
+                  </div>
+                  <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
                   {dayEvents.length === 0 ? (
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
                       <span style={{ fontSize: isMobile ? 10 : 11, color: theme.muted }}>—</span>
@@ -584,6 +581,7 @@ export default function WeeklyPlanPage() {
                       ))}
                     </div>
                   )}
+                  </div>
 
                   {isAdding && (
                     <div
