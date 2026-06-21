@@ -96,6 +96,7 @@ export default function WeeklyPlanPage() {
   const [mainTasks, setMainTasks] = useState<Record<string, string>>({});
   const [recurring, setRecurring] = useState<Recurring[]>([]);
   const [todos, setTodos] = useState<Todo[]>([]);
+  const [dailyTodos, setDailyTodos] = useState<Record<string, Todo[]>>({});
   const [allEvents, setAllEvents] = useState<CalEvent[]>([]);
 
   const [editingDate, setEditingDate] = useState<string | null>(null);
@@ -121,6 +122,10 @@ export default function WeeklyPlanPage() {
   const [newEventTitle, setNewEventTitle] = useState("");
   const [newEventTime, setNewEventTime] = useState("");
   const [newEventColor, setNewEventColor] = useState<string>(LOGO_PALETTE[0].value);
+
+  // ── denný to-do list (samostatný checklist pre každý deň) ──
+  const [newDailyTodoText, setNewDailyTodoText] = useState<Record<string, string>>({});
+  const [confirmDeleteDaily, setConfirmDeleteDaily] = useState<{ date: string; id: string } | null>(null);
 
   // ── responsive: stacked day-cards under this width ──
   const [isMobile, setIsMobile] = useState(false);
@@ -165,10 +170,12 @@ export default function WeeklyPlanPage() {
         setMainTasks(d.mainTasks ?? {});
         setRecurring(d.recurring ?? []);
         setTodos(d.todos ?? []);
+        setDailyTodos(d.dailyTodos ?? {});
       } else {
         setMainTasks({});
         setRecurring([]);
         setTodos([]);
+        setDailyTodos({});
       }
       setLoading(false);
     })();
@@ -184,7 +191,7 @@ export default function WeeklyPlanPage() {
     setViewMonth(new Date(weekStart.getFullYear(), weekStart.getMonth(), 1));
   }, [weekId]);
 
-  const save = useCallback(async (patch: Partial<{ mainTasks: Record<string, string>; recurring: Recurring[]; todos: Todo[] }>) => {
+  const save = useCallback(async (patch: Partial<{ mainTasks: Record<string, string>; recurring: Recurring[]; todos: Todo[]; dailyTodos: Record<string, Todo[]> }>) => {
     if (!uid) return;
     const { getFirestore, doc, setDoc } = await import("firebase/firestore");
     const db = getFirestore();
@@ -303,6 +310,33 @@ export default function WeeklyPlanPage() {
 
   const cancelDeleteTodo = () => setConfirmDeleteId(null);
 
+  // ── denný to-do list (samostatný pre konkrétny deň) ──
+  const addDailyTodo = (dateStr: string) => {
+    const text = (newDailyTodoText[dateStr] || "").trim();
+    if (!text) return;
+    const updated = { ...dailyTodos, [dateStr]: [...(dailyTodos[dateStr] || []), { id: genId(), text, done: false }] };
+    setDailyTodos(updated);
+    save({ dailyTodos: updated });
+    setNewDailyTodoText(p => ({ ...p, [dateStr]: "" }));
+  };
+
+  const toggleDailyTodo = (dateStr: string, id: string) => {
+    const updated = { ...dailyTodos, [dateStr]: (dailyTodos[dateStr] || []).map(t => t.id === id ? { ...t, done: !t.done } : t) };
+    setDailyTodos(updated);
+    save({ dailyTodos: updated });
+  };
+
+  const requestDeleteDailyTodo = (dateStr: string, id: string) => setConfirmDeleteDaily({ date: dateStr, id });
+  const cancelDeleteDailyTodo = () => setConfirmDeleteDaily(null);
+  const confirmDeleteDailyTodo = () => {
+    if (!confirmDeleteDaily) return;
+    const { date, id } = confirmDeleteDaily;
+    const updated = { ...dailyTodos, [date]: (dailyTodos[date] || []).filter(t => t.id !== id) };
+    setDailyTodos(updated);
+    save({ dailyTodos: updated });
+    setConfirmDeleteDaily(null);
+  };
+
   const eventsForDate = (dateStr: string) => allEvents.filter(e => e.date === dateStr).sort((a, b) => (a.time || "").localeCompare(b.time || ""));
 
   const openAddEvent = (dateStr: string) => {
@@ -350,6 +384,7 @@ export default function WeeklyPlanPage() {
 
   const todoToDelete = todos.find(t => t.id === confirmDeleteId) || null;
   const recurringToDelete = recurring.find(r => r.id === confirmDeleteRecurringId) || null;
+  const dailyTodoToDelete = confirmDeleteDaily ? (dailyTodos[confirmDeleteDaily.date] || []).find(t => t.id === confirmDeleteDaily.id) || null : null;
   const monthGrid = getMonthGrid(viewMonth);
   const weekEnd = weekDays[6];
 
@@ -474,7 +509,7 @@ export default function WeeklyPlanPage() {
             </div>
             <div style={{ fontSize: isMobile ? 8 : 9, padding: "1px 0", visibility: "hidden" }}>.</div>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: `repeat(7, minmax(${isMobile ? 62 : 86}px, 1fr))`, gridTemplateRows: "auto auto 1fr", flex: 1, minWidth: isMobile ? 62 * 7 : undefined }}>
+          <div style={{ display: "grid", gridTemplateColumns: `repeat(7, minmax(${isMobile ? 62 : 86}px, 1fr))`, gridTemplateRows: "auto auto auto 1fr", flex: 1, minWidth: isMobile ? 62 * 7 : undefined }}>
             {/* day header row */}
             {weekDays.map((d, i) => {
               const today = isToday(d);
@@ -543,6 +578,7 @@ export default function WeeklyPlanPage() {
                   position: "relative",
                   padding: isMobile ? "4px 4px" : "6px 6px",
                   borderLeft: i === 0 ? "none" : `1px solid ${lineColor}`,
+                  borderBottom: `1px solid ${lineColor}`,
                   background: today ? appliedA + "08" : "transparent",
                   minHeight: isMobile ? 44 : 54,
                   display: "flex", flexDirection: "column",
@@ -632,61 +668,69 @@ export default function WeeklyPlanPage() {
                 </div>
               );
             })}
+
+            {/* denný to-do list — samostatný checklist pre každý deň, vyplní zvyšný priestor */}
+            {weekDays.map((d, i) => {
+              const dateStr = toDateStr(d);
+              const dayTodos = dailyTodos[dateStr] || [];
+              const today = isToday(d);
+              return (
+                <div key={"dt" + i} style={{
+                  padding: isMobile ? "4px 4px" : "6px 6px",
+                  borderLeft: i === 0 ? "none" : `1px solid ${lineColor}`,
+                  background: today ? appliedA + "08" : "transparent",
+                  display: "flex", flexDirection: "column", minHeight: isMobile ? 50 : 60,
+                }}>
+                  <div style={{ fontSize: isMobile ? 8 : 8.5, fontWeight: 800, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.3px", padding: "1px 4px 2px", flexShrink: 0 }}>
+                    Úlohy dňa
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1 }}>
+                    {dayTodos.map(t => (
+                      <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        <div
+                          onClick={() => toggleDailyTodo(dateStr, t.id)}
+                          style={{
+                            width: 12, height: 12, borderRadius: 3, flexShrink: 0, cursor: "pointer",
+                            border: `1.3px solid ${t.done ? appliedA : lineColor}`,
+                            background: t.done ? appliedA : "transparent",
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                          }}
+                        >
+                          {t.done && <svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
+                        </div>
+                        <span style={{
+                          fontSize: isMobile ? 9.5 : 10.5, flex: 1, minWidth: 0,
+                          color: t.done ? theme.muted : theme.text,
+                          textDecoration: t.done ? "line-through" : "none",
+                          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                        }}>{t.text}</span>
+                        <span onClick={() => requestDeleteDailyTodo(dateStr, t.id)} style={{ cursor: "pointer", color: "#ef4444", opacity: 0.55, flexShrink: 0, fontSize: 9 }}>✕</span>
+                      </div>
+                    ))}
+                    <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 1 }}>
+                      <input
+                        value={newDailyTodoText[dateStr] || ""}
+                        onChange={e => setNewDailyTodoText(p => ({ ...p, [dateStr]: e.target.value }))}
+                        onKeyDown={e => { if (e.key === "Enter") addDailyTodo(dateStr); }}
+                        placeholder="+ úloha"
+                        className="wp-input"
+                        style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", outline: "none", color: theme.text, fontFamily: "var(--font-geist-sans)", fontSize: isMobile ? 9.5 : 10.5, padding: "1px 2px" }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
 
 
       {/* ── TO-DO LIST (vľavo) + OPAKUJÚCE SA ČINNOSTI (vpravo) — vedľa seba ── */}
-      <div className="wp-bottom-row" style={{ display: "flex", gap: 14, alignItems: "flex-start", flexShrink: 0 }}>
-
-      {/* ── TODO LIST ── */}
-      <div style={{ background: surface, borderRadius: 14, border: `1px solid ${lineColor}`, padding: 18, display: "flex", flexDirection: "column", gap: 12, flex: "1 1 360px", minWidth: 0, position: "relative" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ fontSize: 13, fontWeight: 800, display: "flex", alignItems: "center", gap: 7 }}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={appliedA} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-            To-do list týždňa
-          </div>
-          <div style={{ fontSize: 11, fontWeight: 800, color: appliedA }}>{todoPct}%</div>
-        </div>
-
-        <div style={{ height: 6, borderRadius: 3, background: lineColor, overflow: "hidden" }}>
-          <div style={{ height: "100%", width: `${todoPct}%`, background: grad, transition: "width .3s ease" }} />
-        </div>
-
-        {todos.length === 0 && <div style={{ fontSize: 12, color: theme.muted, fontStyle: "italic" }}>Žiadne úlohy v zozname</div>}
-
-        <div style={{ display: "flex", flexDirection: "column" }}>
-          {todos.map((t, ti) => {
-            return (
-              <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 2px", borderBottom: ti < todos.length - 1 ? `1px dashed ${lineColor}` : "none" }}>
-                <div onClick={() => toggleTodo(t.id)} style={{ width: 18, height: 18, borderRadius: 5, flexShrink: 0, cursor: "pointer", border: `1.5px solid ${t.done ? appliedA : lineColor}`, background: t.done ? appliedA : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  {t.done && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
-                </div>
-                <div style={{ flex: 1, fontSize: 13, color: t.done ? theme.muted : theme.text, textDecoration: t.done ? "line-through" : "none", minWidth: 0, wordBreak: "break-word" }}>{t.text}</div>
-                <div onClick={() => requestDeleteTodo(t.id)} style={{ cursor: "pointer", color: "#ef4444", flexShrink: 0, opacity: 0.6 }}>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        <div style={{ display: "flex", gap: 8, marginTop: 4, paddingTop: 12, borderTop: `1px solid ${lineColor}` }}>
-          <input
-            value={newTodoText}
-            onChange={e => setNewTodoText(e.target.value)}
-            onKeyDown={e => { if (e.key === "Enter") addTodo(); }}
-            placeholder="Nová úloha..."
-            className="wp-input"
-            style={{ flex: 1, background: theme.card2, border: `1.5px solid ${lineColor}`, borderRadius: 9, padding: "8px 11px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontWeight: 600, fontSize: 12.5, outline: "none", boxSizing: "border-box" }}
-          />
-          <button onClick={addTodo} disabled={!newTodoText.trim()} style={{ background: !newTodoText.trim() ? lineColor : grad, border: "none", borderRadius: 9, padding: "0 16px", color: "#fff", fontWeight: 800, fontSize: 13, cursor: !newTodoText.trim() ? "default" : "pointer", fontFamily: "var(--font-geist-sans)" }}>+</button>
-        </div>
-      </div>
+      <div className="wp-bottom-row" style={{ display: "flex", flexDirection: "column", gap: 14, flexShrink: 0 }}>
 
       {/* ── HABIT TRACKER GRID ── */}
-      <div style={{ background: surface, borderRadius: 14, border: `1px solid ${lineColor}`, overflow: "hidden", flex: "1 1 360px", minWidth: 0 }}>
+      <div style={{ background: surface, borderRadius: 14, border: `1px solid ${lineColor}`, overflow: "hidden", flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderBottom: `1px solid ${lineColor}`, flexWrap: "wrap", gap: 8 }}>
           <div style={{ fontSize: 13, fontWeight: 800, display: "flex", alignItems: "center", gap: 7 }}>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={appliedA} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
@@ -799,6 +843,51 @@ export default function WeeklyPlanPage() {
             </div>
           </div>
         )}
+      </div>
+
+      {/* ── TODO LIST ── */}
+      <div style={{ background: surface, borderRadius: 14, border: `1px solid ${lineColor}`, padding: 18, display: "flex", flexDirection: "column", gap: 12, maxWidth: 560, position: "relative", flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ fontSize: 13, fontWeight: 800, display: "flex", alignItems: "center", gap: 7 }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={appliedA} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            To-do list týždňa
+          </div>
+          <div style={{ fontSize: 11, fontWeight: 800, color: appliedA }}>{todoPct}%</div>
+        </div>
+
+        <div style={{ height: 6, borderRadius: 3, background: lineColor, overflow: "hidden" }}>
+          <div style={{ height: "100%", width: `${todoPct}%`, background: grad, transition: "width .3s ease" }} />
+        </div>
+
+        {todos.length === 0 && <div style={{ fontSize: 12, color: theme.muted, fontStyle: "italic" }}>Žiadne úlohy v zozname</div>}
+
+        <div style={{ display: "flex", flexDirection: "column" }}>
+          {todos.map((t, ti) => {
+            return (
+              <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 2px", borderBottom: ti < todos.length - 1 ? `1px dashed ${lineColor}` : "none" }}>
+                <div onClick={() => toggleTodo(t.id)} style={{ width: 18, height: 18, borderRadius: 5, flexShrink: 0, cursor: "pointer", border: `1.5px solid ${t.done ? appliedA : lineColor}`, background: t.done ? appliedA : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {t.done && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
+                </div>
+                <div style={{ flex: 1, fontSize: 13, color: t.done ? theme.muted : theme.text, textDecoration: t.done ? "line-through" : "none", minWidth: 0, wordBreak: "break-word" }}>{t.text}</div>
+                <div onClick={() => requestDeleteTodo(t.id)} style={{ cursor: "pointer", color: "#ef4444", flexShrink: 0, opacity: 0.6 }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div style={{ display: "flex", gap: 8, marginTop: 4, paddingTop: 12, borderTop: `1px solid ${lineColor}` }}>
+          <input
+            value={newTodoText}
+            onChange={e => setNewTodoText(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter") addTodo(); }}
+            placeholder="Nová úloha..."
+            className="wp-input"
+            style={{ flex: 1, background: theme.card2, border: `1.5px solid ${lineColor}`, borderRadius: 9, padding: "8px 11px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontWeight: 600, fontSize: 12.5, outline: "none", boxSizing: "border-box" }}
+          />
+          <button onClick={addTodo} disabled={!newTodoText.trim()} style={{ background: !newTodoText.trim() ? lineColor : grad, border: "none", borderRadius: 9, padding: "0 16px", color: "#fff", fontWeight: 800, fontSize: 13, cursor: !newTodoText.trim() ? "default" : "pointer", fontFamily: "var(--font-geist-sans)" }}>+</button>
+        </div>
       </div>
 
       </div>
@@ -918,6 +1007,70 @@ export default function WeeklyPlanPage() {
               </button>
               <button
                 onClick={confirmDeleteRecurring}
+                style={{
+                  background: "#ef4444", border: "none", borderRadius: 9,
+                  padding: "8px 16px", color: "#fff", fontWeight: 800, fontSize: 12.5,
+                  cursor: "pointer", fontFamily: "var(--font-geist-sans)",
+                }}
+              >
+                Odstrániť natrvalo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── CONFIRM DELETE MODAL (úloha dňa) ── */}
+      {confirmDeleteDaily && (
+        <div
+          onClick={cancelDeleteDailyTodo}
+          style={{
+            position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1000,
+            display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
+            animation: "wpFadeIn .15s ease",
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: surface, borderRadius: 16, padding: 22, maxWidth: 360, width: "100%",
+              border: `1px solid ${lineColor}`, boxShadow: "0 12px 40px rgba(0,0,0,0.25)",
+              animation: "wpPopIn .18s ease",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+              <div style={{ width: 36, height: 36, borderRadius: 10, background: "#ef444420", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                  <line x1="12" y1="9" x2="12" y2="13" />
+                  <line x1="12" y1="17" x2="12.01" y2="17" />
+                </svg>
+              </div>
+              <div style={{ fontSize: 14.5, fontWeight: 800, color: theme.text }}>Odstrániť úlohu?</div>
+            </div>
+
+            <div style={{ fontSize: 12.5, color: theme.muted, lineHeight: 1.5, marginBottom: 6 }}>
+              {dailyTodoToDelete && (
+                <>Úloha „<strong style={{ color: theme.text }}>{dailyTodoToDelete.text}</strong>" bude natrvalo odstránená.</>
+              )}
+            </div>
+            <div style={{ fontSize: 11.5, color: "#ef4444", fontWeight: 700, marginBottom: 18 }}>
+              Táto akcia sa nedá vrátiť späť.
+            </div>
+
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button
+                onClick={cancelDeleteDailyTodo}
+                style={{
+                  background: theme.card2, border: `1px solid ${lineColor}`, borderRadius: 9,
+                  padding: "8px 16px", color: theme.text, fontWeight: 700, fontSize: 12.5,
+                  cursor: "pointer", fontFamily: "var(--font-geist-sans)",
+                }}
+              >
+                Zrušiť
+              </button>
+              <button
+                onClick={confirmDeleteDailyTodo}
                 style={{
                   background: "#ef4444", border: "none", borderRadius: 9,
                   padding: "8px 16px", color: "#fff", fontWeight: 800, fontSize: 12.5,
