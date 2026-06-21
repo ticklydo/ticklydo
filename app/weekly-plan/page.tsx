@@ -449,7 +449,7 @@ export default function WeeklyPlanPage() {
       <div style={{ display: "flex", gap: 14, alignItems: "stretch", flexWrap: "nowrap", flexShrink: 0 }}>
 
         {/* Mesačný kalendár so zvýrazneným aktuálnym týždňom */}
-        <div style={{ background: surface, borderRadius: 16, border: `1px solid ${lineColor}`, padding: isMobile ? 10 : 14, flexShrink: 0, width: isMobile ? 168 : 250 }}>
+        <div style={{ background: surface, borderRadius: 16, border: `1px solid ${lineColor}`, padding: isMobile ? 10 : 14, flexShrink: 0, width: isMobile ? 200 : 340 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
             <div style={{ fontSize: isMobile ? 11 : 12.5, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{MONTHS_NOM[viewMonth.getMonth()]} {viewMonth.getFullYear()}</div>
             <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
@@ -727,7 +727,7 @@ export default function WeeklyPlanPage() {
 
 
       {/* ── TO-DO LIST (vľavo) + OPAKUJÚCE SA ČINNOSTI (vpravo) — vedľa seba ── */}
-      <div className="wp-bottom-row" style={{ display: "flex", flexDirection: "column", gap: 14, flexShrink: 0 }}>
+      <div className="wp-bottom-row" style={{ display: "flex", flexDirection: "column", gap: 14, flexShrink: 0, width: isMobile ? 200 : 340 }}>
 
       {/* ── HABIT TRACKER GRID ── */}
       <div style={{ background: surface, borderRadius: 14, border: `1px solid ${lineColor}`, overflow: "hidden", flexShrink: 0 }}>
@@ -846,7 +846,7 @@ export default function WeeklyPlanPage() {
       </div>
 
       {/* ── TODO LIST ── */}
-      <div style={{ background: surface, borderRadius: 14, border: `1px solid ${lineColor}`, padding: 18, display: "flex", flexDirection: "column", gap: 12, maxWidth: 560, position: "relative", flexShrink: 0 }}>
+      <div style={{ background: surface, borderRadius: 14, border: `1px solid ${lineColor}`, padding: 18, display: "flex", flexDirection: "column", gap: 12, position: "relative", flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ fontSize: 13, fontWeight: 800, display: "flex", alignItems: "center", gap: 7 }}>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={appliedA} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
