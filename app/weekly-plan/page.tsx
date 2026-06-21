@@ -555,7 +555,7 @@ export default function WeeklyPlanPage() {
         ) : (
           /* ── Dni ako stĺpce — šírka sa prizpôsobí, aby sa zmestili bez scrollovania ── */
           <div className="wp-scroll" style={{ overflowX: "auto" }}>
-            <div style={{ display: "grid", gridTemplateColumns: isMobile ? `minmax(56px, 1fr) repeat(7, 1fr)` : `minmax(70px, 1fr) repeat(7, 28px)` }}>
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? `minmax(70px, 2.2fr) repeat(7, 1fr)` : `minmax(70px, 1fr) repeat(7, 28px)` }}>
               {/* header */}
               <div style={{ padding: isMobile ? "8px 4px" : "8px 8px", fontSize: 10, fontWeight: 800, color: theme.muted, borderBottom: `1px solid ${lineColor}` }} />
               {DAY_SHORT.map((ds, i) => (
@@ -587,7 +587,7 @@ export default function WeeklyPlanPage() {
                       return (
                         <div key={ds} style={{ display: "flex", alignItems: "center", justifyContent: "center", borderBottom: isLast && !isEditingThis ? "none" : `1px solid ${lineColor}`, borderLeft: `1px solid ${lineColor}` }}>
                           {applies ? (
-                            <div onClick={() => toggleRecurringDone(r.id, dateStr)} style={{ width: isMobile ? 18 : 16, height: isMobile ? 18 : 16, borderRadius: 4, cursor: "pointer", border: `1.5px solid ${done ? dayColor : lineColor}`, background: done ? dayColor : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            <div onClick={() => toggleRecurringDone(r.id, dateStr)} style={{ width: isMobile ? 15 : 16, height: isMobile ? 15 : 16, borderRadius: 4, cursor: "pointer", border: `1.5px solid ${done ? dayColor : lineColor}`, background: done ? dayColor : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
                               {done && <svg width={isMobile ? 10 : 9} height={isMobile ? 10 : 9} viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
                             </div>
                           ) : (
