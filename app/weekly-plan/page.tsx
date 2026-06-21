@@ -19,11 +19,23 @@ const auth = getAuth(app);
 
 type CalEvent = { id: string; title: string; date: string; time: string; color: string; notes?: string };
 type Recurring = { id: string; name: string; days: string[]; doneDates: string[] };
-type Todo = { id: string; text: string; done: boolean };
+type Todo = { id: string; text: string; done: boolean; color?: string };
 
 const DAY_SHORT = ["Po", "Ut", "St", "Št", "Pi", "So", "Ne"];
+const DAY_MICRO = ["P", "U", "S", "Š", "P", "S", "N"];
 const DAY_LONG = ["Pondelok", "Utorok", "Streda", "Štvrtok", "Piatok", "Sobota", "Nedeľa"];
 const MONTHS = ["januára", "februára", "marca", "apríla", "mája", "júna", "júla", "augusta", "septembra", "októbra", "novembra", "decembra"];
+const MONTHS_NOM = ["Január", "Február", "Marec", "Apríl", "Máj", "Jún", "Júl", "August", "September", "Október", "November", "December"];
+
+// ── Farebná paleta odvodená z TicklyDo loga (fialová → ružová/koralová → tyrkysová → modrá) ──
+const LOGO_PALETTE = [
+  { id: "violet", label: "Fialová", value: "#8b5cf6" },
+  { id: "pink", label: "Ružová", value: "#ec4899" },
+  { id: "coral", label: "Koralová", value: "#fb7185" },
+  { id: "orange", label: "Oranžová", value: "#f97316" },
+  { id: "teal", label: "Tyrkysová", value: "#14b8a6" },
+  { id: "blue", label: "Modrá", value: "#3b82f6" },
+];
 
 function genId() { return Math.random().toString(36).slice(2, 10); }
 function pad(n: number) { return n < 10 ? `0${n}` : `${n}`; }
@@ -45,6 +57,16 @@ function isToday(d: Date) {
   const t = new Date();
   return d.getFullYear() === t.getFullYear() && d.getMonth() === t.getMonth() && d.getDate() === t.getDate();
 }
+function isSameDay(a: Date, b: Date) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+// Vráti 6 týždňov (42 dní) mriežky pre mesačný kalendár, začínajúc pondelkom.
+function getMonthGrid(viewMonth: Date) {
+  const firstOfMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth(), 1);
+  const gridStart = getMonday(firstOfMonth);
+  return Array.from({ length: 42 }, (_, i) => addDays(gridStart, i));
+}
 
 export default function WeeklyPlanPage() {
   const router = useRouter();
@@ -57,6 +79,9 @@ export default function WeeklyPlanPage() {
   const weekId = toDateStr(weekStart);
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
+  // mesiac aktuálne zobrazený v mesačnom kalendári (samostatný od weekStart, ale synchronizovaný pri zmene týždňa)
+  const [viewMonth, setViewMonth] = useState<Date>(() => new Date());
+
   const [mainTasks, setMainTasks] = useState<Record<string, string>>({});
   const [recurring, setRecurring] = useState<Recurring[]>([]);
   const [todos, setTodos] = useState<Todo[]>([]);
@@ -68,6 +93,7 @@ export default function WeeklyPlanPage() {
   const [newRecurringName, setNewRecurringName] = useState("");
   const [newRecurringDays, setNewRecurringDays] = useState<string[]>([]);
   const [newTodoText, setNewTodoText] = useState("");
+  const [newTodoColor, setNewTodoColor] = useState<string>(LOGO_PALETTE[0].value);
 
   // ── editing an existing recurring habit (name + days) ──
   const [editingRecurringId, setEditingRecurringId] = useState<string | null>(null);
@@ -79,6 +105,9 @@ export default function WeeklyPlanPage() {
 
   // ── confirm-delete state for recurring habits ──
   const [confirmDeleteRecurringId, setConfirmDeleteRecurringId] = useState<string | null>(null);
+
+  // ── color-picker popover for an existing todo ──
+  const [colorPickerForId, setColorPickerForId] = useState<string | null>(null);
 
   // ── responsive: stacked day-cards under this width ──
   const [isMobile, setIsMobile] = useState(false);
@@ -135,6 +164,12 @@ export default function WeeklyPlanPage() {
   // reset any pending delete-confirmation when switching weeks
   useEffect(() => {
     setConfirmDeleteId(null);
+    setColorPickerForId(null);
+  }, [weekId]);
+
+  // keď sa zmení týždeň, posuň zobrazený mesiac tak, aby vždy obsahoval ten týždeň
+  useEffect(() => {
+    setViewMonth(new Date(weekStart.getFullYear(), weekStart.getMonth(), 1));
   }, [weekId]);
 
   const save = useCallback(async (patch: Partial<{ mainTasks: Record<string, string>; recurring: Recurring[]; todos: Todo[] }>) => {
@@ -228,7 +263,7 @@ export default function WeeklyPlanPage() {
 
   const addTodo = () => {
     if (!newTodoText.trim()) return;
-    const updated = [...todos, { id: genId(), text: newTodoText.trim(), done: false }];
+    const updated = [...todos, { id: genId(), text: newTodoText.trim(), done: false, color: newTodoColor }];
     setTodos(updated);
     save({ todos: updated });
     setNewTodoText("");
@@ -238,6 +273,13 @@ export default function WeeklyPlanPage() {
     const updated = todos.map(t => t.id === id ? { ...t, done: !t.done } : t);
     setTodos(updated);
     save({ todos: updated });
+  };
+
+  const setTodoColor = (id: string, color: string) => {
+    const updated = todos.map(t => t.id === id ? { ...t, color } : t);
+    setTodos(updated);
+    save({ todos: updated });
+    setColorPickerForId(null);
   };
 
   // Krok 1: klik na košík len OTVORÍ potvrdenie (nemaže hneď)
@@ -277,6 +319,11 @@ export default function WeeklyPlanPage() {
   const LABEL_COL = 130;
   const todoToDelete = todos.find(t => t.id === confirmDeleteId) || null;
   const recurringToDelete = recurring.find(r => r.id === confirmDeleteRecurringId) || null;
+  const monthGrid = getMonthGrid(viewMonth);
+  const weekEnd = weekDays[6];
+
+  // klik na deň v mesačnom kalendári → prepne na ten týždeň
+  const jumpToWeekOf = (d: Date) => setWeekStart(getMonday(d));
 
   return (
     <div style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "20px 20px 80px", display: "flex", flexDirection: "column", gap: 18, background: theme.bg, color: theme.text, fontFamily: "var(--font-geist-sans)" }}>
@@ -295,15 +342,20 @@ export default function WeeklyPlanPage() {
           .wp-banner-range { font-size: 13px !important; margin-top: 0 !important; }
           .wp-banner-nav button { height: 26px !important; width: 26px !important; padding: 0 10px !important; font-size: 11px !important; }
           .wp-banner-nav button svg { width: 11px !important; height: 11px !important; }
+          .wp-month-cell { font-size: 10px !important; height: 30px !important; }
         }
+        .wp-month-cell { transition: background .15s ease, transform .1s ease; }
+        .wp-month-cell:hover { transform: scale(1.04); }
+        .wp-todo-swatch { transition: transform .12s ease; }
+        .wp-todo-swatch:hover { transform: scale(1.18); }
       `}</style>
 
       {/* Banner header */}
       <div className="wp-banner" style={{
-        borderRadius: 16, padding: "16px 20px",
+        borderRadius: 18, padding: "16px 20px",
         background: grad, color: "#fff",
         display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12,
-        boxShadow: `0 6px 20px ${appliedA}33`,
+        boxShadow: `0 8px 24px ${appliedA}3d`,
         flexShrink: 0,
       }}>
         <div>
@@ -320,6 +372,59 @@ export default function WeeklyPlanPage() {
           <button onClick={() => setWeekStart(addDays(weekStart, 7))} style={{ width: 32, height: 32, borderRadius: 9, background: "rgba(255,255,255,0.18)", border: "none", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
           </button>
+        </div>
+      </div>
+
+      {/* ── MESAČNÝ KALENDÁR so zvýrazneným aktuálnym týždňom ── */}
+      <div style={{ background: surface, borderRadius: 16, border: `1px solid ${lineColor}`, padding: 16, flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+          <div style={{ fontSize: 13, fontWeight: 800 }}>{MONTHS_NOM[viewMonth.getMonth()]} {viewMonth.getFullYear()}</div>
+          <div style={{ display: "flex", gap: 6 }}>
+            <button onClick={() => setViewMonth(new Date(viewMonth.getFullYear(), viewMonth.getMonth() - 1, 1))} style={{ width: 26, height: 26, borderRadius: 7, background: theme.card2, border: `1px solid ${lineColor}`, color: theme.muted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
+            <button onClick={() => setViewMonth(new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 1))} style={{ width: 26, height: 26, borderRadius: 7, background: theme.card2, border: `1px solid ${lineColor}`, color: theme.muted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4 }}>
+          {DAY_MICRO.map((d, i) => (
+            <div key={"dm" + i} style={{ textAlign: "center", fontSize: 10, fontWeight: 800, color: theme.muted, padding: "2px 0" }}>{d}</div>
+          ))}
+          {monthGrid.map((d, i) => {
+            const inMonth = d.getMonth() === viewMonth.getMonth();
+            const today = isToday(d);
+            const inSelectedWeek = d >= weekStart && d <= weekEnd;
+            const isWeekEdge = isSameDay(d, weekStart) || isSameDay(d, weekEnd);
+            return (
+              <div
+                key={"mg" + i}
+                className="wp-month-cell"
+                onClick={() => jumpToWeekOf(d)}
+                style={{
+                  height: 34, borderRadius: 9, cursor: "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 11.5, fontWeight: today ? 900 : 600,
+                  color: !inMonth ? theme.muted : today ? "#fff" : theme.text,
+                  opacity: inMonth ? 1 : 0.35,
+                  background: today
+                    ? appliedA
+                    : inSelectedWeek
+                      ? appliedA + "22"
+                      : "transparent",
+                  border: inSelectedWeek && !today ? `1.5px solid ${appliedA}55` : "1.5px solid transparent",
+                  borderTopLeftRadius: inSelectedWeek && isSameDay(d, weekStart) ? 9 : (inSelectedWeek ? 0 : 9),
+                  borderBottomLeftRadius: inSelectedWeek && isSameDay(d, weekStart) ? 9 : (inSelectedWeek ? 0 : 9),
+                  borderTopRightRadius: inSelectedWeek && isSameDay(d, weekEnd) ? 9 : (inSelectedWeek ? 0 : 9),
+                  borderBottomRightRadius: inSelectedWeek && isSameDay(d, weekEnd) ? 9 : (inSelectedWeek ? 0 : 9),
+                }}
+              >
+                {d.getDate()}
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -591,29 +696,76 @@ export default function WeeklyPlanPage() {
         {todos.length === 0 && <div style={{ fontSize: 12, color: theme.muted, fontStyle: "italic" }}>Žiadne úlohy v zozname</div>}
 
         <div style={{ display: "flex", flexDirection: "column" }}>
-          {todos.map((t, ti) => (
-            <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 2px", borderBottom: ti < todos.length - 1 ? `1px dashed ${lineColor}` : "none" }}>
-              <div onClick={() => toggleTodo(t.id)} style={{ width: 18, height: 18, borderRadius: 5, flexShrink: 0, cursor: "pointer", border: `1.5px solid ${t.done ? appliedA : lineColor}`, background: t.done ? appliedA : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                {t.done && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
+          {todos.map((t, ti) => {
+            const tColor = t.color || LOGO_PALETTE[0].value;
+            const pickerOpen = colorPickerForId === t.id;
+            return (
+              <div key={t.id} style={{ position: "relative", borderBottom: ti < todos.length - 1 ? `1px dashed ${lineColor}` : "none" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 2px" }}>
+                  {/* farebný štítok kategórie — klik otvorí výber farby */}
+                  <div
+                    onClick={() => setColorPickerForId(pickerOpen ? null : t.id)}
+                    title="Zmeniť farbu kategórie"
+                    style={{ width: 10, height: 10, borderRadius: "50%", background: tColor, flexShrink: 0, cursor: "pointer", boxShadow: `0 0 0 2px ${surface}, 0 0 0 3px ${tColor}55` }}
+                  />
+                  <div onClick={() => toggleTodo(t.id)} style={{ width: 18, height: 18, borderRadius: 5, flexShrink: 0, cursor: "pointer", border: `1.5px solid ${t.done ? tColor : lineColor}`, background: t.done ? tColor : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    {t.done && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
+                  </div>
+                  <div style={{ flex: 1, fontSize: 13, color: t.done ? theme.muted : theme.text, textDecoration: t.done ? "line-through" : "none", minWidth: 0, wordBreak: "break-word" }}>{t.text}</div>
+                  <div onClick={() => requestDeleteTodo(t.id)} style={{ cursor: "pointer", color: "#ef4444", flexShrink: 0, opacity: 0.6 }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+                  </div>
+                </div>
+
+                {pickerOpen && (
+                  <div style={{ display: "flex", gap: 7, padding: "2px 2px 10px 22px", flexWrap: "wrap" }}>
+                    {LOGO_PALETTE.map(c => (
+                      <div
+                        key={c.id}
+                        className="wp-todo-swatch"
+                        onClick={() => setTodoColor(t.id, c.value)}
+                        title={c.label}
+                        style={{
+                          width: 18, height: 18, borderRadius: "50%", background: c.value, cursor: "pointer",
+                          border: tColor === c.value ? `2px solid ${theme.text}` : "2px solid transparent",
+                          boxShadow: `0 0 0 1.5px ${surface}`,
+                        }}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
-              <div style={{ flex: 1, fontSize: 13, color: t.done ? theme.muted : theme.text, textDecoration: t.done ? "line-through" : "none", minWidth: 0, wordBreak: "break-word" }}>{t.text}</div>
-              <div onClick={() => requestDeleteTodo(t.id)} style={{ cursor: "pointer", color: "#ef4444", flexShrink: 0, opacity: 0.6 }}>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
-        <div style={{ display: "flex", gap: 8, marginTop: 4, paddingTop: 12, borderTop: `1px solid ${lineColor}` }}>
-          <input
-            value={newTodoText}
-            onChange={e => setNewTodoText(e.target.value)}
-            onKeyDown={e => { if (e.key === "Enter") addTodo(); }}
-            placeholder="Nová úloha..."
-            className="wp-input"
-            style={{ flex: 1, background: theme.card2, border: `1.5px solid ${lineColor}`, borderRadius: 9, padding: "8px 11px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontWeight: 600, fontSize: 12.5, outline: "none", boxSizing: "border-box" }}
-          />
-          <button onClick={addTodo} disabled={!newTodoText.trim()} style={{ background: !newTodoText.trim() ? lineColor : grad, border: "none", borderRadius: 9, padding: "0 16px", color: "#fff", fontWeight: 800, fontSize: 13, cursor: !newTodoText.trim() ? "default" : "pointer", fontFamily: "var(--font-geist-sans)" }}>+</button>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4, paddingTop: 12, borderTop: `1px solid ${lineColor}` }}>
+          <div style={{ display: "flex", gap: 6 }}>
+            {LOGO_PALETTE.map(c => (
+              <div
+                key={c.id}
+                className="wp-todo-swatch"
+                onClick={() => setNewTodoColor(c.value)}
+                title={c.label}
+                style={{
+                  width: 18, height: 18, borderRadius: "50%", background: c.value, cursor: "pointer",
+                  border: newTodoColor === c.value ? `2px solid ${theme.text}` : "2px solid transparent",
+                  boxShadow: `0 0 0 1.5px ${surface}`,
+                }}
+              />
+            ))}
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input
+              value={newTodoText}
+              onChange={e => setNewTodoText(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") addTodo(); }}
+              placeholder="Nová úloha..."
+              className="wp-input"
+              style={{ flex: 1, background: theme.card2, border: `1.5px solid ${lineColor}`, borderRadius: 9, padding: "8px 11px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontWeight: 600, fontSize: 12.5, outline: "none", boxSizing: "border-box" }}
+            />
+            <button onClick={addTodo} disabled={!newTodoText.trim()} style={{ background: !newTodoText.trim() ? lineColor : grad, border: "none", borderRadius: 9, padding: "0 16px", color: "#fff", fontWeight: 800, fontSize: 13, cursor: !newTodoText.trim() ? "default" : "pointer", fontFamily: "var(--font-geist-sans)" }}>+</button>
+          </div>
         </div>
       </div>
 
