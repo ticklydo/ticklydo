@@ -37,8 +37,8 @@ const LOGO_PALETTE = [
   { id: "blue", label: "Modrá", value: "#3b82f6" },
 ];
 
-// ── Farba pre každý deň v týždni (Po → Ne) v habit trackeri — pastelová paleta v štýle papierového plánovača ──
-const DAY_COLORS = [
+// ── Farba pre každý deň v týždni (Po → Ne) v habit trackeri — dve palety podľa zvoleného štýlu ──
+const DAY_COLORS_PAPER = [
   "#b399d4", // Po — pastelová fialová
   "#e8a0bb", // Ut — pastelová ružová
   "#e8a3a3", // St — pastelová koralová
@@ -46,6 +46,15 @@ const DAY_COLORS = [
   "#e0c777", // Pi — pastelová žltá
   "#8fc4ba", // So — pastelová tyrkysová
   "#8fb0d4", // Ne — pastelová modrá
+];
+const DAY_COLORS_GRADIENT = [
+  "#8b5cf6", // Po — fialová
+  "#ec4899", // Ut — ružová
+  "#fb7185", // St — koralová
+  "#f97316", // Št — oranžová
+  "#eab308", // Pi — žltá
+  "#14b8a6", // So — tyrkysová
+  "#3b82f6", // Ne — modrá
 ];
 
 function genId() { return Math.random().toString(36).slice(2, 10); }
@@ -140,8 +149,12 @@ export default function WeeklyPlanPage() {
 
   const MIN_DAILY_ROWS = isMobile ? 5 : 15;
 
-  const surface = darkMode ? theme.card : "#fffdf8";
-  const lineColor = darkMode ? theme.border : "#e8dcc8";
+  // ── prepínač vzhľadu: "papierový plánovač" (krémové farby, pastelové pásiky) vs. "gradient" (pôvodný štýl) ──
+  const [paperStyle, setPaperStyle] = useState(true);
+  const DAY_COLORS = paperStyle ? DAY_COLORS_PAPER : DAY_COLORS_GRADIENT;
+
+  const surface = (darkMode || !paperStyle) ? theme.card : "#fffdf8";
+  const lineColor = (darkMode || !paperStyle) ? theme.border : "#e8dcc8";
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
@@ -397,11 +410,8 @@ export default function WeeklyPlanPage() {
   const jumpToWeekOf = (d: Date) => setWeekStart(getMonday(d));
 
   return (
-    <div style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "20px 20px 80px", display: "flex", flexDirection: "column", gap: 18, background: darkMode ? theme.bg : "#fdf8f0", color: theme.text, fontFamily: "var(--font-geist-sans)" }}>
+    <div style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "20px 20px 80px", display: "flex", flexDirection: "column", gap: 18, background: (darkMode || !paperStyle) ? theme.bg : "#fdf8f0", color: theme.text, fontFamily: "var(--font-geist-sans)" }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Patrick+Hand&display=swap');
-        .wp-handwritten { font-family: 'Caveat', cursive; }
-        .wp-handwritten-alt { font-family: 'Patrick Hand', cursive; }
         @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
         @keyframes wpFadeIn{from{opacity:0}to{opacity:1}}
         @keyframes wpPopIn{from{opacity:0;transform:scale(.95) translateY(4px)}to{opacity:1;transform:scale(1) translateY(0)}}
@@ -438,7 +448,7 @@ export default function WeeklyPlanPage() {
       }}>
         <div>
           <div className="wp-banner-label" style={{ fontSize: 11, fontWeight: 800, letterSpacing: "2px", opacity: 0.85, textTransform: "uppercase" }}>Týždenný plán</div>
-          <div className="wp-banner-range wp-handwritten" style={{ fontSize: 26, fontWeight: 700, marginTop: 0 }}>{rangeLabel}</div>
+          <div className="wp-banner-range" style={{ fontSize: 18, fontWeight: 900, marginTop: 2 }}>{rangeLabel}</div>
         </div>
         <div className="wp-banner-nav" style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <button onClick={() => setWeekStart(addDays(weekStart, -7))} style={{ width: 32, height: 32, borderRadius: 9, background: "rgba(255,255,255,0.18)", border: "none", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -453,6 +463,36 @@ export default function WeeklyPlanPage() {
         </div>
       </div>
 
+      {/* ── PREPÍNAČ VZHĽADU: Papierový plánovač vs. Gradient (pôvodný) štýl ── */}
+      <div style={{ display: "flex", alignItems: "center", gap: 6, alignSelf: "flex-start", background: theme.card2, borderRadius: 10, padding: 3, flexShrink: 0 }}>
+        <button
+          onClick={() => setPaperStyle(true)}
+          style={{
+            padding: "6px 14px", borderRadius: 8, border: "none", cursor: "pointer",
+            fontSize: 12, fontWeight: 700, fontFamily: "var(--font-geist-sans)",
+            background: paperStyle ? surface : "transparent",
+            color: paperStyle ? theme.text : theme.muted,
+            boxShadow: paperStyle ? "0 1px 3px rgba(0,0,0,0.08)" : "none",
+            transition: "all .15s ease",
+          }}
+        >
+          Papierový
+        </button>
+        <button
+          onClick={() => setPaperStyle(false)}
+          style={{
+            padding: "6px 14px", borderRadius: 8, border: "none", cursor: "pointer",
+            fontSize: 12, fontWeight: 700, fontFamily: "var(--font-geist-sans)",
+            background: !paperStyle ? theme.card : "transparent",
+            color: !paperStyle ? theme.text : theme.muted,
+            boxShadow: !paperStyle ? "0 1px 3px rgba(0,0,0,0.08)" : "none",
+            transition: "all .15s ease",
+          }}
+        >
+          Gradient
+        </button>
+      </div>
+
       {/* ── MESAČNÝ KALENDÁR (vľavo) + DNI TÝŽDŇA (vpravo) — vedľa seba ── */}
       <div style={{ display: "flex", gap: 14, alignItems: "flex-start", flexWrap: isMobile ? "wrap" : "nowrap", flexShrink: 0 }}>
 
@@ -462,7 +502,7 @@ export default function WeeklyPlanPage() {
         {/* Mesačný kalendár so zvýrazneným aktuálnym týždňom */}
         <div style={{ background: surface, borderRadius: 20, border: `1px solid ${lineColor}`, boxShadow: "0 1px 3px rgba(0,0,0,0.04)", padding: isMobile ? 10 : 14, flexShrink: 0, width: isMobile ? "100%" : 340 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-            <div className="wp-handwritten" style={{ fontSize: isMobile ? 17 : 19, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{MONTHS_NOM[viewMonth.getMonth()]} {viewMonth.getFullYear()}</div>
+            <div style={{ fontSize: isMobile ? 11 : 12.5, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{MONTHS_NOM[viewMonth.getMonth()]} {viewMonth.getFullYear()}</div>
             <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
               <button onClick={() => setViewMonth(new Date(viewMonth.getFullYear(), viewMonth.getMonth() - 1, 1))} style={{ width: isMobile ? 18 : 22, height: isMobile ? 18 : 22, borderRadius: 6, background: theme.card2, border: `1px solid ${lineColor}`, color: theme.muted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
@@ -517,8 +557,8 @@ export default function WeeklyPlanPage() {
       {/* ── HABIT TRACKER GRID ── */}
       <div style={{ background: surface, borderRadius: 20, border: `1px solid ${lineColor}`, boxShadow: "0 1px 3px rgba(0,0,0,0.04)", overflow: "hidden", flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", borderBottom: `1px solid ${lineColor}`, flexWrap: "wrap", gap: 8 }}>
-          <div className="wp-handwritten" style={{ fontSize: 20, fontWeight: 700, color: theme.text, display: "flex", alignItems: "center", gap: 7 }}>
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke={appliedA} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+          <div style={{ fontSize: 13.5, fontWeight: 700, color: theme.text, display: "flex", alignItems: "center", gap: 7 }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={appliedA} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
             Opakujúce sa činnosti
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -634,8 +674,8 @@ export default function WeeklyPlanPage() {
       {/* ── TODO LIST ── */}
       <div style={{ background: surface, borderRadius: 20, border: `1px solid ${lineColor}`, boxShadow: "0 1px 3px rgba(0,0,0,0.04)", padding: 20, display: "flex", flexDirection: "column", gap: 12, position: "relative", flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div className="wp-handwritten" style={{ fontSize: 20, fontWeight: 700, color: theme.text, display: "flex", alignItems: "center", gap: 7 }}>
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke={appliedA} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          <div style={{ fontSize: 13.5, fontWeight: 700, color: theme.text, display: "flex", alignItems: "center", gap: 7 }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={appliedA} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
             To-do list týždňa
           </div>
           <div style={{ fontSize: 11, fontWeight: 700, color: appliedA }}>{todoPct}%</div>
@@ -685,7 +725,7 @@ export default function WeeklyPlanPage() {
           {/* nadpis na rovnakej výške ako "Jún 2026" v kalendári vedľa */}
           <div style={{ padding: isMobile ? "10px 12px 0" : "14px 14px 0", flexShrink: 0 }}>
             <div style={{ height: isMobile ? 18 : 22, marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <span className="wp-handwritten" style={{ fontSize: isMobile ? 18 : 21, fontWeight: 700, color: theme.text, letterSpacing: "0.3px" }}>Prehľad týždňa</span>
+              <span style={{ fontSize: isMobile ? 11 : 12.5, fontWeight: 700, color: theme.muted, letterSpacing: "0.3px" }}>Prehľad týždňa</span>
             </div>
             <div style={{ fontSize: isMobile ? 8 : 9, padding: "1px 0", visibility: "hidden" }}>.</div>
           </div>
@@ -707,7 +747,8 @@ export default function WeeklyPlanPage() {
                   <div key={"day" + i} style={{ borderBottom: isLastDay ? "none" : `1px solid ${lineColor}`, background: "transparent" }}>
                     {/* deň header */}
                     <div style={{ padding: "10px 12px", display: "flex", alignItems: "baseline", justifyContent: "space-between", borderBottom: `2px solid ${today ? appliedA : dayColor}`, background: today ? appliedA + "08" : "transparent" }}>
-                      <span className="wp-handwritten" style={{ fontSize: 22, fontWeight: 700, color: today ? appliedA : dayColor }}>
+                      <span style={{ fontSize: 12.5, fontWeight: 800, color: theme.text, display: "flex", alignItems: "center", gap: 6 }}>
+                        <span style={{ width: 6, height: 6, borderRadius: "50%", background: today ? appliedA : dayColor, flexShrink: 0 }} />
                         {DAY_LONG[i]}
                       </span>
                       <span style={{ fontSize: 10, color: theme.muted, fontWeight: 600 }}>{d.getDate()}.{d.getMonth() + 1}.</span>
@@ -715,7 +756,7 @@ export default function WeeklyPlanPage() {
 
                     {/* Hlavná úloha */}
                     <div style={{ padding: "6px 12px" }}>
-                      <div className="wp-handwritten-alt" style={{ fontSize: 13, fontWeight: 400, color: "#fff", textTransform: "none", letterSpacing: "0.3px", padding: "4px 10px", textAlign: "left", background: dayColor, borderRadius: 8, marginBottom: 6 }}>Hlavná úloha</div>
+                      <div style={{ fontSize: paperStyle ? 8 : 9.5, fontWeight: paperStyle ? 800 : 700, color: paperStyle ? "#fff" : theme.muted, textTransform: "uppercase", letterSpacing: paperStyle ? "1px" : "0.4px", padding: paperStyle ? "4px 10px" : "0 0 4px", textAlign: "left", background: paperStyle ? dayColor : "transparent", borderBottom: paperStyle ? "none" : `2px solid ${dayColor}55`, borderRadius: paperStyle ? 8 : 0, marginBottom: 6 }}>Hlavná úloha</div>
                       {isEditing ? (
                         <input
                           autoFocus
@@ -735,7 +776,7 @@ export default function WeeklyPlanPage() {
 
                     {/* Udalosť */}
                     <div style={{ padding: "6px 12px", position: "relative" }}>
-                      <div className="wp-handwritten-alt" style={{ fontSize: 13, fontWeight: 400, color: "#fff", textTransform: "none", letterSpacing: "0.3px", padding: "4px 10px", textAlign: "left", background: dayColor, borderRadius: 8, marginBottom: 6 }}>Udalosť</div>
+                      <div style={{ fontSize: paperStyle ? 8 : 9.5, fontWeight: paperStyle ? 800 : 700, color: paperStyle ? "#fff" : theme.muted, textTransform: "uppercase", letterSpacing: paperStyle ? "1px" : "0.4px", padding: paperStyle ? "4px 10px" : "0 0 4px", textAlign: "left", background: paperStyle ? dayColor : "transparent", borderBottom: paperStyle ? "none" : `2px solid ${dayColor}55`, borderRadius: paperStyle ? 8 : 0, marginBottom: 6 }}>Udalosť</div>
                       {dayEvents.length === 0 ? (
                         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                           <span style={{ fontSize: 11, color: theme.muted }}>—</span>
@@ -793,7 +834,7 @@ export default function WeeklyPlanPage() {
 
                     {/* Úlohy dňa */}
                     <div style={{ padding: "6px 12px 12px" }}>
-                      <div className="wp-handwritten-alt" style={{ fontSize: 13, fontWeight: 400, color: "#fff", textTransform: "none", letterSpacing: "0.3px", padding: "4px 10px", textAlign: "left", background: dayColor, borderRadius: 8, marginBottom: 6 }}>Úlohy dňa</div>
+                      <div style={{ fontSize: paperStyle ? 8 : 9.5, fontWeight: paperStyle ? 800 : 700, color: paperStyle ? "#fff" : theme.muted, textTransform: "uppercase", letterSpacing: paperStyle ? "1px" : "0.4px", padding: paperStyle ? "4px 10px" : "0 0 4px", textAlign: "left", background: paperStyle ? dayColor : "transparent", borderBottom: paperStyle ? "none" : `2px solid ${dayColor}55`, borderRadius: paperStyle ? 8 : 0, marginBottom: 6 }}>Úlohy dňa</div>
                       <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
                         {dayTodos.map(t => (
                           <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -853,7 +894,8 @@ export default function WeeklyPlanPage() {
                   borderLeft: i === 0 ? "none" : `1px solid ${lineColor}`,
                   background: today ? appliedA + "08" : "transparent",
                 }}>
-                  <div className="wp-handwritten" style={{ fontSize: isMobile ? 16 : 19, fontWeight: 700, color: today ? appliedA : dayColor, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <div style={{ fontSize: isMobile ? 10.5 : 11.5, fontWeight: 700, color: theme.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
+                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: today ? appliedA : dayColor, flexShrink: 0 }} />
                     {isMobile ? DAY_SHORT[i] : DAY_LONG[i]}
                   </div>
                   <div style={{ fontSize: isMobile ? 8.5 : 9.5, color: theme.muted, fontWeight: 600, marginTop: 2 }}>{d.getDate()}.{d.getMonth() + 1}.</div>
@@ -875,7 +917,7 @@ export default function WeeklyPlanPage() {
                   background: today ? appliedA + "08" : "transparent",
                   minHeight: isMobile ? 48 : 58,
                 }}>
-                  <div className="wp-handwritten-alt" style={{ fontSize: 12.5, fontWeight: 400, color: "#fff", padding: "4px 8px", textAlign: "left", background: dayColor, borderRadius: 7, marginBottom: 6 }}>
+                  <div style={{ fontSize: paperStyle ? 8 : 9.5, fontWeight: paperStyle ? 800 : 700, color: paperStyle ? "#fff" : theme.muted, textTransform: "uppercase", letterSpacing: paperStyle ? "1px" : "0.4px", padding: paperStyle ? "4px 8px" : "0 0 4px", textAlign: "left", background: paperStyle ? dayColor : "transparent", borderBottom: paperStyle ? "none" : `2px solid ${dayColor}55`, borderRadius: paperStyle ? 7 : 0, marginBottom: 6 }}>
                     Hlavná úloha
                   </div>
                   {isEditing ? (
@@ -920,7 +962,7 @@ export default function WeeklyPlanPage() {
                   minHeight: isMobile ? 44 : 54,
                   display: "flex", flexDirection: "column",
                 }}>
-                  <div className="wp-handwritten-alt" style={{ fontSize: 12.5, fontWeight: 400, color: "#fff", padding: "4px 8px", textAlign: "left", background: dayColor, borderRadius: 7, marginBottom: 6, flexShrink: 0 }}>
+                  <div style={{ fontSize: paperStyle ? 8 : 9.5, fontWeight: paperStyle ? 800 : 700, color: paperStyle ? "#fff" : theme.muted, textTransform: "uppercase", letterSpacing: paperStyle ? "1px" : "0.4px", padding: paperStyle ? "4px 8px" : "0 0 4px", textAlign: "left", background: paperStyle ? dayColor : "transparent", borderBottom: paperStyle ? "none" : `2px solid ${dayColor}55`, borderRadius: paperStyle ? 7 : 0, marginBottom: 6, flexShrink: 0 }}>
                     Udalosť
                   </div>
                   <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
@@ -1022,7 +1064,7 @@ export default function WeeklyPlanPage() {
                   background: today ? appliedA + "08" : "transparent",
                   display: "flex", flexDirection: "column", minHeight: isMobile ? 50 : 60,
                 }}>
-                  <div className="wp-handwritten-alt" style={{ fontSize: 12.5, fontWeight: 400, color: "#fff", padding: "4px 8px", textAlign: "left", background: dayColor, borderRadius: 7, marginBottom: 6, flexShrink: 0 }}>
+                  <div style={{ fontSize: paperStyle ? 8 : 9.5, fontWeight: paperStyle ? 800 : 700, color: paperStyle ? "#fff" : theme.muted, textTransform: "uppercase", letterSpacing: paperStyle ? "1px" : "0.4px", padding: paperStyle ? "4px 8px" : "0 0 4px", textAlign: "left", background: paperStyle ? dayColor : "transparent", borderBottom: paperStyle ? "none" : `2px solid ${dayColor}55`, borderRadius: paperStyle ? 7 : 0, marginBottom: 6, flexShrink: 0 }}>
                     Úlohy dňa
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1 }}>
