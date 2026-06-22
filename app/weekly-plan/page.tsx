@@ -150,7 +150,16 @@ export default function WeeklyPlanPage() {
   const MIN_DAILY_ROWS = isMobile ? 5 : 15;
 
   // ── prepínač vzhľadu: "papierový plánovač" (krémové farby, pastelové pásiky) vs. "gradient" (pôvodný štýl) ──
+  // hodnota sa ukladá do localStorage, aby appka pamätala voľbu aj po znovunačítaní stránky
   const [paperStyle, setPaperStyle] = useState(true);
+  useEffect(() => {
+    const saved = window.localStorage.getItem("wp-paper-style");
+    if (saved !== null) setPaperStyle(saved === "true");
+  }, []);
+  const togglePaperStyle = (value: boolean) => {
+    setPaperStyle(value);
+    window.localStorage.setItem("wp-paper-style", String(value));
+  };
   const DAY_COLORS = paperStyle ? DAY_COLORS_PAPER : DAY_COLORS_GRADIENT;
 
   const surface = (darkMode || !paperStyle) ? theme.card : "#fffdf8";
@@ -466,7 +475,7 @@ export default function WeeklyPlanPage() {
       {/* ── PREPÍNAČ VZHĽADU: Papierový plánovač vs. Gradient (pôvodný) štýl ── */}
       <div style={{ display: "flex", alignItems: "center", gap: 6, alignSelf: "flex-start", background: theme.card2, borderRadius: 10, padding: 3, flexShrink: 0 }}>
         <button
-          onClick={() => setPaperStyle(true)}
+          onClick={() => togglePaperStyle(true)}
           style={{
             padding: "6px 14px", borderRadius: 8, border: "none", cursor: "pointer",
             fontSize: 12, fontWeight: 700, fontFamily: "var(--font-geist-sans)",
@@ -479,7 +488,7 @@ export default function WeeklyPlanPage() {
           Papierový
         </button>
         <button
-          onClick={() => setPaperStyle(false)}
+          onClick={() => togglePaperStyle(false)}
           style={{
             padding: "6px 14px", borderRadius: 8, border: "none", cursor: "pointer",
             fontSize: 12, fontWeight: 700, fontFamily: "var(--font-geist-sans)",
