@@ -37,15 +37,15 @@ const LOGO_PALETTE = [
   { id: "blue", label: "Modrá", value: "#3b82f6" },
 ];
 
-// ── Farba pre každý deň v týždni (Po → Ne) v habit trackeri — 7 farieb z palety loga + 1 navyše ──
+// ── Farba pre každý deň v týždni (Po → Ne) v habit trackeri — pastelová paleta v štýle papierového plánovača ──
 const DAY_COLORS = [
-  "#8b5cf6", // Po — fialová
-  "#ec4899", // Ut — ružová
-  "#fb7185", // St — koralová
-  "#f97316", // Št — oranžová
-  "#eab308", // Pi — žltá
-  "#14b8a6", // So — tyrkysová
-  "#3b82f6", // Ne — modrá
+  "#b399d4", // Po — pastelová fialová
+  "#e8a0bb", // Ut — pastelová ružová
+  "#e8a3a3", // St — pastelová koralová
+  "#e8b08a", // Št — pastelová oranžová
+  "#e0c777", // Pi — pastelová žltá
+  "#8fc4ba", // So — pastelová tyrkysová
+  "#8fb0d4", // Ne — pastelová modrá
 ];
 
 function genId() { return Math.random().toString(36).slice(2, 10); }
@@ -140,8 +140,8 @@ export default function WeeklyPlanPage() {
 
   const MIN_DAILY_ROWS = isMobile ? 5 : 15;
 
-  const surface = theme.card;
-  const lineColor = theme.border;
+  const surface = darkMode ? theme.card : "#fffdf8";
+  const lineColor = darkMode ? theme.border : "#e8dcc8";
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
@@ -397,7 +397,7 @@ export default function WeeklyPlanPage() {
   const jumpToWeekOf = (d: Date) => setWeekStart(getMonday(d));
 
   return (
-    <div style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "20px 20px 80px", display: "flex", flexDirection: "column", gap: 18, background: theme.bg, color: theme.text, fontFamily: "var(--font-geist-sans)" }}>
+    <div style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "20px 20px 80px", display: "flex", flexDirection: "column", gap: 18, background: darkMode ? theme.bg : "#fdf8f0", color: theme.text, fontFamily: "var(--font-geist-sans)" }}>
       <style>{`
         @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
         @keyframes wpFadeIn{from{opacity:0}to{opacity:1}}
