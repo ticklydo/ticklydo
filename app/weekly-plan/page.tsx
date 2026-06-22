@@ -710,7 +710,7 @@ export default function WeeklyPlanPage() {
 
                     {/* Hlavná úloha */}
                     <div style={{ padding: "6px 12px" }}>
-                      <div style={{ fontSize: 8, fontWeight: 800, color: "#fff", textTransform: "uppercase", letterSpacing: "1px", textAlign: "center", padding: "3px 4px", background: "#f4a45c", margin: "-6px -12px 6px" }}>Hlavná úloha</div>
+                      <div style={{ fontSize: 8, fontWeight: 800, color: "#fff", textTransform: "uppercase", letterSpacing: "1px", textAlign: "center", padding: "3px 4px", background: dayColor, margin: "-6px -12px 6px" }}>Hlavná úloha</div>
                       {isEditing ? (
                         <input
                           autoFocus
@@ -730,7 +730,7 @@ export default function WeeklyPlanPage() {
 
                     {/* Udalosť */}
                     <div style={{ padding: "6px 12px", position: "relative" }}>
-                      <div style={{ fontSize: 8, fontWeight: 800, color: "#fff", textTransform: "uppercase", letterSpacing: "1px", textAlign: "center", padding: "3px 4px", background: "#f0a3a8", margin: "-6px -12px 6px" }}>Udalosť</div>
+                      <div style={{ fontSize: 8, fontWeight: 800, color: "#fff", textTransform: "uppercase", letterSpacing: "1px", textAlign: "center", padding: "3px 4px", background: dayColor, margin: "-6px -12px 6px" }}>Udalosť</div>
                       {dayEvents.length === 0 ? (
                         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                           <span style={{ fontSize: 11, color: theme.muted }}>—</span>
@@ -788,7 +788,7 @@ export default function WeeklyPlanPage() {
 
                     {/* Úlohy dňa */}
                     <div style={{ padding: "6px 12px 12px" }}>
-                      <div style={{ fontSize: 8, fontWeight: 800, color: "#fff", textTransform: "uppercase", letterSpacing: "1px", textAlign: "center", padding: "3px 4px", background: "#e8a87c", margin: "-6px -12px 6px" }}>Úlohy dňa</div>
+                      <div style={{ fontSize: 8, fontWeight: 800, color: "#fff", textTransform: "uppercase", letterSpacing: "1px", textAlign: "center", padding: "3px 4px", background: dayColor, margin: "-6px -12px 6px" }}>Úlohy dňa</div>
                       <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
                         {dayTodos.map(t => (
                           <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -859,6 +859,7 @@ export default function WeeklyPlanPage() {
               const dateStr = toDateStr(d);
               const isEditing = editingDate === dateStr;
               const today = isToday(d);
+              const dayColor = DAY_COLORS[i];
               return (
                 <div key={"m" + i} style={{
                   padding: isMobile ? 4 : 6,
@@ -867,7 +868,7 @@ export default function WeeklyPlanPage() {
                   background: today ? appliedA + "08" : "transparent",
                   minHeight: isMobile ? 48 : 58,
                 }}>
-                  <div style={{ fontSize: isMobile ? 7.5 : 8, fontWeight: 800, color: "#fff", textTransform: "uppercase", letterSpacing: "1px", padding: "3px 4px", textAlign: "center", background: "#f4a45c", margin: isMobile ? "-4px -4px 4px" : "-6px -6px 4px" }}>
+                  <div style={{ fontSize: isMobile ? 7.5 : 8, fontWeight: 800, color: "#fff", textTransform: "uppercase", letterSpacing: "1px", padding: "3px 4px", textAlign: "center", background: dayColor, margin: isMobile ? "-4px -4px 4px" : "-6px -6px 4px" }}>
                     Hlavná úloha
                   </div>
                   {isEditing ? (
@@ -901,6 +902,7 @@ export default function WeeklyPlanPage() {
               const dayEvents = eventsForDate(dateStr);
               const today = isToday(d);
               const isAdding = addEventForDate === dateStr;
+              const dayColor = DAY_COLORS[i];
               return (
                 <div key={"e" + i} style={{
                   position: "relative",
@@ -911,7 +913,7 @@ export default function WeeklyPlanPage() {
                   minHeight: isMobile ? 44 : 54,
                   display: "flex", flexDirection: "column",
                 }}>
-                  <div style={{ fontSize: isMobile ? 7.5 : 8, fontWeight: 800, color: "#fff", textTransform: "uppercase", letterSpacing: "1px", padding: "3px 4px", textAlign: "center", background: "#f0a3a8", margin: isMobile ? "-4px -4px 4px" : "-6px -6px 4px", flexShrink: 0 }}>
+                  <div style={{ fontSize: isMobile ? 7.5 : 8, fontWeight: 800, color: "#fff", textTransform: "uppercase", letterSpacing: "1px", padding: "3px 4px", textAlign: "center", background: dayColor, margin: isMobile ? "-4px -4px 4px" : "-6px -6px 4px", flexShrink: 0 }}>
                     Udalosť
                   </div>
                   <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
@@ -1005,6 +1007,7 @@ export default function WeeklyPlanPage() {
               const activeRow = activeDailyRow[dateStr] ?? null;
               // počet prázdnych riadkov pripravených navyše (vždy aspoň MIN_DAILY_ROWS, alebo viac ak si aktívny riadok presahuje za hranicu)
               const emptyRowsCount = Math.max(MIN_DAILY_ROWS - dayTodos.length, activeRow !== null ? activeRow - dayTodos.length + 1 : 0);
+              const dayColor = DAY_COLORS[i];
               return (
                 <div key={"dt" + i} style={{
                   padding: isMobile ? "4px 4px" : "6px 6px",
@@ -1012,7 +1015,7 @@ export default function WeeklyPlanPage() {
                   background: today ? appliedA + "08" : "transparent",
                   display: "flex", flexDirection: "column", minHeight: isMobile ? 50 : 60,
                 }}>
-                  <div style={{ fontSize: isMobile ? 7.5 : 8, fontWeight: 800, color: "#fff", textTransform: "uppercase", letterSpacing: "1px", padding: "3px 4px", textAlign: "center", background: "#e8a87c", margin: isMobile ? "-4px -4px 4px" : "-6px -6px 4px", flexShrink: 0 }}>
+                  <div style={{ fontSize: isMobile ? 7.5 : 8, fontWeight: 800, color: "#fff", textTransform: "uppercase", letterSpacing: "1px", padding: "3px 4px", textAlign: "center", background: dayColor, margin: isMobile ? "-4px -4px 4px" : "-6px -6px 4px", flexShrink: 0 }}>
                     Úlohy dňa
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1 }}>
