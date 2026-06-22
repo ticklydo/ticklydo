@@ -457,7 +457,7 @@ export default function WeeklyPlanPage() {
         <div style={{ display: "flex", flexDirection: "column", gap: 14, flexShrink: 0, width: isMobile ? "100%" : 340 }}>
 
         {/* Mesačný kalendár so zvýrazneným aktuálnym týždňom */}
-        <div style={{ background: surface, borderRadius: 16, border: `1px solid ${lineColor}`, padding: isMobile ? 10 : 14, flexShrink: 0, width: isMobile ? "100%" : 340 }}>
+        <div style={{ background: surface, borderRadius: 16, border: `1px solid ${lineColor}`, boxShadow: "0 1px 3px rgba(0,0,0,0.04)", padding: isMobile ? 10 : 14, flexShrink: 0, width: isMobile ? "100%" : 340 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
             <div style={{ fontSize: isMobile ? 11 : 12.5, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{MONTHS_NOM[viewMonth.getMonth()]} {viewMonth.getFullYear()}</div>
             <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
@@ -512,9 +512,9 @@ export default function WeeklyPlanPage() {
       <div className="wp-bottom-row" style={{ display: "flex", flexDirection: "column", gap: 14, flexShrink: 0, width: isMobile ? "100%" : 340 }}>
 
       {/* ── HABIT TRACKER GRID ── */}
-      <div style={{ background: surface, borderRadius: 14, border: `1px solid ${lineColor}`, overflow: "hidden", flexShrink: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderBottom: `1px solid ${lineColor}`, flexWrap: "wrap", gap: 8 }}>
-          <div style={{ fontSize: 13, fontWeight: 800, display: "flex", alignItems: "center", gap: 7 }}>
+      <div style={{ background: surface, borderRadius: 16, border: `1px solid ${lineColor}`, boxShadow: "0 1px 3px rgba(0,0,0,0.04)", overflow: "hidden", flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", borderBottom: `1px solid ${lineColor}`, flexWrap: "wrap", gap: 8 }}>
+          <div style={{ fontSize: 13.5, fontWeight: 700, color: theme.text, display: "flex", alignItems: "center", gap: 7 }}>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={appliedA} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
             Opakujúce sa činnosti
           </div>
@@ -629,13 +629,13 @@ export default function WeeklyPlanPage() {
       </div>
 
       {/* ── TODO LIST ── */}
-      <div style={{ background: surface, borderRadius: 14, border: `1px solid ${lineColor}`, padding: 18, display: "flex", flexDirection: "column", gap: 12, position: "relative", flexShrink: 0 }}>
+      <div style={{ background: surface, borderRadius: 16, border: `1px solid ${lineColor}`, boxShadow: "0 1px 3px rgba(0,0,0,0.04)", padding: 20, display: "flex", flexDirection: "column", gap: 12, position: "relative", flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ fontSize: 13, fontWeight: 800, display: "flex", alignItems: "center", gap: 7 }}>
+          <div style={{ fontSize: 13.5, fontWeight: 700, color: theme.text, display: "flex", alignItems: "center", gap: 7 }}>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={appliedA} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
             To-do list týždňa
           </div>
-          <div style={{ fontSize: 11, fontWeight: 800, color: appliedA }}>{todoPct}%</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: appliedA }}>{todoPct}%</div>
         </div>
 
         <div style={{ height: 6, borderRadius: 3, background: lineColor, overflow: "hidden" }}>
@@ -678,11 +678,11 @@ export default function WeeklyPlanPage() {
       </div>
 
         {/* Dni týždňa: Po–Ne ako STĹPCE, priorita + udalosti ako riadky */}
-        <div className="wp-scroll" style={{ flex: isMobile ? "1 1 100%" : 1, width: isMobile ? "100%" : "auto", minWidth: 0, overflowX: "auto", background: surface, borderRadius: 12, border: `1px solid ${lineColor}`, display: "flex", flexDirection: "column" }}>
+        <div className="wp-scroll" style={{ flex: isMobile ? "1 1 100%" : 1, width: isMobile ? "100%" : "auto", minWidth: 0, overflowX: "auto", background: surface, borderRadius: 16, border: `1px solid ${lineColor}`, boxShadow: "0 1px 3px rgba(0,0,0,0.04)", display: "flex", flexDirection: "column" }}>
           {/* nadpis na rovnakej výške ako "Jún 2026" v kalendári vedľa */}
           <div style={{ padding: isMobile ? "10px 12px 0" : "14px 14px 0", flexShrink: 0 }}>
             <div style={{ height: isMobile ? 18 : 22, marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <span style={{ fontSize: isMobile ? 11 : 12.5, fontWeight: 800 }}>Prehľad týždňa</span>
+              <span style={{ fontSize: isMobile ? 11 : 12.5, fontWeight: 700, color: theme.muted, letterSpacing: "0.3px" }}>Prehľad týždňa</span>
             </div>
             <div style={{ fontSize: isMobile ? 8 : 9, padding: "1px 0", visibility: "hidden" }}>.</div>
           </div>
@@ -701,16 +701,19 @@ export default function WeeklyPlanPage() {
                 const isLastDay = i === 6;
                 const dayColor = DAY_COLORS[i];
                 return (
-                  <div key={"day" + i} style={{ borderBottom: isLastDay ? "none" : `1px solid ${lineColor}`, background: today ? appliedA + "08" : "transparent" }}>
+                  <div key={"day" + i} style={{ borderBottom: isLastDay ? "none" : `1px solid ${lineColor}`, background: "transparent" }}>
                     {/* deň header */}
-                    <div style={{ padding: "8px 12px", display: "flex", alignItems: "baseline", justifyContent: "space-between", background: today ? appliedA + "22" : dayColor + "1c" }}>
-                      <span style={{ fontSize: 12.5, fontWeight: 800, color: today ? appliedA : dayColor }}>{DAY_LONG[i]}</span>
+                    <div style={{ padding: "10px 12px", display: "flex", alignItems: "baseline", justifyContent: "space-between", borderBottom: `2px solid ${today ? appliedA : dayColor}`, background: today ? appliedA + "08" : "transparent" }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: theme.text, display: "flex", alignItems: "center", gap: 6 }}>
+                        <span style={{ width: 6, height: 6, borderRadius: "50%", background: today ? appliedA : dayColor, flexShrink: 0 }} />
+                        {DAY_LONG[i]}
+                      </span>
                       <span style={{ fontSize: 10, color: theme.muted, fontWeight: 600 }}>{d.getDate()}.{d.getMonth() + 1}.</span>
                     </div>
 
                     {/* Hlavná úloha */}
                     <div style={{ padding: "6px 12px" }}>
-                      <div style={{ fontSize: 8, fontWeight: 800, color: "#fff", textTransform: "uppercase", letterSpacing: "1px", textAlign: "center", padding: "3px 4px", background: dayColor + "cc", margin: "-6px -12px 6px" }}>Hlavná úloha</div>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.4px", padding: "0 0 4px", textAlign: "left", borderBottom: `2px solid ${dayColor}55`, marginBottom: 6 }}>Hlavná úloha</div>
                       {isEditing ? (
                         <input
                           autoFocus
@@ -730,7 +733,7 @@ export default function WeeklyPlanPage() {
 
                     {/* Udalosť */}
                     <div style={{ padding: "6px 12px", position: "relative" }}>
-                      <div style={{ fontSize: 8, fontWeight: 800, color: "#fff", textTransform: "uppercase", letterSpacing: "1px", textAlign: "center", padding: "3px 4px", background: dayColor + "cc", margin: "-6px -12px 6px" }}>Udalosť</div>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.4px", padding: "0 0 4px", textAlign: "left", borderBottom: `2px solid ${dayColor}55`, marginBottom: 6 }}>Udalosť</div>
                       {dayEvents.length === 0 ? (
                         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                           <span style={{ fontSize: 11, color: theme.muted }}>—</span>
@@ -788,7 +791,7 @@ export default function WeeklyPlanPage() {
 
                     {/* Úlohy dňa */}
                     <div style={{ padding: "6px 12px 12px" }}>
-                      <div style={{ fontSize: 8, fontWeight: 800, color: "#fff", textTransform: "uppercase", letterSpacing: "1px", textAlign: "center", padding: "3px 4px", background: dayColor + "cc", margin: "-6px -12px 6px" }}>Úlohy dňa</div>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.4px", padding: "0 0 4px", textAlign: "left", borderBottom: `2px solid ${dayColor}55`, marginBottom: 6 }}>Úlohy dňa</div>
                       <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
                         {dayTodos.map(t => (
                           <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -843,13 +846,16 @@ export default function WeeklyPlanPage() {
               const dayColor = DAY_COLORS[i];
               return (
                 <div key={"h" + i} style={{
-                  padding: isMobile ? "5px 2px" : "7px 4px", textAlign: "center",
-                  borderBottom: `1px solid ${lineColor}`,
+                  padding: isMobile ? "8px 2px" : "10px 4px", textAlign: "center",
+                  borderBottom: `2px solid ${today ? appliedA : dayColor}`,
                   borderLeft: i === 0 ? "none" : `1px solid ${lineColor}`,
-                  background: today ? appliedA + "22" : dayColor + "1c",
+                  background: today ? appliedA + "08" : "transparent",
                 }}>
-                  <div style={{ fontSize: isMobile ? 10.5 : 11.5, fontWeight: 800, color: today ? appliedA : dayColor, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{isMobile ? DAY_SHORT[i] : DAY_LONG[i]}</div>
-                  <div style={{ fontSize: isMobile ? 8.5 : 9.5, color: theme.muted, fontWeight: 600 }}>{d.getDate()}.{d.getMonth() + 1}.</div>
+                  <div style={{ fontSize: isMobile ? 10.5 : 11.5, fontWeight: 700, color: theme.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
+                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: today ? appliedA : dayColor, flexShrink: 0 }} />
+                    {isMobile ? DAY_SHORT[i] : DAY_LONG[i]}
+                  </div>
+                  <div style={{ fontSize: isMobile ? 8.5 : 9.5, color: theme.muted, fontWeight: 600, marginTop: 2 }}>{d.getDate()}.{d.getMonth() + 1}.</div>
                 </div>
               );
             })}
@@ -868,7 +874,7 @@ export default function WeeklyPlanPage() {
                   background: today ? appliedA + "08" : "transparent",
                   minHeight: isMobile ? 48 : 58,
                 }}>
-                  <div style={{ fontSize: isMobile ? 7.5 : 8, fontWeight: 800, color: "#fff", textTransform: "uppercase", letterSpacing: "1px", padding: "3px 4px", textAlign: "center", background: dayColor + "cc", margin: isMobile ? "-4px -4px 4px" : "-6px -6px 4px" }}>
+                  <div style={{ fontSize: 9.5, fontWeight: 700, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.4px", padding: "0 0 4px", textAlign: "left", borderBottom: `2px solid ${dayColor}55`, marginBottom: 6 }}>
                     Hlavná úloha
                   </div>
                   {isEditing ? (
@@ -913,7 +919,7 @@ export default function WeeklyPlanPage() {
                   minHeight: isMobile ? 44 : 54,
                   display: "flex", flexDirection: "column",
                 }}>
-                  <div style={{ fontSize: isMobile ? 7.5 : 8, fontWeight: 800, color: "#fff", textTransform: "uppercase", letterSpacing: "1px", padding: "3px 4px", textAlign: "center", background: dayColor + "cc", margin: isMobile ? "-4px -4px 4px" : "-6px -6px 4px", flexShrink: 0 }}>
+                  <div style={{ fontSize: 9.5, fontWeight: 700, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.4px", padding: "0 0 4px", textAlign: "left", borderBottom: `2px solid ${dayColor}55`, marginBottom: 6, flexShrink: 0 }}>
                     Udalosť
                   </div>
                   <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
@@ -1015,7 +1021,7 @@ export default function WeeklyPlanPage() {
                   background: today ? appliedA + "08" : "transparent",
                   display: "flex", flexDirection: "column", minHeight: isMobile ? 50 : 60,
                 }}>
-                  <div style={{ fontSize: isMobile ? 7.5 : 8, fontWeight: 800, color: "#fff", textTransform: "uppercase", letterSpacing: "1px", padding: "3px 4px", textAlign: "center", background: dayColor + "cc", margin: isMobile ? "-4px -4px 4px" : "-6px -6px 4px", flexShrink: 0 }}>
+                  <div style={{ fontSize: 9.5, fontWeight: 700, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.4px", padding: "0 0 4px", textAlign: "left", borderBottom: `2px solid ${dayColor}55`, marginBottom: 6, flexShrink: 0 }}>
                     Úlohy dňa
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1 }}>
