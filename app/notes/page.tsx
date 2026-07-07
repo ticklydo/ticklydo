@@ -323,7 +323,7 @@ export default function NotesPage() {
             onClick={e => e.stopPropagation()}
             style={{
               background: getCardColor(editColor, darkMode),
-              borderRadius: 16, width: "min(640px, 100%)", maxHeight: "85vh",
+              borderRadius: 16, width: "min(1100px, 94vw)", height: "88vh", maxHeight: "88vh",
               display: "flex", flexDirection: "column",
               boxShadow: "0 24px 60px rgba(0,0,0,0.35)",
               animation: "popIn .18s ease",
@@ -414,12 +414,12 @@ export default function NotesPage() {
                 onChange={e => handleTitleChange(e.target.value)}
                 placeholder="Názov"
                 className="keep-input"
-                style={{ width: "100%", background: "transparent", border: "none", outline: "none", fontSize: 19, fontWeight: 800, color: theme.text, fontFamily: "var(--font-geist-sans)", marginBottom: 12, padding: 0 }}
+                style={{ width: "100%", background: "transparent", border: "none", outline: "none", fontSize: 26, fontWeight: 800, color: theme.text, fontFamily: "var(--font-geist-sans)", marginBottom: 16, padding: 0 }}
               />
               {preview ? (
                 <div
                   className="keep-preview"
-                  style={{ flex: 1, color: theme.text, fontSize: 14, lineHeight: 1.65 }}
+                  style={{ flex: 1, color: theme.text, fontSize: 15.5, lineHeight: 1.7 }}
                   dangerouslySetInnerHTML={{ __html: editContent ? renderMarkdown(editContent) : '<p style="color:' + theme.muted + ';font-style:italic">Prázdna poznámka.</p>' }}
                 />
               ) : (
@@ -428,7 +428,7 @@ export default function NotesPage() {
                   onChange={e => handleContentChange(e.target.value)}
                   placeholder="Napíš niečo..."
                   className="keep-content"
-                  style={{ flex: 1, minHeight: 200, background: "transparent", border: "none", outline: "none", resize: "none", fontSize: 14, lineHeight: 1.65, color: theme.text, fontFamily: "var(--font-geist-sans)", padding: 0 }}
+                  style={{ flex: 1, minHeight: 400, background: "transparent", border: "none", outline: "none", resize: "none", fontSize: 15.5, lineHeight: 1.7, color: theme.text, fontFamily: "var(--font-geist-sans)", padding: 0 }}
                 />
               )}
             </div>
