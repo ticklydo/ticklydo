@@ -131,11 +131,14 @@ export default function NotesPage() {
   const [newImageUrl, setNewImageUrl] = useState("");
   const [uploadingImage, setUploadingImage] = useState(false);
   const [viewingImage, setViewingImage] = useState<string | null>(null);
+  const [imageZoom, setImageZoom] = useState(1);
   const [preview, setPreview] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showFormatHelp, setShowFormatHelp] = useState(false);
   const [saving, setSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const contentTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const [showHeadingMenu, setShowHeadingMenu] = useState(false);
 
   // undo/redo história pre otvorenú poznámku
   const [history, setHistory] = useState<Snapshot[]>([]);
@@ -238,6 +241,50 @@ export default function NotesPage() {
     persistCurrent({ content: value });
     pushHistory({ title: editTitle, content: value, checklist: editChecklist, items: editItems, color: editColor });
   };
+
+  // ── skutočné formátovanie: zabalí vybraný text (alebo vloží na pozíciu kurzora) ──
+  const wrapSelection = (before: string, after: string, placeholder: string) => {
+    const ta = contentTextareaRef.current;
+    if (!ta) { handleContentChange(editContent + before + placeholder + after); return; }
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    const selected = editContent.slice(start, end);
+    const textToWrap = selected || placeholder;
+    const newValue = editContent.slice(0, start) + before + textToWrap + after + editContent.slice(end);
+    handleContentChange(newValue);
+    const cursorStart = start + before.length;
+    const cursorEnd = cursorStart + textToWrap.length;
+    requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(cursorStart, cursorEnd); });
+  };
+
+  // ── vloží prefix na začiatok aktuálneho riadku (nadpisy, odrážky) ──
+  const applyLinePrefix = (prefix: string) => {
+    const ta = contentTextareaRef.current;
+    if (!ta) { handleContentChange(editContent + (editContent && !editContent.endsWith("\n") ? "\n" : "") + prefix); return; }
+    const pos = ta.selectionStart;
+    const lineStart = editContent.lastIndexOf("\n", pos - 1) + 1;
+    let lineEnd = editContent.indexOf("\n", pos);
+    if (lineEnd === -1) lineEnd = editContent.length;
+    const line = editContent.slice(lineStart, lineEnd);
+    // odstráň existujúci nadpis/odrážku prefix, aby sa nekombinovali (## ## text)
+    const cleanLine = line.replace(/^(#{1,3}\s|-\s)/, "");
+    const newLine = prefix + cleanLine;
+    const newValue = editContent.slice(0, lineStart) + newLine + editContent.slice(lineEnd);
+    handleContentChange(newValue);
+    const newCursorPos = lineStart + newLine.length;
+    requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(newCursorPos, newCursorPos); });
+  };
+
+  const insertAtCursor = (text: string) => {
+    const ta = contentTextareaRef.current;
+    if (!ta) { handleContentChange(editContent + text); return; }
+    const pos = ta.selectionStart;
+    const newValue = editContent.slice(0, pos) + text + editContent.slice(pos);
+    handleContentChange(newValue);
+    const newCursorPos = pos + text.length;
+    requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(newCursorPos, newCursorPos); });
+  };
+
   const handleColorChange = (colorId: string) => {
     setEditColor(colorId);
     setShowColorPicker(false);
@@ -524,23 +571,72 @@ export default function NotesPage() {
 
           {!editChecklist && !preview && (
             <div style={{ display: "flex", gap: 4, position: "relative" }}>
-              {[
-                { label: "B", insert: "**tučný text**", title: "Tučné písmo — **text**" },
-                { label: "I", insert: "*kurzíva*", title: "Kurzíva — *text*" },
-                { label: "H", insert: "## ", title: "Nadpis — ## Nadpis (alebo # a ### pre iné veľkosti)" },
-                { label: "—", insert: "\n---\n", title: "Vodorovná čiara — ---" },
-                { label: "•", insert: "- ", title: "Odrážkový zoznam — - položka" },
-                { label: "</>", insert: "`kód`", title: "Kód — `text`" },
-              ].map(btn => (
+              <button
+                title="Tučné písmo — **text** (zabalí výber)"
+                onClick={() => wrapSelection("**", "**", "tučný text")}
+                style={{ padding: "5px 10px", borderRadius: 7, background: "rgba(0,0,0,0.06)", border: "none", color: theme.text, fontSize: 12, fontWeight: 900, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}
+              >
+                B
+              </button>
+              <button
+                title="Kurzíva — *text* (zabalí výber)"
+                onClick={() => wrapSelection("*", "*", "kurzíva")}
+                style={{ padding: "5px 10px", borderRadius: 7, background: "rgba(0,0,0,0.06)", border: "none", color: theme.text, fontSize: 12, fontWeight: 700, fontStyle: "italic", cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}
+              >
+                I
+              </button>
+
+              <div style={{ position: "relative" }}>
                 <button
-                  key={btn.label}
-                  title={btn.title}
-                  onClick={() => handleContentChange(editContent + (editContent && !editContent.endsWith("\n") ? "\n" : "") + btn.insert)}
-                  style={{ padding: "5px 10px", borderRadius: 7, background: "rgba(0,0,0,0.06)", border: "none", color: theme.text, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}
+                  title="Nadpis — vyber veľkosť"
+                  onClick={() => setShowHeadingMenu(v => !v)}
+                  style={{ padding: "5px 10px", borderRadius: 7, background: showHeadingMenu ? appliedA + "22" : "rgba(0,0,0,0.06)", border: "none", color: showHeadingMenu ? appliedA : theme.text, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}
                 >
-                  {btn.label}
+                  H
                 </button>
-              ))}
+                {showHeadingMenu && (
+                  <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, background: surface, border: `1px solid ${lineColor}`, borderRadius: 10, padding: 6, display: "flex", flexDirection: "column", gap: 2, boxShadow: "0 8px 24px rgba(0,0,0,0.2)", zIndex: 20, minWidth: 130 }}>
+                    {[
+                      { label: "Veľký nadpis", prefix: "# ", size: 18 },
+                      { label: "Stredný nadpis", prefix: "## ", size: 15 },
+                      { label: "Malý nadpis", prefix: "### ", size: 13 },
+                    ].map(h => (
+                      <div
+                        key={h.prefix}
+                        onClick={() => { applyLinePrefix(h.prefix); setShowHeadingMenu(false); }}
+                        style={{ padding: "7px 10px", borderRadius: 7, cursor: "pointer", fontSize: h.size, fontWeight: 800, color: theme.text }}
+                        onMouseEnter={e => e.currentTarget.style.background = theme.card2}
+                        onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                      >
+                        {h.label}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <button
+                title="Vodorovná čiara — ---"
+                onClick={() => insertAtCursor("\n---\n")}
+                style={{ padding: "5px 10px", borderRadius: 7, background: "rgba(0,0,0,0.06)", border: "none", color: theme.text, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}
+              >
+                —
+              </button>
+              <button
+                title="Odrážkový zoznam — - položka"
+                onClick={() => applyLinePrefix("- ")}
+                style={{ padding: "5px 10px", borderRadius: 7, background: "rgba(0,0,0,0.06)", border: "none", color: theme.text, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}
+              >
+                •
+              </button>
+              <button
+                title="Kód — `text` (zabalí výber)"
+                onClick={() => wrapSelection("`", "`", "kód")}
+                style={{ padding: "5px 10px", borderRadius: 7, background: "rgba(0,0,0,0.06)", border: "none", color: theme.text, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}
+              >
+                {"</>"}
+              </button>
+
               <button
                 onClick={() => setShowFormatHelp(v => !v)}
                 title="Zobraziť pomocníka formátovania"
@@ -570,7 +666,7 @@ export default function NotesPage() {
                     ))}
                   </div>
                   <div style={{ fontSize: 11, color: theme.muted, marginTop: 10, fontStyle: "italic" }}>
-                    Použi tlačidlá B, I, H, —, •, {"</>"} vyššie na rýchle vloženie, alebo píš syntax priamo.
+                    Označ text a klikni na B, I alebo {"</>"} pre formátovanie výberu. H otvorí výber veľkosti nadpisu. Alebo píš syntax priamo.
                   </div>
                 </div>
               )}
@@ -765,6 +861,7 @@ export default function NotesPage() {
               />
             ) : (
               <textarea
+                ref={contentTextareaRef}
                 value={editContent}
                 onChange={e => handleContentChange(e.target.value)}
                 placeholder="Napíš niečo... (podporuje markdown formátovanie — klikni na ? vyššie pre zoznam)"
@@ -782,7 +879,7 @@ export default function NotesPage() {
                     <img
                       src={url}
                       alt=""
-                      onClick={() => setViewingImage(url)}
+                      onClick={() => { setViewingImage(url); setImageZoom(1); }}
                       style={{ width: "100%", height: 140, objectFit: "cover", display: "block", cursor: "pointer" }}
                     />
                     <div
@@ -858,24 +955,64 @@ export default function NotesPage() {
           </div>
         )}
 
-        {/* ── LIGHTBOX: zväčšený náhľad obrázka ── */}
+        {/* ── LIGHTBOX: zväčšený náhľad obrázka so zoomom ── */}
         {viewingImage && (
           <div
             onClick={() => setViewingImage(null)}
-            style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 1200, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, animation: "fadeIn .15s ease" }}
+            onWheel={e => {
+              e.preventDefault();
+              setImageZoom(z => Math.min(4, Math.max(0.5, z + (e.deltaY < 0 ? 0.15 : -0.15))));
+            }}
+            style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 1200, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, animation: "fadeIn .15s ease", overflow: "hidden" }}
           >
             <button
               onClick={() => setViewingImage(null)}
               title="Zavrieť"
-              style={{ position: "absolute", top: 20, right: 20, width: 38, height: 38, borderRadius: "50%", background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+              style={{ position: "absolute", top: 20, right: 20, width: 38, height: 38, borderRadius: "50%", background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1 }}
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </button>
+
+            {/* Ovládanie zoomu */}
+            <div
+              onClick={e => e.stopPropagation()}
+              style={{ position: "absolute", bottom: 24, left: "50%", transform: "translateX(-50%)", display: "flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,0.12)", borderRadius: 12, padding: 6 }}
+            >
+              <button
+                onClick={() => setImageZoom(z => Math.max(0.5, z - 0.25))}
+                title="Oddialiť"
+                style={{ width: 34, height: 34, borderRadius: 9, background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", cursor: "pointer", fontSize: 18, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}
+              >
+                −
+              </button>
+              <div
+                onClick={() => setImageZoom(1)}
+                title="Obnoviť veľkosť"
+                style={{ minWidth: 48, textAlign: "center", color: "#fff", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}
+              >
+                {Math.round(imageZoom * 100)}%
+              </div>
+              <button
+                onClick={() => setImageZoom(z => Math.min(4, z + 0.25))}
+                title="Priblížiť"
+                style={{ width: 34, height: 34, borderRadius: 9, background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", cursor: "pointer", fontSize: 18, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}
+              >
+                +
+              </button>
+            </div>
+
             <img
               src={viewingImage}
               alt=""
               onClick={e => e.stopPropagation()}
-              style={{ maxWidth: "92vw", maxHeight: "88vh", objectFit: "contain", borderRadius: 8, boxShadow: "0 20px 60px rgba(0,0,0,0.5)" }}
+              onDoubleClick={e => { e.stopPropagation(); setImageZoom(z => z === 1 ? 2 : 1); }}
+              style={{
+                maxWidth: "92vw", maxHeight: "88vh", objectFit: "contain", borderRadius: 8,
+                boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+                transform: `scale(${imageZoom})`,
+                transition: "transform .12s ease",
+                cursor: imageZoom > 1 ? "zoom-out" : "zoom-in",
+              }}
             />
           </div>
         )}
