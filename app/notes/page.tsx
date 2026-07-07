@@ -130,6 +130,7 @@ export default function NotesPage() {
   const [showImageMenu, setShowImageMenu] = useState(false);
   const [newImageUrl, setNewImageUrl] = useState("");
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [viewingImage, setViewingImage] = useState<string | null>(null);
   const [preview, setPreview] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showFormatHelp, setShowFormatHelp] = useState(false);
@@ -778,7 +779,12 @@ export default function NotesPage() {
               <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(3, 1fr)", gap: 10, marginTop: 20 }}>
                 {editImages.map((url, i) => (
                   <div key={i} style={{ position: "relative", borderRadius: 10, overflow: "hidden", border: `1px solid ${dividerColor}` }}>
-                    <img src={url} alt="" style={{ width: "100%", height: 140, objectFit: "cover", display: "block" }} />
+                    <img
+                      src={url}
+                      alt=""
+                      onClick={() => setViewingImage(url)}
+                      style={{ width: "100%", height: 140, objectFit: "cover", display: "block", cursor: "pointer" }}
+                    />
                     <div
                       onClick={() => removeImage(url)}
                       title="Odstrániť obrázok"
@@ -849,6 +855,28 @@ export default function NotesPage() {
                 <button onClick={() => deleteNote(confirmDelete)} style={{ background: "#ef4444", border: "none", borderRadius: 9, padding: "8px 16px", color: "#fff", fontWeight: 800, fontSize: 12.5, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}>Vymazať natrvalo</button>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* ── LIGHTBOX: zväčšený náhľad obrázka ── */}
+        {viewingImage && (
+          <div
+            onClick={() => setViewingImage(null)}
+            style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 1200, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, animation: "fadeIn .15s ease" }}
+          >
+            <button
+              onClick={() => setViewingImage(null)}
+              title="Zavrieť"
+              style={{ position: "absolute", top: 20, right: 20, width: 38, height: 38, borderRadius: "50%", background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+            <img
+              src={viewingImage}
+              alt=""
+              onClick={e => e.stopPropagation()}
+              style={{ maxWidth: "92vw", maxHeight: "88vh", objectFit: "contain", borderRadius: 8, boxShadow: "0 20px 60px rgba(0,0,0,0.5)" }}
+            />
           </div>
         )}
       </div>
