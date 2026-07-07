@@ -137,8 +137,16 @@ export default function Sidebar() {
   const pathname = usePathname();
   const { darkMode, appliedA, appliedB, grad, theme, avatarId } = useTheme();
   const [searchOpen, setSearchOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
   const avatarFn = AVATARS[avatarId] ?? AVATARS.robot;
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth <= 720);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -164,14 +172,14 @@ export default function Sidebar() {
       <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
 
       <aside style={{
-        width: 72,
+        width: isMobile ? 52 : 72,
         background: theme.card,
         borderRight: `1px solid ${theme.border}`,
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
-        padding: "18px 0 24px",
-        gap: 4,
+        padding: isMobile ? "10px 0 14px" : "18px 0 24px",
+        gap: isMobile ? 2 : 4,
         flexShrink: 0,
         transition: "background .3s, border-color .3s",
         zIndex: 50,
@@ -181,8 +189,8 @@ export default function Sidebar() {
           alt="TicklyDo"
           onClick={() => router.push("/home")}
           style={{
-            width: 42, height: 42, borderRadius: 13,
-            marginBottom: 18, cursor: "pointer",
+            width: isMobile ? 32 : 42, height: isMobile ? 32 : 42, borderRadius: isMobile ? 10 : 13,
+            marginBottom: isMobile ? 10 : 18, cursor: "pointer",
             objectFit: "contain",
           }}
         />
@@ -191,7 +199,7 @@ export default function Sidebar() {
           title="Hľadať úlohy (Ctrl+K)"
           onClick={() => setSearchOpen(true)}
           style={{
-            width: 46, height: 46, borderRadius: 13,
+            width: isMobile ? 36 : 46, height: isMobile ? 36 : 46, borderRadius: isMobile ? 10 : 13,
             display: "flex", alignItems: "center", justifyContent: "center",
             cursor: "pointer", border: "none",
             background: "transparent",
@@ -201,12 +209,12 @@ export default function Sidebar() {
           onMouseEnter={e => { e.currentTarget.style.background = theme.card2; e.currentTarget.style.color = appliedA; }}
           onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = theme.muted; }}
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg width={isMobile ? 16 : 20} height={isMobile ? 16 : 20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
           </svg>
         </button>
 
-        <div style={{ width: 36, height: 1, background: theme.border, margin: "2px 0" }} />
+        <div style={{ width: isMobile ? 26 : 36, height: 1, background: theme.border, margin: "2px 0" }} />
 
         {NAV.map((item) => (
           <button
@@ -214,7 +222,7 @@ export default function Sidebar() {
             title={item.label}
             onClick={() => router.push(item.path)}
             style={{
-              width: 46, height: 46, borderRadius: 13,
+              width: isMobile ? 38 : 46, height: isMobile ? 38 : 46, borderRadius: isMobile ? 10 : 13,
               display: "flex", alignItems: "center", justifyContent: "center",
               cursor: "pointer", border: "none",
               background: isActive(item.path) ? theme.card2 : "transparent",
@@ -225,21 +233,21 @@ export default function Sidebar() {
             {isActive(item.path) && (
               <span style={{
                 position: "absolute", left: 0, top: "50%", transform: "translateY(-50%)",
-                width: 3, height: 24, borderRadius: "0 3px 3px 0",
+                width: 3, height: isMobile ? 18 : 24, borderRadius: "0 3px 3px 0",
                 background: grad,
               }} />
             )}
-            {item.svg}
+            <span style={{ display: "flex", transform: isMobile ? "scale(0.8)" : "none" }}>{item.svg}</span>
           </button>
         ))}
 
-        <div style={{ width: 36, height: 1, background: theme.border, margin: "6px 0" }} />
+        <div style={{ width: isMobile ? 26 : 36, height: 1, background: theme.border, margin: "6px 0" }} />
 
         <button
           title="Profil & Nastavenia"
           onClick={() => router.push("/profile")}
           style={{
-            width: 46, height: 46, borderRadius: 13,
+            width: isMobile ? 38 : 46, height: isMobile ? 38 : 46, borderRadius: isMobile ? 10 : 13,
             display: "flex", alignItems: "center", justifyContent: "center",
             cursor: "pointer", border: "none",
             background: isProfileActive() ? theme.card2 : "transparent",
@@ -250,11 +258,11 @@ export default function Sidebar() {
           {isProfileActive() && (
             <span style={{
               position: "absolute", left: 0, top: "50%", transform: "translateY(-50%)",
-              width: 3, height: 24, borderRadius: "0 3px 3px 0",
+              width: 3, height: isMobile ? 18 : 24, borderRadius: "0 3px 3px 0",
               background: grad,
             }} />
           )}
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg width={isMobile ? 16 : 20} height={isMobile ? 16 : 20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="12" cy="8" r="4"/>
             <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
           </svg>
@@ -265,9 +273,9 @@ export default function Sidebar() {
         <div
           onClick={() => router.push("/profile")}
           style={{
-            width: 36, height: 36, borderRadius: "50%",
-            background: grad, padding: 3,
-            cursor: "pointer", marginBottom: 8,
+            width: isMobile ? 28 : 36, height: isMobile ? 28 : 36, borderRadius: "50%",
+            background: grad, padding: isMobile ? 2 : 3,
+            cursor: "pointer", marginBottom: isMobile ? 6 : 8,
             boxShadow: `0 2px 10px ${appliedA}44`,
           }}
           title="Môj profil"
@@ -282,21 +290,21 @@ export default function Sidebar() {
             window.location.href = "/login";
           }}
           style={{
-            width: 46, height: 46, borderRadius: 13,
+            width: isMobile ? 38 : 46, height: isMobile ? 38 : 46, borderRadius: isMobile ? 10 : 13,
             display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-            gap: 3, cursor: "pointer", border: "none",
+            gap: isMobile ? 2 : 3, cursor: "pointer", border: "none",
             background: "transparent", color: theme.muted,
-            fontSize: 10, fontWeight: 700, transition: "color .2s",
+            fontSize: isMobile ? 8.5 : 10, fontWeight: 700, transition: "color .2s",
           }}
           onMouseEnter={e => e.currentTarget.style.color = "#ef4444"}
           onMouseLeave={e => e.currentTarget.style.color = theme.muted}
         >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg width={isMobile ? 15 : 18} height={isMobile ? 15 : 18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
             <polyline points="16 17 21 12 16 7"/>
             <line x1="21" y1="12" x2="9" y2="12"/>
           </svg>
-          Odhlásiť
+          {!isMobile && "Odhlásiť"}
         </button>
       </aside>
     </>
