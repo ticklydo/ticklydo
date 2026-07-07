@@ -28,6 +28,7 @@ type Note = {
   labels: string[];
   checklist: boolean;
   items: ChecklistItem[];
+  images: string[];
   createdAt: number;
   updatedAt: number;
 };
@@ -94,6 +95,7 @@ function normalizeNote(n: any): Note {
     labels: Array.isArray(n.labels) ? n.labels : [],
     checklist: !!n.checklist,
     items: Array.isArray(n.items) ? n.items : [],
+    images: Array.isArray(n.images) ? n.images : [],
     createdAt: n.createdAt || Date.now(), updatedAt: n.updatedAt || Date.now(),
   };
 }
@@ -121,13 +123,18 @@ export default function NotesPage() {
   const [editLabels, setEditLabels] = useState<string[]>([]);
   const [editChecklist, setEditChecklist] = useState(false);
   const [editItems, setEditItems] = useState<ChecklistItem[]>([]);
+  const [editImages, setEditImages] = useState<string[]>([]);
   const [newItemText, setNewItemText] = useState("");
   const [newLabelText, setNewLabelText] = useState("");
   const [showLabelInput, setShowLabelInput] = useState(false);
+  const [showImageMenu, setShowImageMenu] = useState(false);
+  const [newImageUrl, setNewImageUrl] = useState("");
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [preview, setPreview] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showFormatHelp, setShowFormatHelp] = useState(false);
   const [saving, setSaving] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // undo/redo história pre otvorenú poznámku
   const [history, setHistory] = useState<Snapshot[]>([]);
@@ -304,10 +311,78 @@ export default function NotesPage() {
     persistCurrent({ labels: updated });
   };
 
+  const addImageUrl = () => {
+    const val = newImageUrl.trim();
+    if (!val) return;
+    const updated = [...editImages, val];
+    setEditImages(updated);
+    persistCurrent({ images: updated });
+    setNewImageUrl("");
+    setShowImageMenu(false);
+  };
+
+  const removeImage = (url: string) => {
+    const updated = editImages.filter(u => u !== url);
+    setEditImages(updated);
+    persistCurrent({ images: updated });
+  };
+
+  const compressImageToDataUrl = (file: File, maxBytes: number): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const reader = new FileReader();
+      reader.onload = () => {
+        img.onload = () => {
+          const maxDim = 1400;
+          let { width, height } = img;
+          if (width > maxDim || height > maxDim) {
+            const scale = maxDim / Math.max(width, height);
+            width = Math.round(width * scale);
+            height = Math.round(height * scale);
+          }
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) { reject(new Error("Canvas nie je podporovaný")); return; }
+          ctx.drawImage(img, 0, 0, width, height);
+
+          let quality = 0.85;
+          let dataUrl = canvas.toDataURL("image/jpeg", quality);
+          // znižuj kvalitu, kým sa nezmestí pod limit (alebo kým kvalita neklesne príliš nízko)
+          while (dataUrl.length * 0.75 > maxBytes && quality > 0.35) {
+            quality -= 0.1;
+            dataUrl = canvas.toDataURL("image/jpeg", quality);
+          }
+          resolve(dataUrl);
+        };
+        img.onerror = () => reject(new Error("Obrázok sa nepodarilo načítať"));
+        img.src = reader.result as string;
+      };
+      reader.onerror = () => reject(new Error("Súbor sa nepodarilo prečítať"));
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const uploadImageFile = async (file: File) => {
+    if (!openId) return;
+    setUploadingImage(true);
+    try {
+      const dataUrl = await compressImageToDataUrl(file, 150 * 1024);
+      const updated = [...editImages, dataUrl];
+      setEditImages(updated);
+      persistCurrent({ images: updated });
+    } catch (err) {
+      console.error("Chyba pri spracovaní obrázka:", err);
+    }
+    setUploadingImage(false);
+    setShowImageMenu(false);
+  };
+
   const createNote = () => {
     const newNote: Note = {
       id: genId(), title: "", content: "", color: "default",
-      pinned: false, archived: false, labels: [], checklist: false, items: [],
+      pinned: false, archived: false, labels: [], checklist: false, items: [], images: [],
       createdAt: Date.now(), updatedAt: Date.now(),
     };
     const updated = [newNote, ...notes];
@@ -326,9 +401,11 @@ export default function NotesPage() {
     setEditLabels(note.labels || []);
     setEditChecklist(!!note.checklist);
     setEditItems(note.items || []);
+    setEditImages(note.images || []);
     setPreview(false);
     setShowColorPicker(false);
     setShowLabelInput(false);
+    setShowImageMenu(false);
     setHistory([{ title: note.title, content: note.content, checklist: !!note.checklist, items: note.items || [], color: note.color || "default" }]);
     setHistoryIndex(0);
   };
@@ -338,7 +415,7 @@ export default function NotesPage() {
       if (saveTimer.current) clearTimeout(saveTimer.current);
       const updated = sortNotes(notes.map(n => n.id === openId ? {
         ...n, title: editTitle, content: editContent, color: editColor,
-        checklist: editChecklist, items: editItems, labels: editLabels,
+        checklist: editChecklist, items: editItems, labels: editLabels, images: editImages,
         updatedAt: Date.now(),
       } : n));
       setNotes(updated);
@@ -347,6 +424,7 @@ export default function NotesPage() {
     setOpenId(null);
     setShowColorPicker(false);
     setShowFormatHelp(false);
+    setShowImageMenu(false);
   };
 
   const deleteNote = async (id: string) => {
@@ -528,6 +606,55 @@ export default function NotesPage() {
             </button>
           )}
 
+          {/* Obrázok */}
+          <div style={{ position: "relative" }}>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              style={{ display: "none" }}
+              onChange={e => { const f = e.target.files?.[0]; if (f) uploadImageFile(f); e.target.value = ""; }}
+            />
+            <button
+              onClick={() => setShowImageMenu(v => !v)}
+              title="Pridať obrázok"
+              style={{ width: 30, height: 30, borderRadius: 8, background: showImageMenu ? appliedA + "22" : "transparent", border: "none", color: showImageMenu ? appliedA : theme.muted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+            </button>
+            {showImageMenu && (
+              <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, width: 220, maxWidth: "90vw", background: surface, border: `1px solid ${lineColor}`, borderRadius: 12, padding: 12, display: "flex", flexDirection: "column", gap: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.2)", zIndex: 10, boxSizing: "border-box" }}>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploadingImage}
+                  style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 8, background: theme.card2, border: "none", color: theme.text, fontSize: 12.5, fontWeight: 700, cursor: uploadingImage ? "default" : "pointer", fontFamily: "var(--font-geist-sans)" }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  {uploadingImage ? "Nahrávam..." : "Nahrať z počítača"}
+                </button>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <input
+                    value={newImageUrl}
+                    onChange={e => setNewImageUrl(e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter") addImageUrl(); }}
+                    placeholder="URL adresa obrázka"
+                    style={{ flex: 1, minWidth: 0, padding: "7px 9px", borderRadius: 8, border: `1px solid ${lineColor}`, background: "transparent", outline: "none", fontSize: 12, color: theme.text, fontFamily: "var(--font-geist-sans)" }}
+                  />
+                  <button
+                    onClick={addImageUrl}
+                    disabled={!newImageUrl.trim()}
+                    style={{ padding: "7px 10px", borderRadius: 8, background: !newImageUrl.trim() ? lineColor : appliedA, border: "none", color: "#fff", fontSize: 12, fontWeight: 700, cursor: !newImageUrl.trim() ? "default" : "pointer", fontFamily: "var(--font-geist-sans)" }}
+                  >
+                    +
+                  </button>
+                </div>
+                <div style={{ fontSize: 10, color: theme.muted, lineHeight: 1.4 }}>
+                  Fotky sa automaticky zmenšia a skomprimujú (limit úložiska). Pre viac/väčšie fotky použi radšej URL adresu.
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Farba paletka */}
           <div style={{ position: "relative" }}>
             <button
@@ -538,7 +665,7 @@ export default function NotesPage() {
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={theme.muted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>
             </button>
             {showColorPicker && (
-              <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, background: surface, border: `1px solid ${lineColor}`, borderRadius: 12, padding: 10, display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.2)", zIndex: 10 }}>
+              <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, width: 190, maxWidth: "90vw", background: surface, border: `1px solid ${lineColor}`, borderRadius: 12, padding: 10, display: "grid", gridTemplateColumns: "repeat(5, 26px)", justifyContent: "space-between", gap: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.2)", zIndex: 10, boxSizing: "border-box" }}>
                 {NOTE_COLORS.map(c => (
                   <div
                     key={c.id}
@@ -546,9 +673,10 @@ export default function NotesPage() {
                     onClick={() => handleColorChange(c.id)}
                     title={c.id}
                     style={{
-                      width: 26, height: 26, borderRadius: "50%", cursor: "pointer",
+                      width: 26, height: 26, borderRadius: "50%", cursor: "pointer", flexShrink: 0,
                       background: darkMode ? c.dark : c.light,
                       border: editColor === c.id ? `2px solid ${appliedA}` : `1px solid ${lineColor}`,
+                      boxSizing: "border-box",
                     }}
                   />
                 ))}
@@ -645,6 +773,24 @@ export default function NotesPage() {
               />
             )}
 
+            {/* Obrázky */}
+            {editImages.length > 0 && (
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(3, 1fr)", gap: 10, marginTop: 20 }}>
+                {editImages.map((url, i) => (
+                  <div key={i} style={{ position: "relative", borderRadius: 10, overflow: "hidden", border: `1px solid ${dividerColor}` }}>
+                    <img src={url} alt="" style={{ width: "100%", height: 140, objectFit: "cover", display: "block" }} />
+                    <div
+                      onClick={() => removeImage(url)}
+                      title="Odstrániť obrázok"
+                      style={{ position: "absolute", top: 6, right: 6, width: 22, height: 22, borderRadius: "50%", background: "rgba(0,0,0,0.55)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}
+                    >
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {/* Štítky */}
             <div style={{ marginTop: 24, paddingTop: 16, borderTop: `1px solid ${dividerColor}`, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
               {editLabels.map(label => (
@@ -723,7 +869,7 @@ export default function NotesPage() {
           style={{
             background: bg,
             border: `1px solid ${isDefault ? lineColor : "rgba(0,0,0,0.08)"}`,
-            borderRadius: 14, padding: "14px 16px", cursor: "pointer",
+            borderRadius: 14, padding: "14px 16px", cursor: "pointer", overflow: "hidden",
             boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
             display: "flex", flexDirection: "column", gap: 6,
             position: "relative",
@@ -748,6 +894,9 @@ export default function NotesPage() {
               </div>
             )}
           </div>
+          {note.images && note.images.length > 0 && (
+            <img src={note.images[0]} alt="" style={{ width: "calc(100% + 32px)", margin: "0 -16px", height: 130, objectFit: "cover", display: "block" }} />
+          )}
           {note.checklist ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
               {note.items.slice(0, 6).map(item => (
