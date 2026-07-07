@@ -93,6 +93,7 @@ export default function NotesPage() {
   const [editColor, setEditColor] = useState("default");
   const [preview, setPreview] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
+  const [showFormatHelp, setShowFormatHelp] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -198,7 +199,6 @@ export default function NotesPage() {
     : notes;
 
   const noteToDelete = notes.find(n => n.id === confirmDelete);
-  const openNoteData = notes.find(n => n.id === openId);
 
   if (loading) return (
     <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", background: theme.bg }}>
@@ -206,6 +206,208 @@ export default function NotesPage() {
       <div style={{ width: 32, height: 32, borderRadius: "50%", border: `3px solid ${lineColor}`, borderTopColor: appliedA, animation: "spin .8s linear infinite" }} />
     </div>
   );
+
+  const openNoteData = notes.find(n => n.id === openId);
+
+  // ── CELOSTRÁNKOVÉ ZOBRAZENIE: otvorená poznámka (editor na celú stranu) ──
+  if (openId && openNoteData) {
+    const bg = getCardColor(editColor, darkMode);
+    return (
+      <div style={{ flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column", background: bg, fontFamily: "var(--font-geist-sans)" }}>
+        <style>{`
+          @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+          @keyframes popIn{from{opacity:0;transform:scale(.95) translateY(4px)}to{opacity:1;transform:scale(1) translateY(0)}}
+          .keep-input::placeholder{color:${theme.muted}}
+          .keep-content::placeholder{color:${theme.muted}}
+          .keep-preview h1{font-size:24px;font-weight:800;margin:0 0 10px}
+          .keep-preview h2{font-size:19px;font-weight:700;margin:16px 0 8px}
+          .keep-preview h3{font-size:16px;font-weight:700;margin:14px 0 6px}
+          .keep-preview p{margin:8px 0;line-height:1.7}
+          .keep-preview ul{margin:8px 0;padding-left:22px}
+          .keep-preview li{margin:4px 0;line-height:1.6}
+          .keep-preview strong{font-weight:800}
+          .keep-preview em{font-style:italic}
+          .keep-preview code{background:rgba(0,0,0,0.08);padding:2px 6px;border-radius:4px;font-family:monospace;font-size:13px}
+          .keep-preview hr{border:none;border-top:1px solid rgba(0,0,0,0.15);margin:16px 0}
+          .keep-swatch{transition:transform .12s ease}
+          .keep-swatch:hover{transform:scale(1.15)}
+          .keep-toolbtn:hover{opacity:0.7}
+        `}</style>
+
+        {/* Toolbar hore */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "14px 24px", borderBottom: `1px solid ${darkMode || editColor !== "default" ? "rgba(255,255,255,0.12)" : lineColor}`, flexWrap: "wrap" }}>
+          <button
+            onClick={closeModal}
+            title="Späť na zoznam"
+            style={{ display: "flex", alignItems: "center", gap: 6, background: "transparent", border: "none", color: theme.text, cursor: "pointer", fontSize: 13, fontWeight: 700, fontFamily: "var(--font-geist-sans)", padding: "6px 4px" }}
+          >
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            Späť
+          </button>
+
+          <div style={{ width: 1, height: 20, background: darkMode || editColor !== "default" ? "rgba(255,255,255,0.15)" : lineColor, margin: "0 4px" }} />
+
+          {!preview && (
+            <div style={{ display: "flex", gap: 4, position: "relative" }}>
+              {[
+                { label: "B", insert: "**tučný text**", title: "Tučné písmo — **text**" },
+                { label: "I", insert: "*kurzíva*", title: "Kurzíva — *text*" },
+                { label: "H", insert: "## ", title: "Nadpis — ## Nadpis (alebo # a ### pre iné veľkosti)" },
+                { label: "—", insert: "\n---\n", title: "Vodorovná čiara — ---" },
+                { label: "•", insert: "- ", title: "Odrážkový zoznam — - položka" },
+                { label: "</>", insert: "`kód`", title: "Kód — `text`" },
+              ].map(btn => (
+                <button
+                  key={btn.label}
+                  title={btn.title}
+                  onClick={() => handleContentChange(editContent + (editContent && !editContent.endsWith("\n") ? "\n" : "") + btn.insert)}
+                  style={{ padding: "5px 10px", borderRadius: 7, background: "rgba(0,0,0,0.06)", border: "none", color: theme.text, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}
+                >
+                  {btn.label}
+                </button>
+              ))}
+              <button
+                onClick={() => setShowFormatHelp(v => !v)}
+                title="Zobraziť pomocníka formátovania"
+                style={{ width: 26, height: 26, borderRadius: "50%", background: showFormatHelp ? appliedA : "rgba(0,0,0,0.06)", border: "none", color: showFormatHelp ? "#fff" : theme.muted, cursor: "pointer", fontSize: 12, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--font-geist-sans)" }}
+              >
+                ?
+              </button>
+              {showFormatHelp && (
+                <div style={{ position: "absolute", top: "calc(100% + 8px)", left: 0, background: surface, border: `1px solid ${lineColor}`, borderRadius: 12, padding: 16, width: 320, boxShadow: "0 12px 32px rgba(0,0,0,0.25)", zIndex: 20 }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: theme.text, marginBottom: 10 }}>Podporované formátovanie</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 12.5, color: theme.text }}>
+                    {[
+                      { syntax: "# Nadpis", desc: "Veľký nadpis (1. úroveň)" },
+                      { syntax: "## Nadpis", desc: "Stredný nadpis (2. úroveň)" },
+                      { syntax: "### Nadpis", desc: "Malý nadpis (3. úroveň)" },
+                      { syntax: "**text**", desc: "Tučné písmo" },
+                      { syntax: "*text*", desc: "Kurzíva" },
+                      { syntax: "`text`", desc: "Kód (monospace)" },
+                      { syntax: "- položka", desc: "Odrážkový zoznam (jedna položka na riadok)" },
+                      { syntax: "---", desc: "Vodorovná oddeľovacia čiara" },
+                      { syntax: "prázdny riadok", desc: "Nový odstavec" },
+                    ].map((row, i) => (
+                      <div key={i} style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+                        <code style={{ background: theme.card2, padding: "2px 6px", borderRadius: 5, fontFamily: "monospace", fontSize: 11.5, flexShrink: 0, whiteSpace: "nowrap" }}>{row.syntax}</code>
+                        <span style={{ color: theme.muted }}>{row.desc}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ fontSize: 11, color: theme.muted, marginTop: 10, fontStyle: "italic" }}>
+                    Použi tlačidlá B, I, H, —, •, {"</>"} vyššie na rýchle vloženie, alebo píš syntax priamo.
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div style={{ flex: 1 }} />
+          {saving && <div style={{ fontSize: 11, color: theme.muted, fontStyle: "italic" }}>Ukladám...</div>}
+
+          <button
+            onClick={() => setPreview(v => !v)}
+            style={{ padding: "6px 14px", borderRadius: 8, background: preview ? appliedA : "rgba(0,0,0,0.06)", border: "none", color: preview ? "#fff" : theme.text, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}
+          >
+            {preview ? "Upraviť" : "Náhľad"}
+          </button>
+
+          {/* Farba paletka */}
+          <div style={{ position: "relative" }}>
+            <button
+              onClick={() => setShowColorPicker(v => !v)}
+              title="Farba poznámky"
+              style={{ width: 30, height: 30, borderRadius: "50%", border: `1.5px solid ${lineColor}`, background: getCardColor(editColor, darkMode), cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={theme.muted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>
+            </button>
+            {showColorPicker && (
+              <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, background: surface, border: `1px solid ${lineColor}`, borderRadius: 12, padding: 10, display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.2)", zIndex: 10 }}>
+                {NOTE_COLORS.map(c => (
+                  <div
+                    key={c.id}
+                    className="keep-swatch"
+                    onClick={() => handleColorChange(c.id)}
+                    title={c.id}
+                    style={{
+                      width: 26, height: 26, borderRadius: "50%", cursor: "pointer",
+                      background: darkMode ? c.dark : c.light,
+                      border: editColor === c.id ? `2px solid ${appliedA}` : `1px solid ${lineColor}`,
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
+          <button
+            onClick={() => setConfirmDelete(openId)}
+            title="Vymazať"
+            style={{ width: 30, height: 30, borderRadius: 8, background: "transparent", border: "none", color: "#ef4444", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", opacity: 0.75 }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+          </button>
+        </div>
+
+        {/* Obsah — na celú stranu, vycentrovaný stĺpec pre pohodlné čítanie/písanie */}
+        <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "32px 24px 60px", display: "flex", justifyContent: "center" }}>
+          <div style={{ width: "100%", maxWidth: 760, display: "flex", flexDirection: "column" }}>
+            <input
+              value={editTitle}
+              onChange={e => handleTitleChange(e.target.value)}
+              placeholder="Názov"
+              className="keep-input"
+              style={{ width: "100%", background: "transparent", border: "none", outline: "none", fontSize: 30, fontWeight: 800, color: theme.text, fontFamily: "var(--font-geist-sans)", marginBottom: 18, padding: 0 }}
+            />
+            {preview ? (
+              <div
+                className="keep-preview"
+                style={{ flex: 1, color: theme.text, fontSize: 16, lineHeight: 1.75 }}
+                dangerouslySetInnerHTML={{ __html: editContent ? renderMarkdown(editContent) : '<p style="color:' + theme.muted + ';font-style:italic">Prázdna poznámka.</p>' }}
+              />
+            ) : (
+              <textarea
+                value={editContent}
+                onChange={e => handleContentChange(e.target.value)}
+                placeholder="Napíš niečo... (podporuje markdown formátovanie — klikni na ? vyššie pre zoznam)"
+                className="keep-content"
+                autoFocus
+                style={{ flex: 1, minHeight: 500, background: "transparent", border: "none", outline: "none", resize: "none", fontSize: 16, lineHeight: 1.75, color: theme.text, fontFamily: "var(--font-geist-sans)", padding: 0 }}
+              />
+            )}
+          </div>
+        </div>
+
+        {/* ── CONFIRM DELETE MODAL (aj v celostránkovom zobrazení) ── */}
+        {confirmDelete && (
+          <div
+            onClick={() => setConfirmDelete(null)}
+            style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1100, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, animation: "fadeIn .15s ease" }}
+          >
+            <div
+              onClick={e => e.stopPropagation()}
+              style={{ background: surface, borderRadius: 16, padding: 22, maxWidth: 360, width: "100%", border: `1px solid ${lineColor}`, boxShadow: "0 12px 40px rgba(0,0,0,0.25)", animation: "popIn .18s ease" }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: "#ef444420", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                </div>
+                <div style={{ fontSize: 14.5, fontWeight: 800, color: theme.text }}>Vymazať poznámku?</div>
+              </div>
+              <div style={{ fontSize: 12.5, color: theme.muted, lineHeight: 1.5, marginBottom: 6 }}>
+                {noteToDelete && <>Poznámka „<strong style={{ color: theme.text }}>{noteToDelete.title || "Bez názvu"}</strong>" bude natrvalo vymazaná.</>}
+              </div>
+              <div style={{ fontSize: 11.5, color: "#ef4444", fontWeight: 700, marginBottom: 18 }}>Táto akcia sa nedá vrátiť späť.</div>
+              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                <button onClick={() => setConfirmDelete(null)} style={{ background: theme.card2, border: `1px solid ${lineColor}`, borderRadius: 9, padding: "8px 16px", color: theme.text, fontWeight: 700, fontSize: 12.5, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}>Zrušiť</button>
+                <button onClick={() => deleteNote(confirmDelete)} style={{ background: "#ef4444", border: "none", borderRadius: 9, padding: "8px 16px", color: "#fff", fontWeight: 800, fontSize: 12.5, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}>Vymazať natrvalo</button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", padding: "24px 28px 80px", background: theme.bg, fontFamily: "var(--font-geist-sans)" }}>
@@ -313,128 +515,6 @@ export default function NotesPage() {
         </div>
       )}
 
-      {/* ── MODAL: otvorená poznámka (editor) ── */}
-      {openId && openNoteData && (
-        <div
-          onClick={closeModal}
-          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, animation: "fadeIn .15s ease" }}
-        >
-          <div
-            onClick={e => e.stopPropagation()}
-            style={{
-              background: getCardColor(editColor, darkMode),
-              borderRadius: 16, width: "min(1100px, 94vw)", height: "88vh", maxHeight: "88vh",
-              display: "flex", flexDirection: "column",
-              boxShadow: "0 24px 60px rgba(0,0,0,0.35)",
-              animation: "popIn .18s ease",
-              border: `1px solid ${editColor === "default" ? lineColor : "rgba(0,0,0,0.1)"}`,
-            }}
-          >
-            {/* Toolbar hore */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", borderBottom: `1px solid ${darkMode || editColor !== "default" ? "rgba(255,255,255,0.1)" : lineColor}`, flexWrap: "wrap" }}>
-              {!preview && (
-                <div style={{ display: "flex", gap: 4 }}>
-                  {[
-                    { label: "B", insert: "**tučný text**", title: "Tučné" },
-                    { label: "I", insert: "*kurzíva*", title: "Kurzíva" },
-                    { label: "H", insert: "## ", title: "Nadpis" },
-                    { label: "—", insert: "\n---\n", title: "Oddeľovač" },
-                    { label: "•", insert: "- ", title: "Zoznam" },
-                    { label: "</>", insert: "`kód`", title: "Kód" },
-                  ].map(btn => (
-                    <button
-                      key={btn.label}
-                      title={btn.title}
-                      onClick={() => handleContentChange(editContent + (editContent && !editContent.endsWith("\n") ? "\n" : "") + btn.insert)}
-                      style={{ padding: "4px 8px", borderRadius: 6, background: "rgba(0,0,0,0.06)", border: "none", color: theme.text, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}
-                    >
-                      {btn.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-              <div style={{ flex: 1 }} />
-              {saving && <div style={{ fontSize: 10.5, color: theme.muted, fontStyle: "italic" }}>Ukladám...</div>}
-              <button
-                onClick={() => setPreview(v => !v)}
-                style={{ padding: "5px 12px", borderRadius: 8, background: preview ? appliedA : "rgba(0,0,0,0.06)", border: "none", color: preview ? "#fff" : theme.text, fontSize: 11.5, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}
-              >
-                {preview ? "Upraviť" : "Náhľad"}
-              </button>
-
-              {/* Farba paletka */}
-              <div style={{ position: "relative" }}>
-                <button
-                  onClick={() => setShowColorPicker(v => !v)}
-                  title="Farba poznámky"
-                  style={{ width: 28, height: 28, borderRadius: "50%", border: `1.5px solid ${lineColor}`, background: getCardColor(editColor, darkMode), cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
-                >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={theme.muted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>
-                </button>
-                {showColorPicker && (
-                  <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, background: surface, border: `1px solid ${lineColor}`, borderRadius: 12, padding: 10, display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.2)", zIndex: 10 }}>
-                    {NOTE_COLORS.map(c => (
-                      <div
-                        key={c.id}
-                        className="keep-swatch"
-                        onClick={() => handleColorChange(c.id)}
-                        title={c.id}
-                        style={{
-                          width: 26, height: 26, borderRadius: "50%", cursor: "pointer",
-                          background: darkMode ? c.dark : c.light,
-                          border: editColor === c.id ? `2px solid ${appliedA}` : `1px solid ${lineColor}`,
-                        }}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <button
-                onClick={() => setConfirmDelete(openId)}
-                title="Vymazať"
-                style={{ width: 28, height: 28, borderRadius: 8, background: "transparent", border: "none", color: "#ef4444", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", opacity: 0.7 }}
-              >
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-              </button>
-
-              <button
-                onClick={closeModal}
-                title="Zavrieť"
-                style={{ width: 28, height: 28, borderRadius: 8, background: "transparent", border: "none", color: theme.text, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-              </button>
-            </div>
-
-            {/* Obsah */}
-            <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "20px 22px", display: "flex", flexDirection: "column" }}>
-              <input
-                value={editTitle}
-                onChange={e => handleTitleChange(e.target.value)}
-                placeholder="Názov"
-                className="keep-input"
-                style={{ width: "100%", background: "transparent", border: "none", outline: "none", fontSize: 26, fontWeight: 800, color: theme.text, fontFamily: "var(--font-geist-sans)", marginBottom: 16, padding: 0 }}
-              />
-              {preview ? (
-                <div
-                  className="keep-preview"
-                  style={{ flex: 1, color: theme.text, fontSize: 15.5, lineHeight: 1.7 }}
-                  dangerouslySetInnerHTML={{ __html: editContent ? renderMarkdown(editContent) : '<p style="color:' + theme.muted + ';font-style:italic">Prázdna poznámka.</p>' }}
-                />
-              ) : (
-                <textarea
-                  value={editContent}
-                  onChange={e => handleContentChange(e.target.value)}
-                  placeholder="Napíš niečo..."
-                  className="keep-content"
-                  style={{ flex: 1, minHeight: 400, background: "transparent", border: "none", outline: "none", resize: "none", fontSize: 15.5, lineHeight: 1.7, color: theme.text, fontFamily: "var(--font-geist-sans)", padding: 0 }}
-                />
-              )}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ── CONFIRM DELETE MODAL ── */}
       {confirmDelete && (
