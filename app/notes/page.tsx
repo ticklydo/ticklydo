@@ -103,6 +103,7 @@ export default function NotesPage() {
 
   const [uid, setUid] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isMobile, setIsMobile] = useState(false);
   const [notes, setNotes] = useState<Note[]>([]);
   const [search, setSearch] = useState("");
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -137,6 +138,13 @@ export default function NotesPage() {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const surface = theme.card;
   const lineColor = theme.border;
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth <= 720);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
@@ -403,14 +411,14 @@ export default function NotesPage() {
         `}</style>
 
         {/* Toolbar hore */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "14px 24px", borderBottom: `1px solid ${dividerColor}`, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 5 : 8, padding: isMobile ? "10px 12px" : "14px 24px", borderBottom: `1px solid ${dividerColor}`, flexWrap: "wrap" }}>
           <button
             onClick={closeNote}
             title="Späť na zoznam"
             style={{ display: "flex", alignItems: "center", gap: 6, background: "transparent", border: "none", color: theme.text, cursor: "pointer", fontSize: 13, fontWeight: 700, fontFamily: "var(--font-geist-sans)", padding: "6px 4px" }}
           >
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-            Späť
+            {!isMobile && "Späť"}
           </button>
 
           <div style={{ width: 1, height: 20, background: dividerColor, margin: "0 4px" }} />
@@ -567,14 +575,14 @@ export default function NotesPage() {
         </div>
 
         {/* Obsah */}
-        <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "32px 24px 60px", display: "flex", justifyContent: "center" }}>
+        <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: isMobile ? "18px 16px 40px" : "32px 24px 60px", display: "flex", justifyContent: "center" }}>
           <div style={{ width: "100%", maxWidth: 760, display: "flex", flexDirection: "column" }}>
             <input
               value={editTitle}
               onChange={e => handleTitleChange(e.target.value)}
               placeholder="Názov"
               className="keep-input"
-              style={{ width: "100%", background: "transparent", border: "none", outline: "none", fontSize: 30, fontWeight: 800, color: theme.text, fontFamily: "var(--font-geist-sans)", marginBottom: 18, padding: 0 }}
+              style={{ width: "100%", background: "transparent", border: "none", outline: "none", fontSize: isMobile ? 22 : 30, fontWeight: 800, color: theme.text, fontFamily: "var(--font-geist-sans)", marginBottom: isMobile ? 14 : 18, padding: 0 }}
             />
 
             {editChecklist ? (
@@ -623,7 +631,7 @@ export default function NotesPage() {
             ) : preview ? (
               <div
                 className="keep-preview"
-                style={{ flex: 1, color: theme.text, fontSize: 16, lineHeight: 1.75 }}
+                style={{ flex: 1, color: theme.text, fontSize: isMobile ? 14.5 : 16, lineHeight: 1.7 }}
                 dangerouslySetInnerHTML={{ __html: editContent ? renderMarkdown(editContent) : '<p style="color:' + theme.muted + ';font-style:italic">Prázdna poznámka.</p>' }}
               />
             ) : (
@@ -633,7 +641,7 @@ export default function NotesPage() {
                 placeholder="Napíš niečo... (podporuje markdown formátovanie — klikni na ? vyššie pre zoznam)"
                 className="keep-content"
                 autoFocus
-                style={{ flex: 1, minHeight: 400, background: "transparent", border: "none", outline: "none", resize: "none", fontSize: 16, lineHeight: 1.75, color: theme.text, fontFamily: "var(--font-geist-sans)", padding: 0 }}
+                style={{ flex: 1, minHeight: 300, background: "transparent", border: "none", outline: "none", resize: "none", fontSize: isMobile ? 14.5 : 16, lineHeight: 1.7, color: theme.text, fontFamily: "var(--font-geist-sans)", padding: 0 }}
               />
             )}
 
@@ -788,7 +796,7 @@ export default function NotesPage() {
   };
 
   return (
-    <div style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", padding: "24px 28px 80px", background: theme.bg, fontFamily: "var(--font-geist-sans)" }}>
+    <div style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", padding: isMobile ? "16px 14px 70px" : "24px 28px 80px", background: theme.bg, fontFamily: "var(--font-geist-sans)" }}>
       <style>{`
         @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
         @keyframes fadeIn{from{opacity:0}to{opacity:1}}
@@ -806,9 +814,9 @@ export default function NotesPage() {
       `}</style>
 
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <div style={{ fontSize: 20, fontWeight: 800, color: theme.text }}>{viewArchive ? "Archív" : "Poznámky"}</div>
+      <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", alignItems: isMobile ? "stretch" : "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: isMobile ? 10 : 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : 14, flexWrap: "wrap" }}>
+          <div style={{ fontSize: isMobile ? 17 : 20, fontWeight: 800, color: theme.text }}>{viewArchive ? "Archív" : "Poznámky"}</div>
           <button
             onClick={() => { setViewArchive(v => !v); setLabelFilter(null); }}
             style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 9, background: viewArchive ? appliedA + "18" : "transparent", border: `1px solid ${viewArchive ? appliedA : lineColor}`, color: viewArchive ? appliedA : theme.muted, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}
@@ -838,24 +846,24 @@ export default function NotesPage() {
             </div>
           )}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ position: "relative" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, width: isMobile ? "100%" : "auto" }}>
+          <div style={{ position: "relative", flex: isMobile ? 1 : "none", minWidth: 0 }}>
             <svg style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: theme.muted }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Hľadať v poznámkach..."
               className="keep-input"
-              style={{ width: 220, background: theme.card, border: `1px solid ${lineColor}`, borderRadius: 10, padding: "8px 12px 8px 32px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontSize: 13, outline: "none", boxSizing: "border-box" }}
+              style={{ width: isMobile ? "100%" : 220, background: theme.card, border: `1px solid ${lineColor}`, borderRadius: 10, padding: "8px 12px 8px 32px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontSize: 13, outline: "none", boxSizing: "border-box" }}
             />
           </div>
           {!viewArchive && (
             <button
               onClick={createNote}
-              style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 16px", borderRadius: 10, background: grad, border: "none", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)", boxShadow: `0 3px 10px ${appliedA}44` }}
+              style={{ display: "flex", alignItems: "center", gap: 6, padding: isMobile ? "9px 12px" : "9px 16px", borderRadius: 10, background: grad, border: "none", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)", boxShadow: `0 3px 10px ${appliedA}44`, flexShrink: 0, whiteSpace: "nowrap" }}
             >
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-              Nová poznámka
+              {!isMobile && "Nová poznámka"}
             </button>
           )}
         </div>
