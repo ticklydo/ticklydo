@@ -68,6 +68,22 @@ function getCardColor(colorId: string, darkMode: boolean): string {
   return darkMode ? c.dark : c.light;
 }
 
+// Paletka farieb pre štítky — sýtejšie tóny vhodné ako pozadie s bielym textom
+const LABEL_COLORS = [
+  "#8b5cf6", "#ec4899", "#f97316", "#eab308", "#22c55e",
+  "#14b8a6", "#3b82f6", "#a855f7", "#f43f5e", "#84cc16",
+];
+
+// Rovnaký názov štítku vždy dostane rovnakú farbu (jednoduchý hash textu)
+function getLabelColor(label: string): string {
+  let hash = 0;
+  for (let i = 0; i < label.length; i++) {
+    hash = (hash * 31 + label.charCodeAt(i)) & 0xffffffff;
+  }
+  const index = Math.abs(hash) % LABEL_COLORS.length;
+  return LABEL_COLORS[index];
+}
+
 // Jednoduchý markdown renderer — bold, italic, nadpisy, zoznamy, kód
 function renderMarkdown(text: string): string {
   return text
@@ -897,9 +913,9 @@ export default function NotesPage() {
             {/* Štítky */}
             <div style={{ marginTop: 24, paddingTop: 16, borderTop: `1px solid ${dividerColor}`, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
               {editLabels.map(label => (
-                <div key={label} style={{ display: "flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 20, background: "rgba(0,0,0,0.06)", fontSize: 12, fontWeight: 600, color: theme.text }}>
+                <div key={label} style={{ display: "flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 20, background: getLabelColor(label), fontSize: 12, fontWeight: 700, color: "#fff" }}>
                   {label}
-                  <span onClick={() => removeLabel(label)} style={{ cursor: "pointer", opacity: 0.6, display: "flex" }}>
+                  <span onClick={() => removeLabel(label)} style={{ cursor: "pointer", opacity: 0.85, display: "flex" }}>
                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                   </span>
                 </div>
@@ -1080,7 +1096,7 @@ export default function NotesPage() {
           {note.labels && note.labels.length > 0 && (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 2 }}>
               {note.labels.map(l => (
-                <span key={l} style={{ fontSize: 10.5, fontWeight: 600, color: mutedColor, background: "rgba(0,0,0,0.06)", padding: "2px 7px", borderRadius: 10 }}>{l}</span>
+                <span key={l} style={{ fontSize: 10.5, fontWeight: 700, color: "#fff", background: getLabelColor(l), padding: "2px 8px", borderRadius: 10 }}>{l}</span>
               ))}
             </div>
           )}
@@ -1152,8 +1168,11 @@ export default function NotesPage() {
                   {labelFilter && (
                     <div onClick={() => { setLabelFilter(null); setShowLabelFilterMenu(false); }} style={{ padding: "7px 10px", borderRadius: 7, cursor: "pointer", fontSize: 12.5, fontWeight: 700, color: "#ef4444" }}>Zrušiť filter</div>
                   )}
-                  {allLabels.map(l => (
-                    <div key={l} onClick={() => { setLabelFilter(l); setShowLabelFilterMenu(false); }} style={{ padding: "7px 10px", borderRadius: 7, cursor: "pointer", fontSize: 12.5, fontWeight: 600, color: theme.text, background: labelFilter === l ? theme.card2 : "transparent" }}>{l}</div>
+                  {allLabels.map((l: string) => (
+                    <div key={l} onClick={() => { setLabelFilter(l); setShowLabelFilterMenu(false); }} style={{ padding: "7px 10px", borderRadius: 7, cursor: "pointer", fontSize: 12.5, fontWeight: 600, color: theme.text, background: labelFilter === l ? theme.card2 : "transparent", display: "flex", alignItems: "center", gap: 7 }}>
+                      <span style={{ width: 8, height: 8, borderRadius: "50%", background: getLabelColor(l), flexShrink: 0 }} />
+                      {l}
+                    </div>
                   ))}
                 </div>
               )}
