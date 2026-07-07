@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { initializeApp, getApps } from "firebase/app";
 import { useTheme } from "../context/ThemeContext";
@@ -21,6 +20,7 @@ type Note = {
   id: string;
   title: string;
   content: string;
+  color: string;
   createdAt: number;
   updatedAt: number;
 };
@@ -37,6 +37,25 @@ function timeAgo(ts: number) {
   if (h < 24) return `Pred ${h} hod`;
   if (d === 1) return "Včera";
   return `Pred ${d} dňami`;
+}
+
+// Paletka farieb v Keep štýle — svetlé pastelové (light mode) verzie
+const NOTE_COLORS = [
+  { id: "default", light: "#ffffff", dark: "#2a2a2e" },
+  { id: "red", light: "#f6b7ae", dark: "#5c2b29" },
+  { id: "orange", light: "#f8d3a0", dark: "#5c3f22" },
+  { id: "yellow", light: "#faf3a1", dark: "#5c5722" },
+  { id: "green", light: "#c9e7ba", dark: "#2c4a2a" },
+  { id: "teal", light: "#b3e0da", dark: "#1f4a45" },
+  { id: "blue", light: "#aecdf0", dark: "#25395c" },
+  { id: "purple", light: "#d3b6f0", dark: "#3d2c5c" },
+  { id: "pink", light: "#f6b8dc", dark: "#5c2b47" },
+  { id: "brown", light: "#d9c2a6", dark: "#4a3c2c" },
+];
+
+function getCardColor(colorId: string, darkMode: boolean): string {
+  const c = NOTE_COLORS.find(c => c.id === colorId) ?? NOTE_COLORS[0];
+  return darkMode ? c.dark : c.light;
 }
 
 // Jednoduchý markdown renderer — bold, italic, nadpisy, zoznamy, kód
@@ -59,33 +78,26 @@ function renderMarkdown(text: string): string {
 }
 
 export default function NotesPage() {
-  const router = useRouter();
   const { grad, theme, appliedA, darkMode } = useTheme();
 
   const [uid, setUid] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [notes, setNotes] = useState<Note[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [editTitle, setEditTitle] = useState("");
-  const [editContent, setEditContent] = useState("");
-  const [preview, setPreview] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
-  const [isMobile, setIsMobile] = useState(false);
-  const [showList, setShowList] = useState(true);
+
+  // otvorená poznámka v modáli (null = zatvorené)
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editContent, setEditContent] = useState("");
+  const [editColor, setEditColor] = useState("default");
+  const [preview, setPreview] = useState(false);
+  const [showColorPicker, setShowColorPicker] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   const surface = theme.card;
   const lineColor = theme.border;
-
-  useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth <= 720);
-    check();
-    window.addEventListener("resize", check);
-    return () => window.removeEventListener("resize", check);
-  }, []);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
@@ -95,14 +107,8 @@ export default function NotesPage() {
       const db = getFirestore();
       const snap = await getDoc(doc(db, "users", user.uid));
       const data = snap.exists() ? snap.data() : {};
-      const loaded: Note[] = data.notes ?? [];
-      setNotes(loaded.sort((a, b) => b.updatedAt - a.updatedAt));
-      if (loaded.length > 0) {
-        const first = loaded.sort((a, b) => b.updatedAt - a.updatedAt)[0];
-        setSelectedId(first.id);
-        setEditTitle(first.title);
-        setEditContent(first.content);
-      }
+      const loaded: Note[] = (data.notes ?? []).map((n: any) => ({ color: "default", ...n }));
+      setNotes(loaded.sort((a: Note, b: Note) => b.updatedAt - a.updatedAt));
       setLoading(false);
     });
     return () => unsub();
@@ -117,91 +123,82 @@ export default function NotesPage() {
     setSaving(false);
   }, [uid]);
 
-  // Auto-save pri zmene obsahu (debounce 1s)
-  const handleContentChange = (value: string) => {
-    setEditContent(value);
+  const persistField = (id: string, patch: Partial<Note>) => {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
-      if (!selectedId) return;
-      const updated = notes.map(n =>
-        n.id === selectedId ? { ...n, content: value, title: editTitle, updatedAt: Date.now() } : n
-      ).sort((a, b) => b.updatedAt - a.updatedAt);
+      const updated = notes.map(n => n.id === id ? { ...n, ...patch, updatedAt: Date.now() } : n)
+        .sort((a, b) => b.updatedAt - a.updatedAt);
       setNotes(updated);
       saveNotes(updated);
-    }, 1000);
+    }, 700);
   };
 
   const handleTitleChange = (value: string) => {
     setEditTitle(value);
+    if (openId) persistField(openId, { title: value, content: editContent });
+  };
+  const handleContentChange = (value: string) => {
+    setEditContent(value);
+    if (openId) persistField(openId, { title: editTitle, content: value });
+  };
+  const handleColorChange = (colorId: string) => {
+    setEditColor(colorId);
+    setShowColorPicker(false);
+    if (!openId) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => {
-      if (!selectedId) return;
-      const updated = notes.map(n =>
-        n.id === selectedId ? { ...n, title: value, content: editContent, updatedAt: Date.now() } : n
-      ).sort((a, b) => b.updatedAt - a.updatedAt);
-      setNotes(updated);
-      saveNotes(updated);
-    }, 1000);
+    const updated = notes.map(n => n.id === openId ? { ...n, color: colorId, updatedAt: Date.now() } : n)
+      .sort((a, b) => b.updatedAt - a.updatedAt);
+    setNotes(updated);
+    saveNotes(updated);
   };
 
   const createNote = () => {
     const newNote: Note = {
-      id: genId(),
-      title: "Nová poznámka",
-      content: "",
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
+      id: genId(), title: "", content: "", color: "default",
+      createdAt: Date.now(), updatedAt: Date.now(),
     };
     const updated = [newNote, ...notes];
     setNotes(updated);
-    setSelectedId(newNote.id);
-    setEditTitle(newNote.title);
-    setEditContent(newNote.content);
     saveNotes(updated);
-    if (isMobile) setShowList(false);
+    openNote(newNote);
   };
 
-  const selectNote = (note: Note) => {
-    // Uložíme aktuálnu poznámku pred prepnutím
-    if (selectedId && saveTimer.current) {
-      clearTimeout(saveTimer.current);
-      const updated = notes.map(n =>
-        n.id === selectedId ? { ...n, title: editTitle, content: editContent, updatedAt: Date.now() } : n
-      ).sort((a, b) => b.updatedAt - a.updatedAt);
+  const openNote = (note: Note) => {
+    setOpenId(note.id);
+    setEditTitle(note.title);
+    setEditContent(note.content);
+    setEditColor(note.color || "default");
+    setPreview(false);
+    setShowColorPicker(false);
+  };
+
+  const closeModal = () => {
+    // finálne uloženie pri zatvorení, bez čakania na debounce
+    if (openId) {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      const updated = notes.map(n => n.id === openId ? { ...n, title: editTitle, content: editContent, color: editColor, updatedAt: (editTitle !== n.title || editContent !== n.content || editColor !== n.color) ? Date.now() : n.updatedAt } : n)
+        .sort((a, b) => b.updatedAt - a.updatedAt);
       setNotes(updated);
       saveNotes(updated);
     }
-    setSelectedId(note.id);
-    setEditTitle(note.title);
-    setEditContent(note.content);
-    setPreview(false);
-    if (isMobile) setShowList(false);
+    setOpenId(null);
+    setShowColorPicker(false);
   };
 
   const deleteNote = async (id: string) => {
     const updated = notes.filter(n => n.id !== id);
     setNotes(updated);
     await saveNotes(updated);
-    if (selectedId === id) {
-      if (updated.length > 0) {
-        setSelectedId(updated[0].id);
-        setEditTitle(updated[0].title);
-        setEditContent(updated[0].content);
-      } else {
-        setSelectedId(null);
-        setEditTitle("");
-        setEditContent("");
-      }
-    }
     setConfirmDelete(null);
+    if (openId === id) setOpenId(null);
   };
 
-  const selectedNote = notes.find(n => n.id === selectedId);
   const filteredNotes = search.trim()
     ? notes.filter(n => n.title.toLowerCase().includes(search.toLowerCase()) || n.content.toLowerCase().includes(search.toLowerCase()))
     : notes;
 
   const noteToDelete = notes.find(n => n.id === confirmDelete);
+  const openNoteData = notes.find(n => n.id === openId);
 
   if (loading) return (
     <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", background: theme.bg }}>
@@ -211,212 +208,239 @@ export default function NotesPage() {
   );
 
   return (
-    <div style={{ flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column", background: theme.bg, fontFamily: "var(--font-geist-sans)" }}>
+    <div style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", padding: "24px 28px 80px", background: theme.bg, fontFamily: "var(--font-geist-sans)" }}>
       <style>{`
         @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
         @keyframes fadeIn{from{opacity:0}to{opacity:1}}
         @keyframes popIn{from{opacity:0;transform:scale(.95) translateY(4px)}to{opacity:1;transform:scale(1) translateY(0)}}
-        .notes-input::placeholder{color:${theme.muted}}
-        .notes-content::placeholder{color:${theme.muted}}
-        .notes-preview h1{font-size:22px;font-weight:800;margin:0 0 8px}
-        .notes-preview h2{font-size:18px;font-weight:700;margin:16px 0 6px}
-        .notes-preview h3{font-size:15px;font-weight:700;margin:14px 0 4px}
-        .notes-preview p{margin:6px 0;line-height:1.65}
-        .notes-preview ul{margin:6px 0;padding-left:20px}
-        .notes-preview li{margin:3px 0;line-height:1.6}
-        .notes-preview strong{font-weight:800}
-        .notes-preview em{font-style:italic}
-        .notes-preview code{background:${lineColor};padding:2px 5px;border-radius:4px;font-family:monospace;font-size:12.5px}
-        .notes-preview hr{border:none;border-top:1px solid ${lineColor};margin:16px 0}
-        .notes-list-item:hover{background:${theme.card2}!important}
-        .notes-action:hover{opacity:1!important}
+        .keep-input::placeholder{color:${theme.muted}}
+        .keep-content::placeholder{color:${theme.muted}}
+        .keep-card{transition:box-shadow .15s ease, transform .1s ease;}
+        .keep-card:hover{box-shadow:0 4px 14px rgba(0,0,0,0.15);}
+        .keep-grid{column-count:1;column-gap:16px;}
+        @media (min-width:600px){.keep-grid{column-count:2;}}
+        @media (min-width:900px){.keep-grid{column-count:3;}}
+        @media (min-width:1250px){.keep-grid{column-count:4;}}
+        @media (min-width:1550px){.keep-grid{column-count:5;}}
+        .keep-card-wrap{break-inside:avoid;margin-bottom:16px;}
+        .keep-preview h1{font-size:20px;font-weight:800;margin:0 0 8px}
+        .keep-preview h2{font-size:16px;font-weight:700;margin:14px 0 6px}
+        .keep-preview h3{font-size:14px;font-weight:700;margin:12px 0 4px}
+        .keep-preview p{margin:6px 0;line-height:1.6}
+        .keep-preview ul{margin:6px 0;padding-left:20px}
+        .keep-preview li{margin:3px 0;line-height:1.55}
+        .keep-preview strong{font-weight:800}
+        .keep-preview em{font-style:italic}
+        .keep-preview code{background:rgba(0,0,0,0.08);padding:2px 5px;border-radius:4px;font-family:monospace;font-size:12px}
+        .keep-preview hr{border:none;border-top:1px solid rgba(0,0,0,0.15);margin:14px 0}
+        .keep-swatch{transition:transform .12s ease}
+        .keep-swatch:hover{transform:scale(1.15)}
+        .keep-toolbtn:hover{opacity:0.7}
       `}</style>
 
-      <div style={{ flex: 1, minHeight: 0, display: "flex", overflow: "hidden" }}>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
+        <div style={{ fontSize: 20, fontWeight: 800, color: theme.text }}>Poznámky</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ position: "relative" }}>
+            <svg style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: theme.muted }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Hľadať v poznámkach..."
+              className="keep-input"
+              style={{ width: 220, background: theme.card, border: `1px solid ${lineColor}`, borderRadius: 10, padding: "8px 12px 8px 32px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontSize: 13, outline: "none", boxSizing: "border-box" }}
+            />
+          </div>
+          <button
+            onClick={createNote}
+            style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 16px", borderRadius: 10, background: grad, border: "none", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)", boxShadow: `0 3px 10px ${appliedA}44` }}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+            Nová poznámka
+          </button>
+        </div>
+      </div>
 
-        {/* ── ĽAVÝ PANEL: zoznam poznámok ── */}
-        {(!isMobile || showList) && (
-          <div style={{
-            width: isMobile ? "100%" : 280, flexShrink: 0,
-            borderRight: `1px solid ${lineColor}`,
-            display: "flex", flexDirection: "column",
-            background: surface,
-          }}>
-            {/* Header */}
-            <div style={{ padding: "16px 16px 12px", borderBottom: `1px solid ${lineColor}` }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                <div style={{ fontSize: 16, fontWeight: 800 }}>Poznámky</div>
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  {saving && <div style={{ fontSize: 10, color: theme.muted, fontStyle: "italic" }}>Ukladám...</div>}
-                  <button
-                    onClick={createNote}
-                    style={{ width: 30, height: 30, borderRadius: 8, background: grad, border: "none", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 2px 8px ${appliedA}44` }}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-                  </button>
-                </div>
-              </div>
-              {/* Vyhľadávanie */}
-              <div style={{ position: "relative" }}>
-                <svg style={{ position: "absolute", left: 9, top: "50%", transform: "translateY(-50%)", color: theme.muted }} width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                <input
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  placeholder="Hľadať..."
-                  className="notes-input"
-                  style={{ width: "100%", background: theme.card2, border: `1px solid ${lineColor}`, borderRadius: 9, padding: "7px 10px 7px 28px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontSize: 12.5, outline: "none", boxSizing: "border-box" }}
-                />
-              </div>
-            </div>
-
-            {/* Zoznam */}
-            <div style={{ flex: 1, overflowY: "auto" }}>
-              {filteredNotes.length === 0 ? (
-                <div style={{ padding: "24px 16px", textAlign: "center", color: theme.muted, fontSize: 13 }}>
-                  {search ? "Žiadne výsledky" : "Zatiaľ žiadne poznámky"}
-                </div>
-              ) : (
-                filteredNotes.map(note => (
-                  <div
-                    key={note.id}
-                    className="notes-list-item"
-                    onClick={() => selectNote(note)}
-                    style={{
-                      padding: "11px 16px", cursor: "pointer",
-                      borderBottom: `1px solid ${lineColor}`,
-                      background: selectedId === note.id ? appliedA + "12" : "transparent",
-                      borderLeft: selectedId === note.id ? `3px solid ${appliedA}` : "3px solid transparent",
-                      transition: "background .12s",
-                      position: "relative",
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
-                      <div style={{ minWidth: 0, flex: 1 }}>
-                        <div style={{ fontSize: 13.5, fontWeight: 700, color: theme.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {note.title || "Bez názvu"}
-                        </div>
-                        <div style={{ fontSize: 11, color: theme.muted, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {note.content ? note.content.slice(0, 60).replace(/[#*`]/g, "").trim() + (note.content.length > 60 ? "..." : "") : "Prázdna poznámka"}
-                        </div>
-                        <div style={{ fontSize: 10, color: theme.muted, marginTop: 3 }}>{timeAgo(note.updatedAt)}</div>
-                      </div>
-                      <div
-                        className="notes-action"
-                        onClick={e => { e.stopPropagation(); setConfirmDelete(note.id); }}
-                        style={{ opacity: 0.4, cursor: "pointer", color: "#ef4444", flexShrink: 0, transition: "opacity .15s" }}
-                        title="Vymazať"
-                      >
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-                      </div>
+      {/* Mriežka kariet */}
+      {filteredNotes.length === 0 ? (
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, color: theme.muted, padding: "60px 20px" }}>
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          <div style={{ fontSize: 14, fontWeight: 600 }}>{search ? "Žiadne výsledky" : "Zatiaľ žiadne poznámky"}</div>
+        </div>
+      ) : (
+        <div className="keep-grid">
+          {filteredNotes.map(note => {
+            const bg = getCardColor(note.color || "default", darkMode);
+            const isDefault = (note.color || "default") === "default";
+            return (
+              <div key={note.id} className="keep-card-wrap">
+                <div
+                  className="keep-card"
+                  onClick={() => openNote(note)}
+                  style={{
+                    background: bg,
+                    border: `1px solid ${isDefault ? lineColor : "rgba(0,0,0,0.08)"}`,
+                    borderRadius: 14, padding: "14px 16px", cursor: "pointer",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+                    display: "flex", flexDirection: "column", gap: 6,
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
+                    <div style={{ fontSize: 14.5, fontWeight: 800, color: darkMode || !isDefault ? theme.text : "#1a1a1a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
+                      {note.title || "Bez názvu"}
+                    </div>
+                    <div
+                      onClick={e => { e.stopPropagation(); setConfirmDelete(note.id); }}
+                      style={{ opacity: 0.4, cursor: "pointer", color: "#ef4444", flexShrink: 0 }}
+                      title="Vymazať"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
                     </div>
                   </div>
-                ))
+                  {note.content && (
+                    <div style={{ fontSize: 13, color: darkMode || !isDefault ? theme.muted : "#555", lineHeight: 1.5, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 8, WebkitBoxOrient: "vertical", whiteSpace: "pre-wrap" }}>
+                      {note.content.replace(/[#*`]/g, "")}
+                    </div>
+                  )}
+                  <div style={{ fontSize: 10.5, color: darkMode || !isDefault ? theme.muted : "#777", marginTop: 4 }}>
+                    {timeAgo(note.updatedAt)}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── MODAL: otvorená poznámka (editor) ── */}
+      {openId && openNoteData && (
+        <div
+          onClick={closeModal}
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, animation: "fadeIn .15s ease" }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: getCardColor(editColor, darkMode),
+              borderRadius: 16, width: "min(640px, 100%)", maxHeight: "85vh",
+              display: "flex", flexDirection: "column",
+              boxShadow: "0 24px 60px rgba(0,0,0,0.35)",
+              animation: "popIn .18s ease",
+              border: `1px solid ${editColor === "default" ? lineColor : "rgba(0,0,0,0.1)"}`,
+            }}
+          >
+            {/* Toolbar hore */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", borderBottom: `1px solid ${darkMode || editColor !== "default" ? "rgba(255,255,255,0.1)" : lineColor}`, flexWrap: "wrap" }}>
+              {!preview && (
+                <div style={{ display: "flex", gap: 4 }}>
+                  {[
+                    { label: "B", insert: "**tučný text**", title: "Tučné" },
+                    { label: "I", insert: "*kurzíva*", title: "Kurzíva" },
+                    { label: "H", insert: "## ", title: "Nadpis" },
+                    { label: "—", insert: "\n---\n", title: "Oddeľovač" },
+                    { label: "•", insert: "- ", title: "Zoznam" },
+                    { label: "</>", insert: "`kód`", title: "Kód" },
+                  ].map(btn => (
+                    <button
+                      key={btn.label}
+                      title={btn.title}
+                      onClick={() => handleContentChange(editContent + (editContent && !editContent.endsWith("\n") ? "\n" : "") + btn.insert)}
+                      style={{ padding: "4px 8px", borderRadius: 6, background: "rgba(0,0,0,0.06)", border: "none", color: theme.text, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}
+                    >
+                      {btn.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div style={{ flex: 1 }} />
+              {saving && <div style={{ fontSize: 10.5, color: theme.muted, fontStyle: "italic" }}>Ukladám...</div>}
+              <button
+                onClick={() => setPreview(v => !v)}
+                style={{ padding: "5px 12px", borderRadius: 8, background: preview ? appliedA : "rgba(0,0,0,0.06)", border: "none", color: preview ? "#fff" : theme.text, fontSize: 11.5, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}
+              >
+                {preview ? "Upraviť" : "Náhľad"}
+              </button>
+
+              {/* Farba paletka */}
+              <div style={{ position: "relative" }}>
+                <button
+                  onClick={() => setShowColorPicker(v => !v)}
+                  title="Farba poznámky"
+                  style={{ width: 28, height: 28, borderRadius: "50%", border: `1.5px solid ${lineColor}`, background: getCardColor(editColor, darkMode), cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={theme.muted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>
+                </button>
+                {showColorPicker && (
+                  <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, background: surface, border: `1px solid ${lineColor}`, borderRadius: 12, padding: 10, display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.2)", zIndex: 10 }}>
+                    {NOTE_COLORS.map(c => (
+                      <div
+                        key={c.id}
+                        className="keep-swatch"
+                        onClick={() => handleColorChange(c.id)}
+                        title={c.id}
+                        style={{
+                          width: 26, height: 26, borderRadius: "50%", cursor: "pointer",
+                          background: darkMode ? c.dark : c.light,
+                          border: editColor === c.id ? `2px solid ${appliedA}` : `1px solid ${lineColor}`,
+                        }}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <button
+                onClick={() => setConfirmDelete(openId)}
+                title="Vymazať"
+                style={{ width: 28, height: 28, borderRadius: 8, background: "transparent", border: "none", color: "#ef4444", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", opacity: 0.7 }}
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+              </button>
+
+              <button
+                onClick={closeModal}
+                title="Zavrieť"
+                style={{ width: 28, height: 28, borderRadius: 8, background: "transparent", border: "none", color: theme.text, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+
+            {/* Obsah */}
+            <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "20px 22px", display: "flex", flexDirection: "column" }}>
+              <input
+                value={editTitle}
+                onChange={e => handleTitleChange(e.target.value)}
+                placeholder="Názov"
+                className="keep-input"
+                style={{ width: "100%", background: "transparent", border: "none", outline: "none", fontSize: 19, fontWeight: 800, color: theme.text, fontFamily: "var(--font-geist-sans)", marginBottom: 12, padding: 0 }}
+              />
+              {preview ? (
+                <div
+                  className="keep-preview"
+                  style={{ flex: 1, color: theme.text, fontSize: 14, lineHeight: 1.65 }}
+                  dangerouslySetInnerHTML={{ __html: editContent ? renderMarkdown(editContent) : '<p style="color:' + theme.muted + ';font-style:italic">Prázdna poznámka.</p>' }}
+                />
+              ) : (
+                <textarea
+                  value={editContent}
+                  onChange={e => handleContentChange(e.target.value)}
+                  placeholder="Napíš niečo..."
+                  className="keep-content"
+                  style={{ flex: 1, minHeight: 200, background: "transparent", border: "none", outline: "none", resize: "none", fontSize: 14, lineHeight: 1.65, color: theme.text, fontFamily: "var(--font-geist-sans)", padding: 0 }}
+                />
               )}
             </div>
           </div>
-        )}
-
-        {/* ── PRAVÝ PANEL: editor ── */}
-        {(!isMobile || !showList) && (
-          <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", background: theme.bg }}>
-            {selectedNote ? (
-              <>
-                {/* Editor toolbar */}
-                <div style={{ padding: "12px 20px", borderBottom: `1px solid ${lineColor}`, display: "flex", alignItems: "center", gap: 10, background: surface }}>
-                  {isMobile && (
-                    <button
-                      onClick={() => setShowList(true)}
-                      style={{ background: "none", border: "none", cursor: "pointer", color: theme.muted, display: "flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 600, fontFamily: "var(--font-geist-sans)", padding: "4px 0" }}
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-                      Späť
-                    </button>
-                  )}
-                  <div style={{ flex: 1 }} />
-                  {saving && <div style={{ fontSize: 10.5, color: theme.muted, fontStyle: "italic" }}>Ukladám...</div>}
-                  {/* Markdown toolbar */}
-                  {!preview && (
-                    <div style={{ display: "flex", gap: 4 }}>
-                      {[
-                        { label: "B", title: "Tučné (**text**)", insert: "**tučný text**" },
-                        { label: "I", title: "Kurzíva (*text*)", insert: "*kurzíva*" },
-                        { label: "H", title: "Nadpis (## Nadpis)", insert: "## " },
-                        { label: "—", title: "Oddeľovač (---)", insert: "\n---\n" },
-                        { label: "•", title: "Zoznam (- položka)", insert: "- " },
-                        { label: "</>", title: "Kód (`kód`)", insert: "`kód`" },
-                      ].map(btn => (
-                        <button
-                          key={btn.label}
-                          title={btn.title}
-                          onClick={() => {
-                            const newContent = editContent + (editContent && !editContent.endsWith("\n") ? "\n" : "") + btn.insert;
-                            handleContentChange(newContent);
-                          }}
-                          style={{ padding: "4px 8px", borderRadius: 6, background: theme.card2, border: `1px solid ${lineColor}`, color: theme.text, fontSize: btn.label === "I" ? 12 : 11, fontWeight: btn.label === "B" ? 900 : 700, cursor: "pointer", fontFamily: btn.label === "I" ? "serif" : "var(--font-geist-sans)", fontStyle: btn.label === "I" ? "italic" : "normal" }}
-                        >
-                          {btn.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  <button
-                    onClick={() => setPreview(v => !v)}
-                    style={{ padding: "5px 12px", borderRadius: 8, background: preview ? appliedA : theme.card2, border: `1px solid ${preview ? appliedA : lineColor}`, color: preview ? "#fff" : theme.muted, fontSize: 11.5, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)", transition: "all .15s" }}
-                  >
-                    {preview ? "Upraviť" : "Náhľad"}
-                  </button>
-                </div>
-
-                {/* Obsah editora */}
-                <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", padding: "24px 32px", overflowY: "auto" }}>
-                  {/* Názov poznámky */}
-                  <input
-                    value={editTitle}
-                    onChange={e => handleTitleChange(e.target.value)}
-                    placeholder="Názov poznámky"
-                    className="notes-input"
-                    style={{ width: "100%", background: "transparent", border: "none", outline: "none", fontSize: isMobile ? 20 : 24, fontWeight: 800, color: theme.text, fontFamily: "var(--font-geist-sans)", marginBottom: 16, padding: 0 }}
-                  />
-
-                  {/* Editor / Preview */}
-                  {preview ? (
-                    <div
-                      className="notes-preview"
-                      style={{ flex: 1, color: theme.text, fontSize: 14.5, lineHeight: 1.7 }}
-                      dangerouslySetInnerHTML={{ __html: editContent ? renderMarkdown(editContent) : '<p style="color:' + theme.muted + ';font-style:italic">Prázdna poznámka — prepni späť do editora a začni písať.</p>' }}
-                    />
-                  ) : (
-                    <textarea
-                      value={editContent}
-                      onChange={e => handleContentChange(e.target.value)}
-                      placeholder={"Začni písať... Markdown je podporovaný:\n# Nadpis\n**tučné** *kurzíva*\n- Zoznam\n`kód`"}
-                      className="notes-content"
-                      style={{ flex: 1, minHeight: 300, background: "transparent", border: "none", outline: "none", resize: "none", fontSize: 14.5, lineHeight: 1.7, color: theme.text, fontFamily: "var(--font-geist-sans)", padding: 0 }}
-                    />
-                  )}
-                </div>
-              </>
-            ) : (
-              <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, color: theme.muted }}>
-                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-                <div style={{ fontSize: 14, fontWeight: 600 }}>Vyber poznámku alebo vytvor novú</div>
-                <button
-                  onClick={createNote}
-                  style={{ padding: "10px 22px", borderRadius: 12, background: grad, border: "none", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)", boxShadow: `0 4px 14px ${appliedA}44` }}
-                >
-                  + Nová poznámka
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* ── CONFIRM DELETE MODAL ── */}
       {confirmDelete && (
         <div
           onClick={() => setConfirmDelete(null)}
-          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, animation: "fadeIn .15s ease" }}
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1100, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, animation: "fadeIn .15s ease" }}
         >
           <div
             onClick={e => e.stopPropagation()}
@@ -429,7 +453,7 @@ export default function NotesPage() {
               <div style={{ fontSize: 14.5, fontWeight: 800, color: theme.text }}>Vymazať poznámku?</div>
             </div>
             <div style={{ fontSize: 12.5, color: theme.muted, lineHeight: 1.5, marginBottom: 6 }}>
-              {noteToDelete && <>Poznámka „<strong style={{ color: theme.text }}>{noteToDelete.title}</strong>" bude natrvalo vymazaná.</>}
+              {noteToDelete && <>Poznámka „<strong style={{ color: theme.text }}>{noteToDelete.title || "Bez názvu"}</strong>" bude natrvalo vymazaná.</>}
             </div>
             <div style={{ fontSize: 11.5, color: "#ef4444", fontWeight: 700, marginBottom: 18 }}>Táto akcia sa nedá vrátiť späť.</div>
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
