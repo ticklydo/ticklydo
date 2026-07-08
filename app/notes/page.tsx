@@ -104,6 +104,8 @@ export default function NotesPage() {
   const [loading, setLoading] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
   const [notes, setNotes] = useState<Note[]>([]);
+  const [labelColors, setLabelColors] = useState<Record<string, string>>({});
+  const [editingLabelColor, setEditingLabelColor] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [viewArchive, setViewArchive] = useState(false);
@@ -163,6 +165,7 @@ export default function NotesPage() {
       const data = snap.exists() ? snap.data() : {};
       const loaded: Note[] = (data.notes ?? []).map(normalizeNote);
       setNotes(loaded);
+      setLabelColors(data.labelColors ?? {});
       setLoading(false);
     });
     return () => unsub();
@@ -186,6 +189,23 @@ export default function NotesPage() {
     await setDoc(doc(db, "users", uid), { notes: updatedNotes }, { merge: true });
     setSaving(false);
   }, [uid]);
+
+  const saveLabelColors = useCallback(async (updated: Record<string, string>) => {
+    if (!uid) return;
+    const { getFirestore, doc, setDoc } = await import("firebase/firestore");
+    const db = getFirestore();
+    await setDoc(doc(db, "users", uid), { labelColors: updated }, { merge: true });
+  }, [uid]);
+
+  // vlastná farba štítku (ak bola zvolená) má prednosť pred automaticky priradenou
+  const resolveLabelColor = (label: string) => labelColors[label] || getLabelColor(label);
+
+  const setLabelColorFor = (label: string, color: string) => {
+    const updated = { ...labelColors, [label]: color };
+    setLabelColors(updated);
+    saveLabelColors(updated);
+    setEditingLabelColor(null);
+  };
 
   const persistCurrent = useCallback((patch: Partial<Note>) => {
     if (!openId) return;
@@ -530,6 +550,7 @@ export default function NotesPage() {
     setShowColorPicker(false);
     setShowLabelInput(false);
     setShowImageMenu(false);
+    setEditingLabelColor(null);
     setHistory([{ title: note.title, content: note.content, checklist: !!note.checklist, items: note.items || [], color: note.color || "default" }]);
     setHistoryIndex(0);
   };
@@ -549,6 +570,7 @@ export default function NotesPage() {
     setShowColorPicker(false);
     setShowFormatHelp(false);
     setShowImageMenu(false);
+    setEditingLabelColor(null);
   };
 
   const deleteNote = async (id: string) => {
@@ -843,11 +865,24 @@ export default function NotesPage() {
                 {editLabels.length > 0 && (
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                     {editLabels.map(label => (
-                      <div key={label} style={{ display: "flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 20, background: getLabelColor(label), fontSize: 11.5, fontWeight: 700, color: "#fff" }}>
-                        {label}
-                        <span onClick={() => removeLabel(label)} style={{ cursor: "pointer", opacity: 0.85, display: "flex" }}>
-                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                        </span>
+                      <div key={label} style={{ position: "relative" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 20, background: resolveLabelColor(label), fontSize: 11.5, fontWeight: 700, color: "#fff" }}>
+                          <span onClick={() => setEditingLabelColor(v => v === label ? null : label)} style={{ cursor: "pointer" }}>{label}</span>
+                          <span onClick={() => removeLabel(label)} style={{ cursor: "pointer", opacity: 0.85, display: "flex" }}>
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                          </span>
+                        </div>
+                        {editingLabelColor === label && (
+                          <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, background: surface, border: `1px solid ${lineColor}`, borderRadius: 10, padding: 8, display: "grid", gridTemplateColumns: "repeat(5, 22px)", gap: 6, boxShadow: "0 8px 24px rgba(0,0,0,0.2)", zIndex: 20 }}>
+                            {LABEL_COLORS.map(c => (
+                              <div
+                                key={c}
+                                onClick={() => setLabelColorFor(label, c)}
+                                style={{ width: 22, height: 22, borderRadius: "50%", background: c, cursor: "pointer", border: resolveLabelColor(label) === c ? `2px solid ${theme.text}` : "2px solid transparent" }}
+                              />
+                            ))}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -1165,7 +1200,7 @@ export default function NotesPage() {
           {note.labels && note.labels.length > 0 && (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 2 }}>
               {note.labels.map(l => (
-                <span key={l} style={{ fontSize: 10.5, fontWeight: 700, color: "#fff", background: getLabelColor(l), padding: "2px 8px", borderRadius: 10 }}>{l}</span>
+                <span key={l} style={{ fontSize: 10.5, fontWeight: 700, color: "#fff", background: resolveLabelColor(l), padding: "2px 8px", borderRadius: 10 }}>{l}</span>
               ))}
             </div>
           )}
@@ -1239,7 +1274,7 @@ export default function NotesPage() {
                   )}
                   {allLabels.map((l: string) => (
                     <div key={l} onClick={() => { setLabelFilter(l); setShowLabelFilterMenu(false); }} style={{ padding: "7px 10px", borderRadius: 7, cursor: "pointer", fontSize: 12.5, fontWeight: 600, color: theme.text, background: labelFilter === l ? theme.card2 : "transparent", display: "flex", alignItems: "center", gap: 7 }}>
-                      <span style={{ width: 8, height: 8, borderRadius: "50%", background: getLabelColor(l), flexShrink: 0 }} />
+                      <span style={{ width: 8, height: 8, borderRadius: "50%", background: resolveLabelColor(l), flexShrink: 0 }} />
                       {l}
                     </div>
                   ))}
