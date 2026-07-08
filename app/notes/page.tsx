@@ -313,6 +313,56 @@ export default function NotesPage() {
     syncContentFromDom();
   };
 
+  // ── zaškrtávacie políčko priamo v texte poznámky (klik na políčko preškrtne daný riadok) ──
+  const checkboxSvg = (checked: boolean) =>
+    checked
+      ? `<svg width="15" height="15" viewBox="0 0 24 24" fill="${appliedA}" stroke="${appliedA}" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="4"/><polyline points="8 12 11 15 16 8" stroke="white" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`
+      : `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="${lineColor}" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="4"/></svg>`;
+
+  const insertChecklistLine = () => {
+    const div = contentDivRef.current;
+    if (!div) return;
+    div.focus();
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+    const range = sel.getRangeAt(0);
+    range.deleteContents();
+
+    const line = document.createElement("div");
+    line.className = "note-chk-line";
+    line.innerHTML = `<span class="note-chk-box" contenteditable="false" data-checked="false">${checkboxSvg(false)}</span><span class="note-chk-text">&nbsp;</span>`;
+    range.insertNode(line);
+
+    const textSpan = line.querySelector(".note-chk-text");
+    if (textSpan) {
+      const newRange = document.createRange();
+      newRange.selectNodeContents(textSpan);
+      newRange.collapse(false);
+      sel.removeAllRanges();
+      sel.addRange(newRange);
+    }
+    syncContentFromDom();
+  };
+
+  // klik kdekoľvek v editore — ak zasiahol zaškrtávacie políčko, prepne jeho stav (a preškrtne text v tom riadku)
+  const handleEditableClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    const box = target.closest(".note-chk-box") as HTMLElement | null;
+    if (!box) return;
+    e.preventDefault();
+    const wasChecked = box.getAttribute("data-checked") === "true";
+    const nowChecked = !wasChecked;
+    box.setAttribute("data-checked", String(nowChecked));
+    box.innerHTML = checkboxSvg(nowChecked);
+    const line = box.closest(".note-chk-line");
+    const textSpan = line?.querySelector(".note-chk-text");
+    if (textSpan) {
+      if (nowChecked) textSpan.classList.add("note-chk-done");
+      else textSpan.classList.remove("note-chk-done");
+    }
+    syncContentFromDom();
+  };
+
   const handleColorChange = (colorId: string) => {
     setEditColor(colorId);
     setShowColorPicker(false);
@@ -557,6 +607,10 @@ export default function NotesPage() {
           .keep-editable i, .keep-editable em{font-style:italic}
           .keep-editable code{background:rgba(0,0,0,0.08);padding:2px 6px;border-radius:4px;font-family:monospace;font-size:13px}
           .keep-editable hr{border:none;border-top:1px solid rgba(0,0,0,0.15);margin:16px 0}
+          .note-chk-line{display:flex;align-items:flex-start;gap:8px;margin:4px 0;}
+          .note-chk-box{cursor:pointer;flex-shrink:0;display:inline-flex;margin-top:3px;}
+          .note-chk-text{flex:1;min-width:0;}
+          .note-chk-text.note-chk-done{text-decoration:line-through;opacity:.55;}
           .keep-swatch{transition:transform .12s ease}
           .keep-swatch:hover{transform:scale(1.15)}
           .keep-toolbtn:hover{opacity:0.7}
@@ -656,6 +710,13 @@ export default function NotesPage() {
                 style={{ padding: "5px 10px", borderRadius: 7, background: "rgba(0,0,0,0.06)", border: "none", color: theme.text, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}
               >
                 •
+              </button>
+              <button
+                title="Vložiť zaškrtávacie políčko (klik naň riadok preškrtne)"
+                onClick={insertChecklistLine}
+                style={{ padding: "5px 8px", borderRadius: 7, background: "rgba(0,0,0,0.06)", border: "none", color: theme.text, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><polyline points="8 12 11 15 16 9"/></svg>
               </button>
               <button
                 title="Kód (zvýrazní vybraný text ako kód)"
@@ -919,6 +980,7 @@ export default function NotesPage() {
                 contentEditable
                 suppressContentEditableWarning
                 onInput={syncContentFromDom}
+                onClick={handleEditableClick}
                 data-placeholder="Napíš niečo..."
                 className="keep-editable"
                 style={{ flex: 1, minHeight: 300, fontSize: isMobile ? 14.5 : 16, lineHeight: 1.7, color: theme.text, fontFamily: "var(--font-geist-sans)" }}
