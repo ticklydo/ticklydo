@@ -17,6 +17,7 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0
 const auth = getAuth(app);
 
 type ChecklistItem = { id: string; text: string; checked: boolean };
+type NoteFile = { name: string; url: string };
 
 type Note = {
   id: string;
@@ -29,6 +30,7 @@ type Note = {
   checklist: boolean;
   items: ChecklistItem[];
   images: string[];
+  files: NoteFile[];
   createdAt: number;
   updatedAt: number;
 };
@@ -93,6 +95,7 @@ function normalizeNote(n: any): Note {
     checklist: !!n.checklist,
     items: Array.isArray(n.items) ? n.items : [],
     images: Array.isArray(n.images) ? n.images : [],
+    files: Array.isArray(n.files) ? n.files : [],
     createdAt: n.createdAt || Date.now(), updatedAt: n.updatedAt || Date.now(),
   };
 }
@@ -123,6 +126,7 @@ export default function NotesPage() {
   const [editChecklist, setEditChecklist] = useState(false);
   const [editItems, setEditItems] = useState<ChecklistItem[]>([]);
   const [editImages, setEditImages] = useState<string[]>([]);
+  const [editFiles, setEditFiles] = useState<NoteFile[]>([]);
   const [newItemText, setNewItemText] = useState("");
   const [newLabelText, setNewLabelText] = useState("");
   const [showLabelInput, setShowLabelInput] = useState(false);
@@ -131,10 +135,14 @@ export default function NotesPage() {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [viewingImage, setViewingImage] = useState<string | null>(null);
   const [imageZoom, setImageZoom] = useState(1);
+  const [showFileMenu, setShowFileMenu] = useState(false);
+  const [newFileUrl, setNewFileUrl] = useState("");
+  const [uploadingFile, setUploadingFile] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showFormatHelp, setShowFormatHelp] = useState(false);
   const [saving, setSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const pdfInputRef = useRef<HTMLInputElement | null>(null);
   const contentDivRef = useRef<HTMLDivElement | null>(null);
   const [showHeadingMenu, setShowHeadingMenu] = useState(false);
 
@@ -524,10 +532,50 @@ export default function NotesPage() {
     setShowImageMenu(false);
   };
 
+  const addFileUrl = () => {
+    const val = newFileUrl.trim();
+    if (!val) return;
+    let name = "Súbor";
+    try { name = decodeURIComponent(val.split("/").pop()?.split("?")[0] || "Súbor"); } catch {}
+    const updated = [...editFiles, { name, url: val }];
+    setEditFiles(updated);
+    persistCurrent({ files: updated });
+    setNewFileUrl("");
+    setShowFileMenu(false);
+  };
+
+  const removeFile = (url: string) => {
+    const updated = editFiles.filter(f => f.url !== url);
+    setEditFiles(updated);
+    persistCurrent({ files: updated });
+  };
+
+  // ── PDF sa NEDÁ skomprimovať ako obrázok, preto akceptujeme len malé súbory (rozpočet 1MB dokumentu) ──
+  const uploadPdfFile = (file: File) => {
+    if (!openId) return;
+    const maxBytes = 250 * 1024;
+    if (file.size > maxBytes) {
+      alert(`Súbor je príliš veľký (${Math.round(file.size / 1024)} KB). PDF sa nedá skomprimovať — max. veľkosť je ${Math.round(maxBytes / 1024)} KB. Skús radšej vložiť odkaz (URL) na súbor uložený online.`);
+      return;
+    }
+    setUploadingFile(true);
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      const updated = [...editFiles, { name: file.name, url: dataUrl }];
+      setEditFiles(updated);
+      persistCurrent({ files: updated });
+      setUploadingFile(false);
+      setShowFileMenu(false);
+    };
+    reader.onerror = () => setUploadingFile(false);
+    reader.readAsDataURL(file);
+  };
+
   const createNote = () => {
     const newNote: Note = {
       id: genId(), title: "", content: "", color: "default",
-      pinned: false, archived: false, labels: [], checklist: false, items: [], images: [],
+      pinned: false, archived: false, labels: [], checklist: false, items: [], images: [], files: [],
       createdAt: Date.now(), updatedAt: Date.now(),
     };
     const updated = [newNote, ...notes];
@@ -547,6 +595,7 @@ export default function NotesPage() {
     setEditChecklist(!!note.checklist);
     setEditItems(note.items || []);
     setEditImages(note.images || []);
+    setEditFiles(note.files || []);
     setShowColorPicker(false);
     setShowLabelInput(false);
     setShowImageMenu(false);
@@ -560,7 +609,7 @@ export default function NotesPage() {
       if (saveTimer.current) clearTimeout(saveTimer.current);
       const updated = sortNotes(notes.map(n => n.id === openId ? {
         ...n, title: editTitle, content: editContent, color: editColor,
-        checklist: editChecklist, items: editItems, labels: editLabels, images: editImages,
+        checklist: editChecklist, items: editItems, labels: editLabels, images: editImages, files: editFiles,
         updatedAt: Date.now(),
       } : n));
       setNotes(updated);
@@ -851,6 +900,55 @@ export default function NotesPage() {
             )}
           </div>
 
+          {/* PDF / súbor */}
+          <div style={{ position: "relative" }}>
+            <input
+              ref={pdfInputRef}
+              type="file"
+              accept="application/pdf"
+              style={{ display: "none" }}
+              onChange={e => { const f = e.target.files?.[0]; if (f) uploadPdfFile(f); e.target.value = ""; }}
+            />
+            <button
+              onClick={() => setShowFileMenu(v => !v)}
+              title="Pridať PDF / súbor"
+              style={{ width: 30, height: 30, borderRadius: 8, background: showFileMenu ? appliedA + "22" : "transparent", border: "none", color: showFileMenu ? appliedA : theme.muted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+            </button>
+            {showFileMenu && (
+              <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, width: 230, maxWidth: "90vw", background: surface, border: `1px solid ${lineColor}`, borderRadius: 12, padding: 12, display: "flex", flexDirection: "column", gap: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.2)", zIndex: 10, boxSizing: "border-box" }}>
+                <button
+                  onClick={() => pdfInputRef.current?.click()}
+                  disabled={uploadingFile}
+                  style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 8, background: theme.card2, border: "none", color: theme.text, fontSize: 12.5, fontWeight: 700, cursor: uploadingFile ? "default" : "pointer", fontFamily: "var(--font-geist-sans)" }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  {uploadingFile ? "Nahrávam..." : "Nahrať PDF (malý súbor)"}
+                </button>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <input
+                    value={newFileUrl}
+                    onChange={e => setNewFileUrl(e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter") addFileUrl(); }}
+                    placeholder="URL adresa PDF/súboru"
+                    style={{ flex: 1, minWidth: 0, padding: "7px 9px", borderRadius: 8, border: `1px solid ${lineColor}`, background: "transparent", outline: "none", fontSize: 12, color: theme.text, fontFamily: "var(--font-geist-sans)" }}
+                  />
+                  <button
+                    onClick={addFileUrl}
+                    disabled={!newFileUrl.trim()}
+                    style={{ padding: "7px 10px", borderRadius: 8, background: !newFileUrl.trim() ? lineColor : appliedA, border: "none", color: "#fff", fontSize: 12, fontWeight: 700, cursor: !newFileUrl.trim() ? "default" : "pointer", fontFamily: "var(--font-geist-sans)" }}
+                  >
+                    +
+                  </button>
+                </div>
+                <div style={{ fontSize: 10, color: theme.muted, lineHeight: 1.4 }}>
+                  PDF sa nedá skomprimovať — nahrať sa dajú len malé súbory (limit úložiska). Pre väčšie PDF použi radšej URL adresu (napr. z Google Drive).
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Štítky */}
           <div style={{ position: "relative" }}>
             <button
@@ -1044,6 +1142,33 @@ export default function NotesPage() {
                 ))}
               </div>
             )}
+
+            {/* Súbory (PDF a pod.) */}
+            {editFiles.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 20 }}>
+                {editFiles.map((f, i) => (
+                  <a
+                    key={i}
+                    href={f.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 10, border: `1px solid ${dividerColor}`, textDecoration: "none", color: theme.text }}
+                  >
+                    <div style={{ width: 32, height: 32, borderRadius: 8, background: "#ef444422", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, color: "#ef4444" }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                    </div>
+                    <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name}</span>
+                    <span
+                      onClick={e => { e.preventDefault(); e.stopPropagation(); removeFile(f.url); }}
+                      title="Odstrániť súbor"
+                      style={{ cursor: "pointer", color: theme.muted, opacity: 0.6, flexShrink: 0, display: "flex" }}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </span>
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -1205,7 +1330,15 @@ export default function NotesPage() {
             </div>
           )}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 4 }}>
-            <div style={{ fontSize: 10.5, color: mutedColor }}>{timeAgo(note.updatedAt)}</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ fontSize: 10.5, color: mutedColor }}>{timeAgo(note.updatedAt)}</div>
+              {note.files && note.files.length > 0 && (
+                <div style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 10.5, color: mutedColor }}>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                  {note.files.length}
+                </div>
+              )}
+            </div>
             {!viewArchive && (
               <div
                 onClick={e => { e.stopPropagation(); toggleArchivedFor(note.id); }}
