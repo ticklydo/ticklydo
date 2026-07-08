@@ -374,12 +374,11 @@ export default function NotesPage() {
 
   const addLabel = () => {
     const val = newLabelText.trim();
-    if (!val || editLabels.includes(val)) { setNewLabelText(""); setShowLabelInput(false); return; }
+    if (!val || editLabels.includes(val)) { setNewLabelText(""); return; }
     const updated = [...editLabels, val];
     setEditLabels(updated);
     persistCurrent({ labels: updated });
     setNewLabelText("");
-    setShowLabelInput(false);
   };
   const removeLabel = (label: string) => {
     const updated = editLabels.filter(l => l !== label);
@@ -769,6 +768,50 @@ export default function NotesPage() {
             )}
           </div>
 
+          {/* Štítky */}
+          <div style={{ position: "relative" }}>
+            <button
+              onClick={() => setShowLabelInput(v => !v)}
+              title="Štítky"
+              style={{ width: 30, height: 30, borderRadius: 8, background: (showLabelInput || editLabels.length > 0) ? appliedA + "22" : "transparent", border: "none", color: (showLabelInput || editLabels.length > 0) ? appliedA : theme.muted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41L11 3.83A2 2 0 0 0 9.59 3H4a1 1 0 0 0-1 1v5.59a2 2 0 0 0 .59 1.41l9.58 9.59a2 2 0 0 0 2.82 0l4.59-4.59a2 2 0 0 0 0-2.82z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg>
+            </button>
+            {showLabelInput && (
+              <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, width: 220, maxWidth: "90vw", background: surface, border: `1px solid ${lineColor}`, borderRadius: 12, padding: 12, display: "flex", flexDirection: "column", gap: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.2)", zIndex: 10, boxSizing: "border-box" }}>
+                {editLabels.length > 0 && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                    {editLabels.map(label => (
+                      <div key={label} style={{ display: "flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 20, background: getLabelColor(label), fontSize: 11.5, fontWeight: 700, color: "#fff" }}>
+                        {label}
+                        <span onClick={() => removeLabel(label)} style={{ cursor: "pointer", opacity: 0.85, display: "flex" }}>
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div style={{ display: "flex", gap: 6 }}>
+                  <input
+                    autoFocus
+                    value={newLabelText}
+                    onChange={e => setNewLabelText(e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter") addLabel(); if (e.key === "Escape") { setShowLabelInput(false); setNewLabelText(""); } }}
+                    placeholder="Nový štítok"
+                    style={{ flex: 1, minWidth: 0, padding: "7px 9px", borderRadius: 8, border: `1px solid ${lineColor}`, background: "transparent", outline: "none", fontSize: 12, color: theme.text, fontFamily: "var(--font-geist-sans)" }}
+                  />
+                  <button
+                    onClick={addLabel}
+                    disabled={!newLabelText.trim()}
+                    style={{ padding: "7px 10px", borderRadius: 8, background: !newLabelText.trim() ? lineColor : appliedA, border: "none", color: "#fff", fontSize: 12, fontWeight: 700, cursor: !newLabelText.trim() ? "default" : "pointer", fontFamily: "var(--font-geist-sans)" }}
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Farba paletka */}
           <div style={{ position: "relative" }}>
             <button
@@ -904,37 +947,6 @@ export default function NotesPage() {
                 ))}
               </div>
             )}
-
-            {/* Štítky */}
-            <div style={{ marginTop: 24, paddingTop: 16, borderTop: `1px solid ${dividerColor}`, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
-              {editLabels.map(label => (
-                <div key={label} style={{ display: "flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 20, background: getLabelColor(label), fontSize: 12, fontWeight: 700, color: "#fff" }}>
-                  {label}
-                  <span onClick={() => removeLabel(label)} style={{ cursor: "pointer", opacity: 0.85, display: "flex" }}>
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                  </span>
-                </div>
-              ))}
-              {showLabelInput ? (
-                <input
-                  autoFocus
-                  value={newLabelText}
-                  onChange={e => setNewLabelText(e.target.value)}
-                  onKeyDown={e => { if (e.key === "Enter") addLabel(); if (e.key === "Escape") { setShowLabelInput(false); setNewLabelText(""); } }}
-                  onBlur={addLabel}
-                  placeholder="Názov štítku"
-                  style={{ padding: "4px 10px", borderRadius: 20, border: `1px solid ${lineColor}`, background: "transparent", outline: "none", fontSize: 12, fontWeight: 600, color: theme.text, fontFamily: "var(--font-geist-sans)", width: 110 }}
-                />
-              ) : (
-                <div
-                  onClick={() => setShowLabelInput(true)}
-                  style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 20, border: `1px dashed ${theme.muted}`, fontSize: 12, fontWeight: 600, color: theme.muted, cursor: "pointer" }}
-                >
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-                  Štítok
-                </div>
-              )}
-            </div>
           </div>
         </div>
 
