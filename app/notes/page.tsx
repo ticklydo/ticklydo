@@ -145,6 +145,7 @@ export default function NotesPage() {
   const pdfInputRef = useRef<HTMLInputElement | null>(null);
   const contentDivRef = useRef<HTMLDivElement | null>(null);
   const [showHeadingMenu, setShowHeadingMenu] = useState(false);
+  const [formatState, setFormatState] = useState<{ bold: boolean; italic: boolean; bullet: boolean; heading: string | null; checklist: boolean }>({ bold: false, italic: false, bullet: false, heading: null, checklist: false });
 
   // undo/redo história pre otvorenú poznámku
   const [history, setHistory] = useState<Snapshot[]>([]);
@@ -288,22 +289,28 @@ export default function NotesPage() {
     contentDivRef.current?.focus();
     document.execCommand("bold");
     syncContentFromDom();
+    updateFormatState();
   };
   const applyItalic = () => {
     contentDivRef.current?.focus();
     document.execCommand("italic");
     syncContentFromDom();
+    updateFormatState();
   };
   const applyHeading = (tag: string) => {
     contentDivRef.current?.focus();
-    document.execCommand("formatBlock", false, tag);
+    // klik na už aktívny nadpis ho vypne (vráti na normálny text)
+    const target = formatState.heading === tag ? "P" : tag;
+    document.execCommand("formatBlock", false, target);
     syncContentFromDom();
     setShowHeadingMenu(false);
+    updateFormatState();
   };
   const applyBulletList = () => {
     contentDivRef.current?.focus();
     document.execCommand("insertUnorderedList");
     syncContentFromDom();
+    updateFormatState();
   };
   const applyHr = () => {
     contentDivRef.current?.focus();
@@ -317,6 +324,19 @@ export default function NotesPage() {
     const sel = window.getSelection();
     if (!sel || sel.rangeCount === 0) return;
     const range = sel.getRangeAt(0);
+    // klik na výber, ktorý je už celý obalený v <code>, ho odbalí (toggle off)
+    const container = range.commonAncestorContainer;
+    const existingCode = (container.nodeType === 3 ? container.parentElement : container as Element)?.closest?.("code");
+    if (existingCode && div.contains(existingCode)) {
+      const text = document.createTextNode(existingCode.textContent || "");
+      existingCode.replaceWith(text);
+      const newRange = document.createRange();
+      newRange.selectNodeContents(text);
+      sel.removeAllRanges();
+      sel.addRange(newRange);
+      syncContentFromDom();
+      return;
+    }
     const codeEl = document.createElement("code");
     if (range.collapsed) {
       codeEl.textContent = "kód";
@@ -347,12 +367,31 @@ export default function NotesPage() {
       ? `<svg width="15" height="15" viewBox="0 0 24 24" fill="${appliedA}" stroke="${appliedA}" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="4"/><polyline points="8 12 11 15 16 8" stroke="white" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`
       : `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="${lineColor}" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="4"/></svg>`;
 
-  const insertChecklistLine = () => {
+  // klik na tlačidlo checklistu — ak je kurzor už v riadku so zaškrtávacím políčkom, políčko odstráni (toggle off); inak vloží nové
+  const toggleChecklistLine = () => {
     const div = contentDivRef.current;
     if (!div) return;
     div.focus();
     const sel = window.getSelection();
     if (!sel || sel.rangeCount === 0) return;
+    const anchor = sel.anchorNode;
+    const anchorEl = anchor?.nodeType === 3 ? anchor.parentElement : (anchor as Element | null);
+    const existingLine = anchorEl?.closest?.(".note-chk-line");
+
+    if (existingLine && div.contains(existingLine)) {
+      const textSpan = existingLine.querySelector(".note-chk-text");
+      const text = document.createTextNode(textSpan?.textContent?.replace(/\u00a0/g, "") || "");
+      existingLine.replaceWith(text);
+      const newRange = document.createRange();
+      newRange.selectNodeContents(text);
+      newRange.collapse(false);
+      sel.removeAllRanges();
+      sel.addRange(newRange);
+      syncContentFromDom();
+      updateFormatState();
+      return;
+    }
+
     const range = sel.getRangeAt(0);
     range.deleteContents();
 
@@ -370,6 +409,7 @@ export default function NotesPage() {
       sel.addRange(newRange);
     }
     syncContentFromDom();
+    updateFormatState();
   };
 
   // klik kdekoľvek v editore — ak zasiahol zaškrtávacie políčko, prepne jeho stav (a preškrtne text v tom riadku)
@@ -389,6 +429,30 @@ export default function NotesPage() {
       else textSpan.classList.remove("note-chk-done");
     }
     syncContentFromDom();
+  };
+
+  // ── sledovanie aktívneho formátovania na pozícii kurzora (zvýrazní tlačidlá B/I/•/☑ keď sú aktívne) ──
+  const updateFormatState = () => {
+    const div = contentDivRef.current;
+    if (!div) return;
+    let bold = false, italic = false, bullet = false, checklist = false;
+    let heading: string | null = null;
+    try {
+      bold = document.queryCommandState("bold");
+      italic = document.queryCommandState("italic");
+      bullet = document.queryCommandState("insertUnorderedList");
+    } catch {}
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      const anchor = sel.anchorNode;
+      const anchorEl = anchor?.nodeType === 3 ? anchor.parentElement : (anchor as Element | null);
+      if (anchorEl && div.contains(anchorEl)) {
+        if (anchorEl.closest(".note-chk-line")) checklist = true;
+        const h = anchorEl.closest("h1, h2, h3");
+        if (h) heading = h.tagName;
+      }
+    }
+    setFormatState({ bold, italic, bullet, heading, checklist });
   };
 
   const handleColorChange = (colorId: string) => {
@@ -668,17 +732,18 @@ export default function NotesPage() {
           .keep-input::placeholder{color:${theme.muted}}
           .keep-editable{outline:none;}
           .keep-editable:empty:before{content:attr(data-placeholder);color:${theme.muted};pointer-events:none;}
-          .keep-editable h1{font-size:24px;font-weight:800;margin:12px 0 10px}
-          .keep-editable h2{font-size:19px;font-weight:700;margin:16px 0 8px}
-          .keep-editable h3{font-size:16px;font-weight:700;margin:14px 0 6px}
+          .keep-editable > *:first-child{margin-top:0 !important;}
+          .keep-editable h1{font-size:26px;font-weight:800;margin:18px 0 8px;line-height:1.3;}
+          .keep-editable h2{font-size:20px;font-weight:800;margin:16px 0 8px;line-height:1.35;}
+          .keep-editable h3{font-size:16.5px;font-weight:700;margin:14px 0 6px;line-height:1.4;color:${theme.muted};}
           .keep-editable p{margin:8px 0;line-height:1.7}
-          .keep-editable ul{margin:8px 0;padding-left:22px}
-          .keep-editable li{margin:4px 0;line-height:1.6}
+          .keep-editable ul{margin:10px 0;padding-left:24px;list-style-type:disc;list-style-position:outside;}
+          .keep-editable li{margin:5px 0;line-height:1.6;display:list-item;padding-left:2px;}
           .keep-editable b, .keep-editable strong{font-weight:800}
           .keep-editable i, .keep-editable em{font-style:italic}
           .keep-editable code{background:rgba(0,0,0,0.08);padding:2px 6px;border-radius:4px;font-family:monospace;font-size:13px}
-          .keep-editable hr{border:none;border-top:1px solid rgba(0,0,0,0.15);margin:16px 0}
-          .note-chk-line{display:flex;align-items:flex-start;gap:8px;margin:4px 0;}
+          .keep-editable hr{border:none;border-top:1px solid rgba(0,0,0,0.15);margin:18px 0}
+          .note-chk-line{display:flex;align-items:flex-start;gap:9px;margin:6px 0;}
           .note-chk-box{cursor:pointer;flex-shrink:0;display:inline-flex;margin-top:3px;}
           .note-chk-text{flex:1;min-width:0;}
           .note-chk-text.note-chk-done{text-decoration:line-through;opacity:.55;}
@@ -686,6 +751,12 @@ export default function NotesPage() {
           .keep-swatch:hover{transform:scale(1.15)}
           .keep-toolbtn:hover{opacity:0.7}
           .keep-item-input::placeholder{color:${theme.muted}}
+          @media print {
+            body * { visibility: hidden !important; }
+            #note-print-area, #note-print-area * { visibility: visible !important; }
+            #note-print-area { position: absolute !important; left: 0; top: 0; width: 100% !important; color: #111 !important; background: #fff !important; padding: 20px !important; }
+            #note-print-area code { color: #111 !important; }
+          }
         `}</style>
 
         {/* Toolbar hore */}
@@ -724,25 +795,28 @@ export default function NotesPage() {
           {!editChecklist && (
             <div style={{ display: "flex", gap: 4, position: "relative" }}>
               <button
-                title="Tučné písmo (zvýrazní vybraný text)"
+                title="Tučné písmo (zvýrazní vybraný text, klik znova vypne)"
+                onMouseDown={e => e.preventDefault()}
                 onClick={applyBold}
-                style={{ padding: "5px 10px", borderRadius: 7, background: "rgba(0,0,0,0.06)", border: "none", color: theme.text, fontSize: 12, fontWeight: 900, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}
+                style={{ padding: "5px 10px", borderRadius: 7, background: formatState.bold ? appliedA + "33" : "rgba(0,0,0,0.06)", border: "none", color: formatState.bold ? appliedA : theme.text, fontSize: 12, fontWeight: 900, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}
               >
                 B
               </button>
               <button
-                title="Kurzíva (zošikmí vybraný text)"
+                title="Kurzíva (zošikmí vybraný text, klik znova vypne)"
+                onMouseDown={e => e.preventDefault()}
                 onClick={applyItalic}
-                style={{ padding: "5px 10px", borderRadius: 7, background: "rgba(0,0,0,0.06)", border: "none", color: theme.text, fontSize: 12, fontWeight: 700, fontStyle: "italic", cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}
+                style={{ padding: "5px 10px", borderRadius: 7, background: formatState.italic ? appliedA + "33" : "rgba(0,0,0,0.06)", border: "none", color: formatState.italic ? appliedA : theme.text, fontSize: 12, fontWeight: 700, fontStyle: "italic", cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}
               >
                 I
               </button>
 
               <div style={{ position: "relative" }}>
                 <button
-                  title="Nadpis — vyber veľkosť"
+                  title="Nadpis — vyber veľkosť (klik na aktívny nadpis ho vypne)"
+                  onMouseDown={e => e.preventDefault()}
                   onClick={() => setShowHeadingMenu(v => !v)}
-                  style={{ padding: "5px 10px", borderRadius: 7, background: showHeadingMenu ? appliedA + "22" : "rgba(0,0,0,0.06)", border: "none", color: showHeadingMenu ? appliedA : theme.text, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}
+                  style={{ padding: "5px 10px", borderRadius: 7, background: (showHeadingMenu || formatState.heading) ? appliedA + "33" : "rgba(0,0,0,0.06)", border: "none", color: (showHeadingMenu || formatState.heading) ? appliedA : theme.text, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}
                 >
                   H
                 </button>
@@ -756,10 +830,11 @@ export default function NotesPage() {
                     ].map(h => (
                       <div
                         key={h.tag}
+                        onMouseDown={e => e.preventDefault()}
                         onClick={() => applyHeading(h.tag)}
-                        style={{ padding: "7px 10px", borderRadius: 7, cursor: "pointer", fontSize: h.size, fontWeight: h.tag === "P" ? 600 : 800, color: theme.text }}
-                        onMouseEnter={e => e.currentTarget.style.background = theme.card2}
-                        onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                        style={{ padding: "7px 10px", borderRadius: 7, cursor: "pointer", fontSize: h.size, fontWeight: h.tag === "P" ? 600 : 800, color: formatState.heading === h.tag ? appliedA : theme.text, background: formatState.heading === h.tag ? appliedA + "18" : "transparent" }}
+                        onMouseEnter={e => e.currentTarget.style.background = formatState.heading === h.tag ? appliedA + "18" : theme.card2}
+                        onMouseLeave={e => e.currentTarget.style.background = formatState.heading === h.tag ? appliedA + "18" : "transparent"}
                       >
                         {h.label}
                       </div>
@@ -770,27 +845,31 @@ export default function NotesPage() {
 
               <button
                 title="Vodorovná čiara"
+                onMouseDown={e => e.preventDefault()}
                 onClick={applyHr}
                 style={{ padding: "5px 10px", borderRadius: 7, background: "rgba(0,0,0,0.06)", border: "none", color: theme.text, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}
               >
                 —
               </button>
               <button
-                title="Odrážkový zoznam"
+                title="Odrážkový zoznam (klik znova vypne)"
+                onMouseDown={e => e.preventDefault()}
                 onClick={applyBulletList}
-                style={{ padding: "5px 10px", borderRadius: 7, background: "rgba(0,0,0,0.06)", border: "none", color: theme.text, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}
+                style={{ padding: "5px 10px", borderRadius: 7, background: formatState.bullet ? appliedA + "33" : "rgba(0,0,0,0.06)", border: "none", color: formatState.bullet ? appliedA : theme.text, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}
               >
                 •
               </button>
               <button
-                title="Vložiť zaškrtávacie políčko (klik naň riadok preškrtne)"
-                onClick={insertChecklistLine}
-                style={{ padding: "5px 8px", borderRadius: 7, background: "rgba(0,0,0,0.06)", border: "none", color: theme.text, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                title="Zaškrtávacie políčko v texte (klik na už vloženom riadku ho odstráni)"
+                onMouseDown={e => e.preventDefault()}
+                onClick={toggleChecklistLine}
+                style={{ padding: "5px 8px", borderRadius: 7, background: formatState.checklist ? appliedA + "33" : "rgba(0,0,0,0.06)", border: "none", color: formatState.checklist ? appliedA : theme.text, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
               >
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><polyline points="8 12 11 15 16 9"/></svg>
               </button>
               <button
-                title="Kód (zvýrazní vybraný text ako kód)"
+                title="Kód (zvýrazní vybraný text ako kód, klik znova vypne)"
+                onMouseDown={e => e.preventDefault()}
                 onClick={applyCode}
                 style={{ padding: "5px 10px", borderRadius: 7, background: "rgba(0,0,0,0.06)", border: "none", color: theme.text, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}
               >
@@ -1035,6 +1114,15 @@ export default function NotesPage() {
             )}
           </div>
 
+          {/* Export do PDF */}
+          <button
+            onClick={() => window.print()}
+            title="Export do PDF (otvorí tlačové okno — vyber 'Uložiť ako PDF')"
+            style={{ width: 30, height: 30, borderRadius: 8, background: "transparent", border: "none", color: theme.muted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+          </button>
+
           {/* Archív */}
           <button
             onClick={() => toggleArchivedFor(openId)}
@@ -1055,7 +1143,7 @@ export default function NotesPage() {
 
         {/* Obsah */}
         <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: isMobile ? "18px 16px 40px" : "32px 24px 60px", display: "flex", justifyContent: "center" }}>
-          <div style={{ width: "100%", maxWidth: 760, display: "flex", flexDirection: "column" }}>
+          <div id="note-print-area" style={{ width: "100%", maxWidth: 760, display: "flex", flexDirection: "column" }}>
             <input
               value={editTitle}
               onChange={e => handleTitleChange(e.target.value)}
@@ -1114,6 +1202,9 @@ export default function NotesPage() {
                 suppressContentEditableWarning
                 onInput={syncContentFromDom}
                 onClick={handleEditableClick}
+                onMouseUp={updateFormatState}
+                onKeyUp={updateFormatState}
+                onFocus={updateFormatState}
                 data-placeholder="Napíš niečo..."
                 className="keep-editable"
                 style={{ flex: 1, minHeight: 300, fontSize: isMobile ? 14.5 : 16, lineHeight: 1.7, color: theme.text, fontFamily: "var(--font-geist-sans)" }}
@@ -1122,7 +1213,9 @@ export default function NotesPage() {
 
             {/* Obrázky */}
             {editImages.length > 0 && (
-              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(3, 1fr)", gap: 10, marginTop: 20 }}>
+              <div style={{ marginTop: 24 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 8, paddingTop: 16, borderTop: `1px solid ${dividerColor}` }}>Prílohy</div>
+                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(3, 1fr)", gap: 10 }}>
                 {editImages.map((url, i) => (
                   <div key={i} style={{ position: "relative", borderRadius: 10, overflow: "hidden", border: `1px solid ${dividerColor}` }}>
                     <img
@@ -1140,12 +1233,16 @@ export default function NotesPage() {
                     </div>
                   </div>
                 ))}
+                </div>
               </div>
             )}
 
             {/* Súbory (PDF a pod.) */}
             {editFiles.length > 0 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 20 }}>
+                {editImages.length === 0 && (
+                  <div style={{ fontSize: 11, fontWeight: 700, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 4, paddingTop: 16, borderTop: `1px solid ${dividerColor}` }}>Prílohy</div>
+                )}
                 {editFiles.map((f, i) => (
                   <a
                     key={i}
