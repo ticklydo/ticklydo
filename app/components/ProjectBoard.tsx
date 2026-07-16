@@ -83,6 +83,17 @@ type CalEvent = {
   time?: string;
 };
 
+type LinkedNote = {
+  id: string;
+  ownerId: string;
+  title: string;
+  content: string;
+  color: string;
+  labels: string[];
+  updatedAt: number;
+  projectIds: string[];
+};
+
 const STATUS_CONFIG: Record<Status, { color: string; bg: string; dot: string }> = {
   "Hotovo":    { color: "#16a34a", bg: "#dcfce7", dot: "#16a34a" },
   "V procese": { color: "#b45309", bg: "#fef3c7", dot: "#f59e0b" },
@@ -158,6 +169,7 @@ const Icons = {
   ai: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2z"/><circle cx="9" cy="13" r="1"/><circle cx="15" cy="13" r="1"/></svg>,
   recurring: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>,
   tag: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>,
+  noteLink: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>,
 };
 
 const COLS = "1fr 110px 95px 120px 130px 110px 36px";
@@ -316,6 +328,13 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
   const [copySuccess, setCopySuccess] = useState(false);
   const [showExport, setShowExport] = useState(false);
 
+  // ── priložené poznámky ──
+  const [showNotes, setShowNotes] = useState(false);
+  const [linkedNotes, setLinkedNotes] = useState<LinkedNote[]>([]);
+  const [showNotePicker, setShowNotePicker] = useState(false);
+  const [pickerNotes, setPickerNotes] = useState<LinkedNote[]>([]);
+  const [pickerLoading, setPickerLoading] = useState(false);
+
   const surface = darkMode ? theme.card : "#ffffff";
   const surfaceHover = darkMode ? theme.card2 : "#f9fafb";
   const headerBg = darkMode ? theme.card2 : "#f8f9fb";
@@ -391,6 +410,75 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
     });
     return () => unsub();
   }, [projectId]);
+
+  // ── priložené poznámky: vlastné + zdieľané, ktoré majú v projectIds tento projekt ──
+  const loadLinkedNotes = async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+    const { getFirestore, collection, query, where, getDocs } = await import("firebase/firestore");
+    const db = getFirestore();
+    const ownedQ = query(collection(db, "notes"), where("ownerId", "==", user.uid), where("projectIds", "array-contains", projectId));
+    const sharedQ = query(collection(db, "notes"), where("sharedWithUids", "array-contains", user.uid), where("projectIds", "array-contains", projectId));
+    const [ownedSnap, sharedSnap] = await Promise.all([getDocs(ownedQ), getDocs(sharedQ)]);
+    const byId = new Map<string, LinkedNote>();
+    const toLinked = (id: string, d: any): LinkedNote => ({
+      id, ownerId: d.ownerId || "", title: d.title || "", content: d.content || "",
+      color: d.color || "default", labels: Array.isArray(d.labels) ? d.labels : [],
+      updatedAt: d.updatedAt || 0, projectIds: Array.isArray(d.projectIds) ? d.projectIds : [],
+    });
+    ownedSnap.forEach(d => byId.set(d.id, toLinked(d.id, d.data())));
+    sharedSnap.forEach(d => byId.set(d.id, toLinked(d.id, d.data())));
+    setLinkedNotes(Array.from(byId.values()).sort((a, b) => b.updatedAt - a.updatedAt));
+  };
+
+  useEffect(() => {
+    loadLinkedNotes();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId]);
+
+  // ── otvorenie výberu poznámok na priloženie: načíta vlastné poznámky, ktoré ešte nie sú priložené ──
+  const openNotePicker = async () => {
+    setShowNotePicker(true);
+    setPickerLoading(true);
+    const user = auth.currentUser;
+    if (!user) { setPickerLoading(false); return; }
+    const { getFirestore, collection, query, where, getDocs } = await import("firebase/firestore");
+    const db = getFirestore();
+    const ownedQ = query(collection(db, "notes"), where("ownerId", "==", user.uid));
+    const snap = await getDocs(ownedQ);
+    const linkedIds = new Set(linkedNotes.map(n => n.id));
+    const options: LinkedNote[] = [];
+    snap.forEach(d => {
+      if (linkedIds.has(d.id)) return;
+      const data = d.data();
+      options.push({
+        id: d.id, ownerId: data.ownerId || "", title: data.title || "", content: data.content || "",
+        color: data.color || "default", labels: Array.isArray(data.labels) ? data.labels : [],
+        updatedAt: data.updatedAt || 0, projectIds: Array.isArray(data.projectIds) ? data.projectIds : [],
+      });
+    });
+    setPickerNotes(options.sort((a, b) => b.updatedAt - a.updatedAt));
+    setPickerLoading(false);
+  };
+
+  // ── priloženie vybranej poznámky k tomuto projektu ──
+  const attachNote = async (note: LinkedNote) => {
+    const { getFirestore, doc, updateDoc, arrayUnion } = await import("firebase/firestore");
+    const db = getFirestore();
+    await updateDoc(doc(db, "notes", note.id), { projectIds: arrayUnion(projectId) });
+    setLinkedNotes(prev => [{ ...note, projectIds: [...note.projectIds, projectId] }, ...prev]);
+    setPickerNotes(prev => prev.filter(n => n.id !== note.id));
+  };
+
+  // ── odobratie poznámky z tohto projektu (poznámka samotná ostáva, len sa zruší prepojenie) ──
+  const detachNote = async (noteId: string) => {
+    const note = linkedNotes.find(n => n.id === noteId);
+    if (!note) return;
+    const { getFirestore, doc, updateDoc, arrayRemove } = await import("firebase/firestore");
+    const db = getFirestore();
+    await updateDoc(doc(db, "notes", noteId), { projectIds: arrayRemove(projectId) });
+    setLinkedNotes(prev => prev.filter(n => n.id !== noteId));
+  };
 
   const tasksRef = useRef<Task[]>([]);
   const eventsRef = useRef<CalEvent[]>([]);
@@ -1160,6 +1248,12 @@ Buď konkrétny a stručný, max 6 slov na podúlohu.`,
           <button onClick={() => setShowShare(true)} style={{ width: 30, height: 30, borderRadius: 8, background: members.length > 0 ? appliedA + "18" : "transparent", border: `1px solid ${members.length > 0 ? appliedA + "55" : theme.border}`, color: members.length > 0 ? appliedA : theme.muted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             {Icons.share}
           </button>
+          <button onClick={() => setShowNotes(v => !v)} title="Poznámky" style={{ width: 30, height: 30, borderRadius: 8, background: linkedNotes.length > 0 || showNotes ? appliedA + "18" : "transparent", border: `1px solid ${linkedNotes.length > 0 || showNotes ? appliedA + "55" : theme.border}`, color: linkedNotes.length > 0 || showNotes ? appliedA : theme.muted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, position: "relative" }}>
+            {Icons.noteLink}
+            {linkedNotes.length > 0 && (
+              <span style={{ position: "absolute", top: -4, right: -4, background: appliedA, color: "#fff", borderRadius: 8, fontSize: 9, fontWeight: 800, minWidth: 14, height: 14, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 3px" }}>{linkedNotes.length}</span>
+            )}
+          </button>
           <button onClick={() => { setShowAI(true); setAiSummary(""); setAiError(""); }} style={{ width: 30, height: 30, borderRadius: 8, background: showAI ? appliedA + "18" : "transparent", border: `1px solid ${showAI ? appliedA + "55" : theme.border}`, color: showAI ? appliedA : theme.muted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             {Icons.ai}
           </button><button onClick={() => setShowExport(v => !v)} title="Export" style={{ width: 30, height: 30, borderRadius: 8, background: showExport ? appliedA + "18" : "transparent", border: `1px solid ${showExport ? appliedA + "55" : theme.border}`, color: showExport ? appliedA : theme.muted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
@@ -1225,6 +1319,41 @@ Buď konkrétny a stručný, max 6 slov na podúlohu.`,
                     </div>
                   );
                 })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── NOTES PANEL ── */}
+        {showNotes && (
+          <div style={{ background: surface, border: `1px solid ${theme.border}`, borderRadius: 14, padding: "16px 18px", boxShadow: "0 2px 12px rgba(0,0,0,0.08)", animation: "fadeIn .2s ease", marginBottom: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <div style={{ fontSize: 13, fontWeight: 800, display: "flex", alignItems: "center", gap: 7 }}>
+                <span style={{ color: appliedA, display: "flex" }}>{Icons.noteLink}</span>
+                Priložené poznámky
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={openNotePicker} style={{ background: appliedA + "18", border: `1px solid ${appliedA}33`, borderRadius: 7, padding: "5px 10px", color: appliedA, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}>+ Priložiť</button>
+                <button onClick={() => setShowNotes(false)} style={{ background: "none", border: "none", cursor: "pointer", color: theme.muted }}>{Icons.close}</button>
+              </div>
+            </div>
+            {linkedNotes.length === 0 ? (
+              <div style={{ fontSize: 12, color: theme.muted, textAlign: "center", padding: "12px 0" }}>Zatiaľ žiadne priložené poznámky</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {linkedNotes.map(n => (
+                  <div key={n.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", background: headerBg, borderRadius: 10 }}>
+                    <div onClick={() => router.push("/notes")} style={{ flex: 1, minWidth: 0, cursor: "pointer" }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: theme.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{n.title || "Bez názvu"}</div>
+                      {n.content && (
+                        <div style={{ fontSize: 11, color: theme.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 2 }}>
+                          {n.content.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()}
+                        </div>
+                      )}
+                    </div>
+                    <button onClick={() => detachNote(n.id)} title="Odobrať z projektu" style={{ background: "none", border: "none", cursor: "pointer", color: theme.muted, opacity: 0.6, flexShrink: 0 }}>{Icons.close}</button>
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -1808,6 +1937,42 @@ Buď konkrétny a stručný, max 6 slov na podúlohu.`,
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── NOTE PICKER MODAL ── */}
+      {showNotePicker && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)" }}
+          onClick={() => setShowNotePicker(false)}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background: surface, borderRadius: 20, padding: 22,
+            width: "min(420px, 92vw)", maxHeight: "75vh", overflowY: "auto",
+            boxShadow: "0 24px 60px rgba(0,0,0,0.25)", border: `1px solid ${theme.border}`,
+            animation: "fadeIn .2s ease", display: "flex", flexDirection: "column", gap: 14,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ fontSize: 15.5, fontWeight: 800 }}>Priložiť poznámku</div>
+              <button onClick={() => setShowNotePicker(false)} style={{ background: "none", border: "none", cursor: "pointer", color: theme.muted }}>{Icons.close}</button>
+            </div>
+            {pickerLoading ? (
+              <div style={{ fontSize: 12, color: theme.muted, textAlign: "center", padding: "16px 0" }}>Načítavam...</div>
+            ) : pickerNotes.length === 0 ? (
+              <div style={{ fontSize: 12.5, color: theme.muted, textAlign: "center", padding: "16px 0" }}>Žiadne ďalšie poznámky na priloženie. Vytvor si ich v sekcii Poznámky.</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {pickerNotes.map(n => (
+                  <div key={n.id} onClick={() => attachNote(n)} style={{ display: "flex", flexDirection: "column", gap: 2, padding: "10px 12px", background: headerBg, border: `1px solid ${theme.border}`, borderRadius: 10, cursor: "pointer" }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: theme.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{n.title || "Bez názvu"}</div>
+                    {n.content && (
+                      <div style={{ fontSize: 11, color: theme.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {n.content.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

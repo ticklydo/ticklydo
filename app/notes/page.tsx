@@ -45,9 +45,11 @@ type Note = {
   publicLinkEnabled: boolean;
   publicLinkToken: string | null;
 
-  // ── prepojenie s projektom ──
-  projectId: string | null;
+  // ── prepojenie s projektom(-mi) ──
+  projectIds: string[];
 };
+
+type ProjectRef = { id: string; name: string };
 
 type Snapshot = { title: string; content: string; checklist: boolean; items: ChecklistItem[]; color: string };
 
@@ -117,7 +119,7 @@ function normalizeNote(n: any, fallbackOwnerId?: string): Note {
     shareCodeExpiresAt: n.shareCodeExpiresAt || null,
     publicLinkEnabled: !!n.publicLinkEnabled,
     publicLinkToken: n.publicLinkToken || null,
-    projectId: n.projectId || null,
+    projectIds: Array.isArray(n.projectIds) ? n.projectIds : (n.projectId ? [n.projectId] : []),
   };
 }
 
@@ -172,6 +174,10 @@ export default function NotesPage() {
   const [redeemLoading, setRedeemLoading] = useState(false);
   const [redeemError, setRedeemError] = useState("");
 
+  // ── prepojenie s projektom ──
+  const [myProjects, setMyProjects] = useState<ProjectRef[]>([]);
+  const [showProjectPicker, setShowProjectPicker] = useState(false);
+
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const pdfInputRef = useRef<HTMLInputElement | null>(null);
   const contentDivRef = useRef<HTMLDivElement | null>(null);
@@ -216,6 +222,7 @@ export default function NotesPage() {
         await batch.commit();
       }
       setLabelColors(userData.labelColors ?? {});
+      setMyProjects((userData.projects ?? []).map((p: any) => ({ id: p.id, name: p.name })));
 
       // ── načítanie vlastných + zdieľaných poznámok z novej kolekcie ──
       const ownedQ = query(collection(db, "notes"), where("ownerId", "==", user.uid));
@@ -712,7 +719,7 @@ export default function NotesPage() {
       pinned: false, archived: false, labels: [], checklist: false, items: [], images: [], files: [],
       createdAt: Date.now(), updatedAt: Date.now(),
       sharedWithUids: [], sharedWithRoles: {}, shareCode: null, shareCodeExpiresAt: null,
-      publicLinkEnabled: false, publicLinkToken: null, projectId: null,
+      publicLinkEnabled: false, publicLinkToken: null, projectIds: [],
     };
     const updated = [newNote, ...notes];
     setNotes(updated);
@@ -848,6 +855,20 @@ export default function NotesPage() {
       return [u, snap.exists() ? (snap.data().email || u) : u] as [string, string];
     }));
     setMemberEmails(prev => ({ ...prev, ...Object.fromEntries(entries) }));
+  };
+
+  // ── PREPOJENIE S PROJEKTOM: pridanie/odobratie (poznámka môže patriť k viacerým projektom naraz) ──
+  const toggleNoteProject = async (projectId: string) => {
+    if (!openId) return;
+    const note = notes.find(n => n.id === openId);
+    if (!note) return;
+    const has = note.projectIds.includes(projectId);
+    const updatedIds = has ? note.projectIds.filter(p => p !== projectId) : [...note.projectIds, projectId];
+    const { getFirestore, doc, setDoc } = await import("firebase/firestore");
+    const db = getFirestore();
+    await setDoc(doc(db, "notes", openId), { projectIds: updatedIds }, { merge: true });
+    const updated = notes.map(n => n.id === openId ? { ...n, projectIds: updatedIds } : n);
+    setNotes(updated);
   };
 
   // ── PRIDANIE POZNÁMKY PODĽA KÓDU (redeem) ──
@@ -1304,6 +1325,17 @@ export default function NotesPage() {
             )}
           </div>
 
+          {/* Priložiť k projektu — vidí vlastník aj editor */}
+          {canEditOpenNote && (
+            <button
+              onClick={() => setShowProjectPicker(true)}
+              title="Priložiť k projektu"
+              style={{ width: 30, height: 30, borderRadius: 8, background: openNoteData.projectIds.length > 0 ? appliedA + "22" : "transparent", border: "none", color: openNoteData.projectIds.length > 0 ? appliedA : theme.muted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+            </button>
+          )}
+
           {/* Zdieľať — len vlastník môže spravovať zdieľanie */}
           {isOwner && (
             <button
@@ -1590,6 +1622,47 @@ export default function NotesPage() {
                       </div>
                     ))}
                   </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── PROJECT PICKER MODAL ── */}
+        {showProjectPicker && (
+          <div
+            onClick={() => setShowProjectPicker(false)}
+            style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1150, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, animation: "fadeIn .15s ease" }}
+          >
+            <div
+              onClick={e => e.stopPropagation()}
+              style={{ background: surface, borderRadius: 18, padding: 22, maxWidth: 400, width: "100%", maxHeight: "75vh", overflowY: "auto", border: `1px solid ${lineColor}`, boxShadow: "0 16px 48px rgba(0,0,0,0.3)", animation: "popIn .18s ease", display: "flex", flexDirection: "column", gap: 14 }}
+            >
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div style={{ fontSize: 15.5, fontWeight: 800, color: theme.text }}>Priložiť k projektu</div>
+                <button onClick={() => setShowProjectPicker(false)} style={{ background: "none", border: "none", cursor: "pointer", color: theme.muted }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
+              {myProjects.length === 0 ? (
+                <div style={{ fontSize: 12.5, color: theme.muted, textAlign: "center", padding: "16px 0" }}>Zatiaľ nemáš žiadne projekty.</div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {myProjects.map(p => {
+                    const checked = openNoteData.projectIds.includes(p.id);
+                    return (
+                      <div
+                        key={p.id}
+                        onClick={() => toggleNoteProject(p.id)}
+                        style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: checked ? appliedA + "14" : theme.card2, border: `1px solid ${checked ? appliedA + "55" : lineColor}`, borderRadius: 10, cursor: "pointer" }}
+                      >
+                        <div style={{ width: 18, height: 18, borderRadius: 5, flexShrink: 0, border: `1.5px solid ${checked ? appliedA : lineColor}`, background: checked ? appliedA : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          {checked && <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
+                        </div>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: theme.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
