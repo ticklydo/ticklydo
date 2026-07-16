@@ -138,6 +138,9 @@ export default function WeeklyPlanPage() {
   const [activeDailyRow, setActiveDailyRow] = useState<Record<string, number | null>>({});
   const [confirmDeleteDaily, setConfirmDeleteDaily] = useState<{ date: string; id: string } | null>(null);
 
+  // ── confirm-delete state for calendar events (udalosti) ──
+  const [confirmDeleteEvent, setConfirmDeleteEvent] = useState<CalEvent | null>(null);
+
   // ── responsive: stacked day-cards under this width ──
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
@@ -396,6 +399,21 @@ export default function WeeklyPlanPage() {
     const db = getFirestore();
     await setDoc(doc(db, "users", uid), { globalEvents: updated }, { merge: true });
     cancelAddEvent();
+  };
+
+  // Krok 1: klik na ✕ len OTVORÍ potvrdenie (nemaže hneď)
+  const requestDeleteEvent = (ev: CalEvent) => setConfirmDeleteEvent(ev);
+  const cancelDeleteEvent = () => setConfirmDeleteEvent(null);
+
+  // Krok 2: až potvrdením v dialógu sa udalosť naozaj natrvalo vymaže z globálneho úložiska
+  const confirmDeleteEventFn = async () => {
+    if (!uid || !confirmDeleteEvent) return;
+    const updated = allEvents.filter(e => e.id !== confirmDeleteEvent.id);
+    setAllEvents(updated);
+    const { getFirestore, doc, setDoc } = await import("firebase/firestore");
+    const db = getFirestore();
+    await setDoc(doc(db, "users", uid), { globalEvents: updated }, { merge: true });
+    setConfirmDeleteEvent(null);
   };
 
   const doneTodos = todos.filter(t => t.done).length;
@@ -797,6 +815,7 @@ export default function WeeklyPlanPage() {
                             <div key={ev.id} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5 }}>
                               <div style={{ width: 5, height: 5, borderRadius: "50%", background: ev.color || appliedA, flexShrink: 0 }} />
                               <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{ev.time ? `${ev.time} ` : ""}{ev.title}</span>
+                              <span onClick={() => requestDeleteEvent(ev)} style={{ fontSize: 10.5, color: "#ef4444", cursor: "pointer", flexShrink: 0, opacity: 0.6 }}>✕</span>
                               {evi === dayEvents.length - 1 && (
                                 <span onClick={() => isAdding ? cancelAddEvent() : openAddEvent(dateStr)} style={{ fontSize: 12, fontWeight: 800, color: appliedA, cursor: "pointer", flexShrink: 0 }}>{isAdding ? "✕" : "+"}</span>
                               )}
@@ -992,6 +1011,7 @@ export default function WeeklyPlanPage() {
                         <div key={ev.id} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: isMobile ? 9.5 : 10.5 }}>
                           <div style={{ width: 5, height: 5, borderRadius: "50%", background: ev.color || appliedA, flexShrink: 0 }} />
                           <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{ev.time ? `${ev.time} ` : ""}{ev.title}</span>
+                          <span onClick={() => requestDeleteEvent(ev)} title="Zrušiť udalosť" style={{ fontSize: isMobile ? 9.5 : 10, color: "#ef4444", cursor: "pointer", flexShrink: 0, opacity: 0.6 }}>✕</span>
                           {evi === dayEvents.length - 1 && (
                             <span
                               onClick={() => isAdding ? cancelAddEvent() : openAddEvent(dateStr)}
@@ -1330,6 +1350,68 @@ export default function WeeklyPlanPage() {
               </button>
               <button
                 onClick={confirmDeleteDailyTodo}
+                style={{
+                  background: "#ef4444", border: "none", borderRadius: 9,
+                  padding: "8px 16px", color: "#fff", fontWeight: 800, fontSize: 12.5,
+                  cursor: "pointer", fontFamily: "var(--font-geist-sans)",
+                }}
+              >
+                Odstrániť natrvalo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── CONFIRM DELETE MODAL (udalosť) ── */}
+      {confirmDeleteEvent && (
+        <div
+          onClick={cancelDeleteEvent}
+          style={{
+            position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1000,
+            display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
+            animation: "wpFadeIn .15s ease",
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: surface, borderRadius: 16, padding: 22, maxWidth: 360, width: "100%",
+              border: `1px solid ${lineColor}`, boxShadow: "0 12px 40px rgba(0,0,0,0.25)",
+              animation: "wpPopIn .18s ease",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+              <div style={{ width: 36, height: 36, borderRadius: 10, background: "#ef444420", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                  <line x1="12" y1="9" x2="12" y2="13" />
+                  <line x1="12" y1="17" x2="12.01" y2="17" />
+                </svg>
+              </div>
+              <div style={{ fontSize: 14.5, fontWeight: 800, color: theme.text }}>Zrušiť udalosť?</div>
+            </div>
+
+            <div style={{ fontSize: 12.5, color: theme.muted, lineHeight: 1.5, marginBottom: 6 }}>
+              Udalosť „<strong style={{ color: theme.text }}>{confirmDeleteEvent.title}</strong>" bude natrvalo odstránená.
+            </div>
+            <div style={{ fontSize: 11.5, color: "#ef4444", fontWeight: 700, marginBottom: 18 }}>
+              Táto akcia sa nedá vrátiť späť.
+            </div>
+
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button
+                onClick={cancelDeleteEvent}
+                style={{
+                  background: theme.card2, border: `1px solid ${lineColor}`, borderRadius: 9,
+                  padding: "8px 16px", color: theme.text, fontWeight: 700, fontSize: 12.5,
+                  cursor: "pointer", fontFamily: "var(--font-geist-sans)",
+                }}
+              >
+                Zrušiť
+              </button>
+              <button
+                onClick={confirmDeleteEventFn}
                 style={{
                   background: "#ef4444", border: "none", borderRadius: 9,
                   padding: "8px 16px", color: "#fff", fontWeight: 800, fontSize: 12.5,
