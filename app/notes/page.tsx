@@ -372,11 +372,26 @@ export default function NotesPage() {
     const div = contentDivRef.current;
     if (!div) return;
     div.focus();
-    const sel = window.getSelection();
-    if (!sel || sel.rangeCount === 0) return;
-    const anchor = sel.anchorNode;
-    const anchorEl = anchor?.nodeType === 3 ? anchor.parentElement : (anchor as Element | null);
-    const existingLine = anchorEl?.closest?.(".note-chk-line");
+    let sel = window.getSelection();
+
+    // Over, či aktuálny výber naozaj patrí dovnútra editovacieho poľa. Ak nie (napr. si ešte
+    // neklikla priamo do textu, alebo prehliadač si "pamätá" výber odinakiaľ zo stránky),
+    // vytvor bezpečný kurzor na koniec obsahu poznámky namiesto rizikového mazania cudzieho výberu.
+    const insideDiv = (node: Node | null) => !!node && div.contains(node);
+    let range: Range;
+    if (sel && sel.rangeCount > 0 && insideDiv(sel.anchorNode) && insideDiv(sel.focusNode)) {
+      range = sel.getRangeAt(0);
+    } else {
+      range = document.createRange();
+      range.selectNodeContents(div);
+      range.collapse(false);
+      sel = window.getSelection();
+      sel?.removeAllRanges();
+      sel?.addRange(range);
+    }
+
+    const startEl = range.startContainer.nodeType === 3 ? range.startContainer.parentElement : (range.startContainer as Element);
+    const existingLine = startEl?.closest?.(".note-chk-line");
 
     if (existingLine && div.contains(existingLine)) {
       const textSpan = existingLine.querySelector(".note-chk-text");
@@ -385,15 +400,16 @@ export default function NotesPage() {
       const newRange = document.createRange();
       newRange.selectNodeContents(text);
       newRange.collapse(false);
-      sel.removeAllRanges();
-      sel.addRange(newRange);
+      sel?.removeAllRanges();
+      sel?.addRange(newRange);
       syncContentFromDom();
       updateFormatState();
       return;
     }
 
-    const range = sel.getRangeAt(0);
-    range.deleteContents();
+    // Nikdy nemazať skutočne označený text — ak výber niečo obsahuje, len ho zbal na koniec
+    // (rovnaký princíp ako pri odrážkach: vloženie sa deje na pozícii kurzora, nie prepísaním obsahu).
+    if (!range.collapsed) range.collapse(false);
 
     const line = document.createElement("div");
     line.className = "note-chk-line";
@@ -405,8 +421,8 @@ export default function NotesPage() {
       const newRange = document.createRange();
       newRange.selectNodeContents(textSpan);
       newRange.collapse(false);
-      sel.removeAllRanges();
-      sel.addRange(newRange);
+      sel?.removeAllRanges();
+      sel?.addRange(newRange);
     }
     syncContentFromDom();
     updateFormatState();
