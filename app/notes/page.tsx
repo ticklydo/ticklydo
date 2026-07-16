@@ -1223,7 +1223,7 @@ export default function NotesPage() {
                 onFocus={updateFormatState}
                 data-placeholder="Napíš niečo..."
                 className="keep-editable"
-                style={{ flex: 1, minHeight: 300, fontSize: isMobile ? 14.5 : 16, lineHeight: 1.7, color: theme.text, fontFamily: "var(--font-geist-sans)" }}
+                style={{ flex: "1 0 auto", minHeight: 300, fontSize: isMobile ? 14.5 : 16, lineHeight: 1.7, color: theme.text, fontFamily: "var(--font-geist-sans)" }}
               />
             )}
 
