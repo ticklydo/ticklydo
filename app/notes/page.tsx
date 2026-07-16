@@ -19,8 +19,11 @@ const auth = getAuth(app);
 type ChecklistItem = { id: string; text: string; checked: boolean };
 type NoteFile = { name: string; url: string };
 
+type ShareRole = "viewer" | "editor";
+
 type Note = {
   id: string;
+  ownerId: string;
   title: string;
   content: string;
   color: string;
@@ -33,6 +36,17 @@ type Note = {
   files: NoteFile[];
   createdAt: number;
   updatedAt: number;
+
+  // ── zdieľanie ──
+  sharedWithUids: string[];
+  sharedWithRoles: Record<string, ShareRole>;
+  shareCode: string | null;
+  shareCodeExpiresAt: number | null;
+  publicLinkEnabled: boolean;
+  publicLinkToken: string | null;
+
+  // ── prepojenie s projektom ──
+  projectId: string | null;
 };
 
 type Snapshot = { title: string; content: string; checklist: boolean; items: ChecklistItem[]; color: string };
@@ -86,9 +100,9 @@ function getLabelColor(label: string): string {
   return LABEL_COLORS[index];
 }
 
-function normalizeNote(n: any): Note {
+function normalizeNote(n: any, fallbackOwnerId?: string): Note {
   return {
-    id: n.id, title: n.title || "", content: n.content || "",
+    id: n.id, ownerId: n.ownerId || fallbackOwnerId || "", title: n.title || "", content: n.content || "",
     color: n.color || "default",
     pinned: !!n.pinned, archived: !!n.archived,
     labels: Array.isArray(n.labels) ? n.labels : [],
@@ -97,6 +111,13 @@ function normalizeNote(n: any): Note {
     images: Array.isArray(n.images) ? n.images : [],
     files: Array.isArray(n.files) ? n.files : [],
     createdAt: n.createdAt || Date.now(), updatedAt: n.updatedAt || Date.now(),
+    sharedWithUids: Array.isArray(n.sharedWithUids) ? n.sharedWithUids : [],
+    sharedWithRoles: n.sharedWithRoles || {},
+    shareCode: n.shareCode || null,
+    shareCodeExpiresAt: n.shareCodeExpiresAt || null,
+    publicLinkEnabled: !!n.publicLinkEnabled,
+    publicLinkToken: n.publicLinkToken || null,
+    projectId: n.projectId || null,
   };
 }
 
@@ -141,6 +162,16 @@ export default function NotesPage() {
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showFormatHelp, setShowFormatHelp] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // ── zdieľanie poznámky ──
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [generatingCode, setGeneratingCode] = useState(false);
+  const [memberEmails, setMemberEmails] = useState<Record<string, string>>({});
+  const [showRedeemInput, setShowRedeemInput] = useState(false);
+  const [redeemCodeInput, setRedeemCodeInput] = useState("");
+  const [redeemLoading, setRedeemLoading] = useState(false);
+  const [redeemError, setRedeemError] = useState("");
+
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const pdfInputRef = useRef<HTMLInputElement | null>(null);
   const contentDivRef = useRef<HTMLDivElement | null>(null);
@@ -168,13 +199,32 @@ export default function NotesPage() {
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (!user) { setLoading(false); return; }
       setUid(user.uid);
-      const { getFirestore, doc, getDoc } = await import("firebase/firestore");
+      const { getFirestore, doc, getDoc, collection, query, where, getDocs, writeBatch, deleteField } = await import("firebase/firestore");
       const db = getFirestore();
-      const snap = await getDoc(doc(db, "users", user.uid));
-      const data = snap.exists() ? snap.data() : {};
-      const loaded: Note[] = (data.notes ?? []).map(normalizeNote);
-      setNotes(loaded);
-      setLabelColors(data.labelColors ?? {});
+
+      // ── jednorazová migrácia zo starého users/{uid}.notes[] do novej kolekcie notes/{noteId} ──
+      const userSnap = await getDoc(doc(db, "users", user.uid));
+      const userData = userSnap.exists() ? userSnap.data() : {};
+      const legacyNotes: any[] = userData.notes ?? [];
+      if (legacyNotes.length > 0) {
+        const batch = writeBatch(db);
+        legacyNotes.forEach(ln => {
+          const note = normalizeNote(ln, user.uid);
+          batch.set(doc(db, "notes", note.id), note);
+        });
+        batch.update(doc(db, "users", user.uid), { notes: deleteField() });
+        await batch.commit();
+      }
+      setLabelColors(userData.labelColors ?? {});
+
+      // ── načítanie vlastných + zdieľaných poznámok z novej kolekcie ──
+      const ownedQ = query(collection(db, "notes"), where("ownerId", "==", user.uid));
+      const sharedQ = query(collection(db, "notes"), where("sharedWithUids", "array-contains", user.uid));
+      const [ownedSnap, sharedSnap] = await Promise.all([getDocs(ownedQ), getDocs(sharedQ)]);
+      const byId = new Map<string, Note>();
+      ownedSnap.forEach(d => byId.set(d.id, normalizeNote({ id: d.id, ...d.data() })));
+      sharedSnap.forEach(d => byId.set(d.id, normalizeNote({ id: d.id, ...d.data() })));
+      setNotes(Array.from(byId.values()));
       setLoading(false);
     });
     return () => unsub();
@@ -190,12 +240,15 @@ export default function NotesPage() {
 
   const sortNotes = (list: Note[]) => [...list].sort((a, b) => b.updatedAt - a.updatedAt);
 
-  const saveNotes = useCallback(async (updatedNotes: Note[]) => {
+  // Uloží LEN tie poznámky, ktoré sa v tomto volaní zmenili (namiesto celého poľa naraz —
+  // teraz je každá poznámka samostatný Firestore dokument v kolekcii "notes").
+  const saveNotes = useCallback(async (updatedNotes: Note[], changedIds?: string[]) => {
     if (!uid) return;
     setSaving(true);
     const { getFirestore, doc, setDoc } = await import("firebase/firestore");
     const db = getFirestore();
-    await setDoc(doc(db, "users", uid), { notes: updatedNotes }, { merge: true });
+    const toSave = changedIds ? updatedNotes.filter(n => changedIds.includes(n.id)) : updatedNotes;
+    await Promise.all(toSave.map(n => setDoc(doc(db, "notes", n.id), n, { merge: true })));
     setSaving(false);
   }, [uid]);
 
@@ -222,7 +275,7 @@ export default function NotesPage() {
     saveTimer.current = setTimeout(() => {
       const updated = sortNotes(notes.map(n => n.id === openId ? { ...n, ...patch, updatedAt: Date.now() } : n));
       setNotes(updated);
-      saveNotes(updated);
+      saveNotes(updated, [openId]);
     }, 700);
   }, [openId, notes, saveNotes]);
 
@@ -477,20 +530,20 @@ export default function NotesPage() {
     if (!openId) return;
     const updated = sortNotes(notes.map(n => n.id === openId ? { ...n, color: colorId, updatedAt: Date.now() } : n));
     setNotes(updated);
-    saveNotes(updated);
+    saveNotes(updated, [openId]);
     pushHistory({ title: editTitle, content: editContent, checklist: editChecklist, items: editItems, color: colorId });
   };
 
   const togglePinned = (id: string) => {
     const updated = sortNotes(notes.map(n => n.id === id ? { ...n, pinned: !n.pinned, updatedAt: n.updatedAt } : n));
     setNotes(updated);
-    saveNotes(updated);
+    saveNotes(updated, [id]);
     if (openId === id) setEditPinned(v => !v);
   };
   const toggleArchivedFor = (id: string) => {
     const updated = notes.map(n => n.id === id ? { ...n, archived: !n.archived } : n);
     setNotes(updated);
-    saveNotes(updated);
+    saveNotes(updated, [id]);
     if (openId === id) { setEditArchived(v => !v); setOpenId(null); }
   };
 
@@ -653,14 +706,17 @@ export default function NotesPage() {
   };
 
   const createNote = () => {
+    if (!uid) return;
     const newNote: Note = {
-      id: genId(), title: "", content: "", color: "default",
+      id: genId(), ownerId: uid, title: "", content: "", color: "default",
       pinned: false, archived: false, labels: [], checklist: false, items: [], images: [], files: [],
       createdAt: Date.now(), updatedAt: Date.now(),
+      sharedWithUids: [], sharedWithRoles: {}, shareCode: null, shareCodeExpiresAt: null,
+      publicLinkEnabled: false, publicLinkToken: null, projectId: null,
     };
     const updated = [newNote, ...notes];
     setNotes(updated);
-    saveNotes(updated);
+    saveNotes(updated, [newNote.id]);
     openNote(newNote);
   };
 
@@ -680,6 +736,7 @@ export default function NotesPage() {
     setShowLabelInput(false);
     setShowImageMenu(false);
     setEditingLabelColor(null);
+    setShowShareModal(false);
     setHistory([{ title: note.title, content: note.content, checklist: !!note.checklist, items: note.items || [], color: note.color || "default" }]);
     setHistoryIndex(0);
   };
@@ -693,21 +750,135 @@ export default function NotesPage() {
         updatedAt: Date.now(),
       } : n));
       setNotes(updated);
-      saveNotes(updated);
+      saveNotes(updated, [openId]);
     }
     setOpenId(null);
     setShowColorPicker(false);
     setShowFormatHelp(false);
     setShowImageMenu(false);
     setEditingLabelColor(null);
+    setShowShareModal(false);
   };
 
   const deleteNote = async (id: string) => {
     const updated = notes.filter(n => n.id !== id);
     setNotes(updated);
-    await saveNotes(updated);
+    const { getFirestore, doc, deleteDoc } = await import("firebase/firestore");
+    const db = getFirestore();
+    await deleteDoc(doc(db, "notes", id));
     setConfirmDelete(null);
     if (openId === id) setOpenId(null);
+  };
+
+  // ── ZDIEĽANIE: vygenerovanie 6-miestneho kódu s platnosťou 24 hodín ──
+  const generateShareCode = async () => {
+    if (!openId || !uid) return;
+    setGeneratingCode(true);
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // bez zámenných znakov (O/0, I/1)
+    const code = Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+    const expiresAt = Date.now() + 24 * 60 * 60 * 1000;
+    const { getFirestore, doc, setDoc } = await import("firebase/firestore");
+    const db = getFirestore();
+    await setDoc(doc(db, "shareCodes", code), { noteId: openId, expiresAt, createdBy: uid });
+    await setDoc(doc(db, "notes", openId), { shareCode: code, shareCodeExpiresAt: expiresAt }, { merge: true });
+    const updated = notes.map(n => n.id === openId ? { ...n, shareCode: code, shareCodeExpiresAt: expiresAt } : n);
+    setNotes(updated);
+    setGeneratingCode(false);
+  };
+
+  // ── ZDIEĽANIE: zrušenie aktívneho kódu ──
+  const revokeShareCode = async () => {
+    if (!openId) return;
+    const { getFirestore, doc, setDoc } = await import("firebase/firestore");
+    const db = getFirestore();
+    await setDoc(doc(db, "notes", openId), { shareCode: null, shareCodeExpiresAt: null }, { merge: true });
+    const updated = notes.map(n => n.id === openId ? { ...n, shareCode: null, shareCodeExpiresAt: null } : n);
+    setNotes(updated);
+  };
+
+  // ── ZDIEĽANIE: zapnutie/vypnutie verejného odkazu (len na čítanie) ──
+  const togglePublicLink = async () => {
+    if (!openId) return;
+    const note = notes.find(n => n.id === openId);
+    if (!note) return;
+    const next = !note.publicLinkEnabled;
+    const token = note.publicLinkToken || genId() + genId() + genId();
+    const { getFirestore, doc, setDoc } = await import("firebase/firestore");
+    const db = getFirestore();
+    await setDoc(doc(db, "notes", openId), { publicLinkEnabled: next, publicLinkToken: token }, { merge: true });
+    const updated = notes.map(n => n.id === openId ? { ...n, publicLinkEnabled: next, publicLinkToken: token } : n);
+    setNotes(updated);
+  };
+
+  // ── ZDIEĽANIE: vlastník mení rolu zdieľaného používateľa ──
+  const changeSharedRole = async (targetUid: string, role: ShareRole) => {
+    if (!openId) return;
+    const note = notes.find(n => n.id === openId);
+    if (!note) return;
+    const updatedRoles = { ...note.sharedWithRoles, [targetUid]: role };
+    const { getFirestore, doc, setDoc } = await import("firebase/firestore");
+    const db = getFirestore();
+    await setDoc(doc(db, "notes", openId), { sharedWithRoles: updatedRoles }, { merge: true });
+    const updated = notes.map(n => n.id === openId ? { ...n, sharedWithRoles: updatedRoles } : n);
+    setNotes(updated);
+  };
+
+  // ── ZDIEĽANIE: vlastník odoberie prístup ──
+  const removeSharedUser = async (targetUid: string) => {
+    if (!openId) return;
+    const note = notes.find(n => n.id === openId);
+    if (!note) return;
+    const updatedUids = note.sharedWithUids.filter(u => u !== targetUid);
+    const updatedRoles = { ...note.sharedWithRoles };
+    delete updatedRoles[targetUid];
+    const { getFirestore, doc, setDoc } = await import("firebase/firestore");
+    const db = getFirestore();
+    await setDoc(doc(db, "notes", openId), { sharedWithUids: updatedUids, sharedWithRoles: updatedRoles }, { merge: true });
+    const updated = notes.map(n => n.id === openId ? { ...n, sharedWithUids: updatedUids, sharedWithRoles: updatedRoles } : n);
+    setNotes(updated);
+  };
+
+  // ── ZDIEĽANIE: načítanie emailov zdieľaných ľudí (na zobrazenie v modale) ──
+  const loadMemberEmails = async (uids: string[]) => {
+    if (uids.length === 0) return;
+    const { getFirestore, doc, getDoc } = await import("firebase/firestore");
+    const db = getFirestore();
+    const entries = await Promise.all(uids.map(async u => {
+      const snap = await getDoc(doc(db, "users", u));
+      return [u, snap.exists() ? (snap.data().email || u) : u] as [string, string];
+    }));
+    setMemberEmails(prev => ({ ...prev, ...Object.fromEntries(entries) }));
+  };
+
+  // ── PRIDANIE POZNÁMKY PODĽA KÓDU (redeem) ──
+  const redeemShareCode = async () => {
+    const code = redeemCodeInput.trim().toUpperCase();
+    if (!code || !uid) return;
+    setRedeemError("");
+    setRedeemLoading(true);
+    try {
+      const { getFirestore, doc, getDoc, updateDoc, arrayUnion } = await import("firebase/firestore");
+      const db = getFirestore();
+      const codeSnap = await getDoc(doc(db, "shareCodes", code));
+      if (!codeSnap.exists()) { setRedeemError("Neplatný kód."); setRedeemLoading(false); return; }
+      const { noteId, expiresAt } = codeSnap.data() as { noteId: string; expiresAt: number };
+      if (expiresAt < Date.now()) { setRedeemError("Kód už vypršal."); setRedeemLoading(false); return; }
+      await updateDoc(doc(db, "notes", noteId), {
+        sharedWithUids: arrayUnion(uid),
+        [`sharedWithRoles.${uid}`]: "editor",
+      });
+      const noteSnap = await getDoc(doc(db, "notes", noteId));
+      if (noteSnap.exists()) {
+        const newNote = normalizeNote({ id: noteSnap.id, ...noteSnap.data() });
+        setNotes(prev => sortNotes([newNote, ...prev.filter(n => n.id !== newNote.id)]));
+      }
+      setRedeemCodeInput("");
+      setShowRedeemInput(false);
+    } catch (err) {
+      console.error("Redeem error:", err);
+      setRedeemError("Nepodarilo sa pridať poznámku. Skús to znova.");
+    }
+    setRedeemLoading(false);
   };
 
   const allLabels = Array.from(new Set(notes.flatMap(n => n.labels || []))).sort();
@@ -735,6 +906,9 @@ export default function NotesPage() {
   );
 
   const openNoteData = notes.find(n => n.id === openId);
+  const isSharedEditor = !!(openNoteData && uid && openNoteData.ownerId !== uid && openNoteData.sharedWithRoles[uid] === "editor");
+  const isOwner = !!(openNoteData && uid && openNoteData.ownerId === uid);
+  const canEditOpenNote = isOwner || isSharedEditor;
 
   // ── CELOSTRÁNKOVÉ ZOBRAZENIE: otvorená poznámka ──
   if (openId && openNoteData) {
@@ -1130,6 +1304,17 @@ export default function NotesPage() {
             )}
           </div>
 
+          {/* Zdieľať — len vlastník môže spravovať zdieľanie */}
+          {isOwner && (
+            <button
+              onClick={() => { setShowShareModal(true); loadMemberEmails(openNoteData.sharedWithUids); }}
+              title="Zdieľať poznámku"
+              style={{ width: 30, height: 30, borderRadius: 8, background: (openNoteData.sharedWithUids.length > 0 || openNoteData.publicLinkEnabled) ? appliedA + "22" : "transparent", border: "none", color: (openNoteData.sharedWithUids.length > 0 || openNoteData.publicLinkEnabled) ? appliedA : theme.muted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+            </button>
+          )}
+
           {/* Export do PDF */}
           <button
             onClick={() => window.print()}
@@ -1139,22 +1324,27 @@ export default function NotesPage() {
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
           </button>
 
-          {/* Archív */}
-          <button
-            onClick={() => toggleArchivedFor(openId)}
-            title={editArchived ? "Zrušiť archiváciu" : "Archivovať"}
-            style={{ width: 30, height: 30, borderRadius: 8, background: "transparent", border: "none", color: theme.muted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
-          >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
-          </button>
+          {/* Archív — len vlastník */}
+          {isOwner && (
+            <button
+              onClick={() => toggleArchivedFor(openId)}
+              title={editArchived ? "Zrušiť archiváciu" : "Archivovať"}
+              style={{ width: 30, height: 30, borderRadius: 8, background: "transparent", border: "none", color: theme.muted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+            </button>
+          )}
 
-          <button
-            onClick={() => setConfirmDelete(openId)}
-            title="Vymazať"
-            style={{ width: 30, height: 30, borderRadius: 8, background: "transparent", border: "none", color: "#ef4444", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", opacity: 0.75 }}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-          </button>
+          {/* Vymazať — len vlastník */}
+          {isOwner && (
+            <button
+              onClick={() => setConfirmDelete(openId)}
+              title="Vymazať"
+              style={{ width: 30, height: 30, borderRadius: 8, background: "transparent", border: "none", color: "#ef4444", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", opacity: 0.75 }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+            </button>
+          )}
         </div>
 
         {/* Obsah */}
@@ -1165,6 +1355,7 @@ export default function NotesPage() {
               onChange={e => handleTitleChange(e.target.value)}
               placeholder="Názov"
               className="keep-input"
+              readOnly={!canEditOpenNote}
               style={{ width: "100%", background: "transparent", border: "none", outline: "none", fontSize: isMobile ? 22 : 30, fontWeight: 800, color: theme.text, fontFamily: "var(--font-geist-sans)", marginBottom: isMobile ? 14 : 18, padding: 0 }}
             />
 
@@ -1187,6 +1378,7 @@ export default function NotesPage() {
                       value={item.text}
                       onChange={e => editChecklistItemText(item.id, e.target.value)}
                       className="keep-item-input"
+                      readOnly={!canEditOpenNote}
                       style={{
                         flex: 1, background: "transparent", border: "none", outline: "none",
                         fontSize: 15, color: theme.text, fontFamily: "var(--font-geist-sans)",
@@ -1214,7 +1406,7 @@ export default function NotesPage() {
             ) : (
               <div
                 ref={contentDivRef}
-                contentEditable
+                contentEditable={canEditOpenNote}
                 suppressContentEditableWarning
                 onInput={syncContentFromDom}
                 onClick={handleEditableClick}
@@ -1313,6 +1505,97 @@ export default function NotesPage() {
           </div>
         )}
 
+        {/* ── SHARE MODAL ── */}
+        {showShareModal && isOwner && (
+          <div
+            onClick={() => setShowShareModal(false)}
+            style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1150, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, animation: "fadeIn .15s ease" }}
+          >
+            <div
+              onClick={e => e.stopPropagation()}
+              style={{ background: surface, borderRadius: 18, padding: 22, maxWidth: 440, width: "100%", maxHeight: "85vh", overflowY: "auto", border: `1px solid ${lineColor}`, boxShadow: "0 16px 48px rgba(0,0,0,0.3)", animation: "popIn .18s ease", display: "flex", flexDirection: "column", gap: 18 }}
+            >
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div style={{ fontSize: 15.5, fontWeight: 800, color: theme.text }}>Zdieľať poznámku</div>
+                <button onClick={() => setShowShareModal(false)} style={{ background: "none", border: "none", cursor: "pointer", color: theme.muted }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
+
+              {/* Kód na zariadenia */}
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 800, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: 8 }}>Kód na zariadenia</div>
+                {openNoteData.shareCode && openNoteData.shareCodeExpiresAt && openNoteData.shareCodeExpiresAt > Date.now() ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <div style={{ fontSize: 26, fontWeight: 900, letterSpacing: "4px", textAlign: "center", padding: "14px", background: theme.card2, borderRadius: 12, color: appliedA }}>{openNoteData.shareCode}</div>
+                    <div style={{ fontSize: 11, color: theme.muted, textAlign: "center" }}>Platný do {new Date(openNoteData.shareCodeExpiresAt).toLocaleString("sk-SK")}</div>
+                    <button onClick={revokeShareCode} style={{ background: "none", border: `1px solid ${lineColor}`, borderRadius: 9, padding: "8px", color: "#ef4444", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}>Zrušiť kód</button>
+                  </div>
+                ) : (
+                  <button onClick={generateShareCode} disabled={generatingCode} style={{ width: "100%", background: appliedA, border: "none", borderRadius: 9, padding: "10px", color: "#fff", fontWeight: 700, fontSize: 12.5, cursor: generatingCode ? "default" : "pointer", fontFamily: "var(--font-geist-sans)" }}>
+                    {generatingCode ? "Generujem..." : "Vygenerovať kód (platný 24h)"}
+                  </button>
+                )}
+                <div style={{ fontSize: 10.5, color: theme.muted, marginTop: 6, lineHeight: 1.4 }}>
+                  Kód zadá druhý používateľ v hlavnom zozname poznámok cez „Pridať podľa kódu". Získa prístup na úpravu.
+                </div>
+              </div>
+
+              {/* Verejný odkaz */}
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 800, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: 8 }}>Verejný odkaz (len na čítanie)</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: openNoteData.publicLinkEnabled ? 8 : 0 }}>
+                  <div
+                    onClick={togglePublicLink}
+                    style={{ width: 40, height: 22, borderRadius: 11, background: openNoteData.publicLinkEnabled ? appliedA : lineColor, position: "relative", cursor: "pointer", flexShrink: 0, transition: "background .15s" }}
+                  >
+                    <div style={{ width: 18, height: 18, borderRadius: "50%", background: "#fff", position: "absolute", top: 2, left: openNoteData.publicLinkEnabled ? 20 : 2, transition: "left .15s" }} />
+                  </div>
+                  <span style={{ fontSize: 12.5, color: theme.text }}>{openNoteData.publicLinkEnabled ? "Zapnutý" : "Vypnutý"}</span>
+                </div>
+                {openNoteData.publicLinkEnabled && openNoteData.publicLinkToken && (
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <div style={{ flex: 1, minWidth: 0, background: theme.card2, borderRadius: 8, padding: "7px 10px", fontSize: 11, color: theme.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {typeof window !== "undefined" ? `${window.location.origin}/notes/shared/${openNoteData.publicLinkToken}` : ""}
+                    </div>
+                    <button
+                      onClick={() => navigator.clipboard.writeText(`${window.location.origin}/notes/shared/${openNoteData.publicLinkToken}`)}
+                      style={{ background: appliedA, border: "none", borderRadius: 8, padding: "7px 12px", color: "#fff", fontWeight: 700, fontSize: 11.5, cursor: "pointer", fontFamily: "var(--font-geist-sans)", flexShrink: 0 }}
+                    >
+                      Kopírovať
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Zoznam ľudí s prístupom */}
+              {openNoteData.sharedWithUids.length > 0 && (
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: 8 }}>Majú prístup</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {openNoteData.sharedWithUids.map(u => (
+                      <div key={u} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", background: theme.card2, borderRadius: 9 }}>
+                        <span style={{ flex: 1, fontSize: 12, color: theme.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{memberEmails[u] || u}</span>
+                        <select
+                          value={openNoteData.sharedWithRoles[u] || "viewer"}
+                          onChange={e => changeSharedRole(u, e.target.value as ShareRole)}
+                          style={{ background: "transparent", border: `1px solid ${lineColor}`, borderRadius: 6, padding: "3px 6px", fontSize: 11, color: theme.text, fontFamily: "var(--font-geist-sans)" }}
+                        >
+                          <option value="viewer">Len čítanie</option>
+                          <option value="editor">Môže upravovať</option>
+                        </select>
+                        <span onClick={() => removeSharedUser(u)} style={{ cursor: "pointer", color: "#ef4444", opacity: 0.7, flexShrink: 0 }}>
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* ── LIGHTBOX: zväčšený náhľad obrázka so zoomom ── */}
         {viewingImage && (
           <div
@@ -1384,6 +1667,7 @@ export default function NotesPage() {
     const isDefault = (note.color || "default") === "default";
     const textColor = darkMode || !isDefault ? theme.text : "#1a1a1a";
     const mutedColor = darkMode || !isDefault ? theme.muted : "#666";
+    const isSharedWithMe = !!(uid && note.ownerId !== uid);
     return (
       <div className="keep-card-wrap">
         <div
@@ -1404,10 +1688,15 @@ export default function NotesPage() {
             </div>
           )}
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8, paddingRight: note.pinned ? 18 : 0 }}>
-            <div style={{ fontSize: 14.5, fontWeight: 800, color: textColor, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
-              {note.title || "Bez názvu"}
+            <div style={{ fontSize: 14.5, fontWeight: 800, color: textColor, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 6 }}>
+              {isSharedWithMe && (
+                <span title="Zdieľané s tebou" style={{ color: mutedColor, opacity: 0.7, flexShrink: 0, display: "flex" }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                </span>
+              )}
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{note.title || "Bez názvu"}</span>
             </div>
-            {!note.pinned && (
+            {!note.pinned && !isSharedWithMe && (
               <div
                 onClick={e => { e.stopPropagation(); setConfirmDelete(note.id); }}
                 style={{ opacity: 0.4, cursor: "pointer", color: "#ef4444", flexShrink: 0 }}
@@ -1452,7 +1741,7 @@ export default function NotesPage() {
                 </div>
               )}
             </div>
-            {!viewArchive && (
+            {!viewArchive && !isSharedWithMe && (
               <div
                 onClick={e => { e.stopPropagation(); toggleArchivedFor(note.id); }}
                 title="Archivovať"
@@ -1461,7 +1750,7 @@ export default function NotesPage() {
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
               </div>
             )}
-            {viewArchive && (
+            {viewArchive && !isSharedWithMe && (
               <button
                 onClick={e => { e.stopPropagation(); toggleArchivedFor(note.id); }}
                 style={{ fontSize: 10.5, fontWeight: 700, color: appliedA, background: "none", border: "none", cursor: "pointer", padding: 0 }}
@@ -1503,6 +1792,13 @@ export default function NotesPage() {
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
             {viewArchive ? "Späť na poznámky" : "Archív"}
+          </button>
+          <button
+            onClick={() => { setShowRedeemInput(v => !v); setRedeemError(""); }}
+            style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 9, background: showRedeemInput ? appliedA + "18" : "transparent", border: `1px solid ${showRedeemInput ? appliedA : lineColor}`, color: showRedeemInput ? appliedA : theme.muted, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+            Pridať podľa kódu
           </button>
           {allLabels.length > 0 && (
             <div style={{ position: "relative" }}>
@@ -1551,6 +1847,32 @@ export default function NotesPage() {
           )}
         </div>
       </div>
+
+      {/* ── PRIDAŤ PODĽA KÓDU — panel ── */}
+      {showRedeemInput && (
+        <div style={{ background: theme.card, border: `1px solid ${lineColor}`, borderRadius: 14, padding: 16, marginBottom: 18, display: "flex", flexDirection: "column", gap: 10, maxWidth: 380 }}>
+          <div style={{ fontSize: 12.5, fontWeight: 700, color: theme.text }}>Zadaj 6-miestny kód, ktorý ti poslal vlastník poznámky</div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input
+              value={redeemCodeInput}
+              onChange={e => setRedeemCodeInput(e.target.value.toUpperCase())}
+              onKeyDown={e => { if (e.key === "Enter") redeemShareCode(); }}
+              placeholder="napr. X7K2QP"
+              maxLength={6}
+              className="keep-input"
+              style={{ flex: 1, background: theme.card2, border: `1.5px solid ${lineColor}`, borderRadius: 9, padding: "9px 12px", color: theme.text, fontFamily: "var(--font-geist-sans)", fontWeight: 700, fontSize: 14, letterSpacing: "2px", outline: "none", boxSizing: "border-box", textTransform: "uppercase" }}
+            />
+            <button
+              onClick={redeemShareCode}
+              disabled={redeemLoading || redeemCodeInput.trim().length < 6}
+              style={{ background: redeemCodeInput.trim().length < 6 ? lineColor : appliedA, border: "none", borderRadius: 9, padding: "9px 16px", color: "#fff", fontWeight: 700, fontSize: 12.5, cursor: redeemCodeInput.trim().length < 6 ? "default" : "pointer", fontFamily: "var(--font-geist-sans)" }}
+            >
+              {redeemLoading ? "..." : "Pridať"}
+            </button>
+          </div>
+          {redeemError && <div style={{ fontSize: 11.5, color: "#ef4444", fontWeight: 600 }}>{redeemError}</div>}
+        </div>
+      )}
 
       {/* Mriežka kariet */}
       {searched.length === 0 ? (
