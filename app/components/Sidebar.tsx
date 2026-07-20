@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { getAuth } from "firebase/auth";
+import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { initializeApp, getApps } from "firebase/app";
 import { useTheme } from "../context/ThemeContext";
 import GlobalSearch from "./GlobalSearch";
@@ -138,6 +138,28 @@ export default function Sidebar() {
   const { darkMode, appliedA, appliedB, grad, theme, avatarId } = useTheme();
   const [searchOpen, setSearchOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [isAuthed, setIsAuthed] = useState<boolean | null>(null);
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
+
+  // Panel je verejne viditeľný aj na stránke zdieľanej poznámky (/notes/shared/[token]),
+  // kam prichádzajú aj neprihlásení návštevníci z verejného odkazu.
+  const isPublicSharedPage = pathname.startsWith("/notes/shared/");
+
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (user) => setIsAuthed(!!user));
+    return () => unsub();
+  }, []);
+
+  // Ak návštevník príde z verejného odkazu na poznámku a NIE JE prihlásený, klik na
+  // čokoľvek v paneli namiesto navigácie zobrazí výzvu na prihlásenie. Prihlásený
+  // používateľ (napr. si otvoril vlastný zdieľaný link) má panel plne funkčný ako inde.
+  const guardedAction = (action: () => void) => {
+    if (isPublicSharedPage && isAuthed === false) {
+      setShowLoginPrompt(true);
+      return;
+    }
+    action();
+  };
 
   const avatarFn = AVATARS[avatarId] ?? AVATARS.robot;
 
@@ -187,7 +209,7 @@ export default function Sidebar() {
         <img
           src="/IKONA.png"
           alt="TicklyDo"
-          onClick={() => router.push("/home")}
+          onClick={() => guardedAction(() => router.push("/home"))}
           style={{
             width: isMobile ? 32 : 42, height: isMobile ? 32 : 42, borderRadius: isMobile ? 10 : 13,
             marginBottom: isMobile ? 10 : 18, cursor: "pointer",
@@ -197,7 +219,7 @@ export default function Sidebar() {
 
         <button
           title="Hľadať úlohy (Ctrl+K)"
-          onClick={() => setSearchOpen(true)}
+          onClick={() => guardedAction(() => setSearchOpen(true))}
           style={{
             width: isMobile ? 36 : 46, height: isMobile ? 36 : 46, borderRadius: isMobile ? 10 : 13,
             display: "flex", alignItems: "center", justifyContent: "center",
@@ -220,7 +242,7 @@ export default function Sidebar() {
           <button
             key={item.id}
             title={item.label}
-            onClick={() => router.push(item.path)}
+            onClick={() => guardedAction(() => router.push(item.path))}
             style={{
               width: isMobile ? 38 : 46, height: isMobile ? 38 : 46, borderRadius: isMobile ? 10 : 13,
               display: "flex", alignItems: "center", justifyContent: "center",
@@ -245,7 +267,7 @@ export default function Sidebar() {
 
         <button
           title="Profil & Nastavenia"
-          onClick={() => router.push("/profile")}
+          onClick={() => guardedAction(() => router.push("/profile"))}
           style={{
             width: isMobile ? 38 : 46, height: isMobile ? 38 : 46, borderRadius: isMobile ? 10 : 13,
             display: "flex", alignItems: "center", justifyContent: "center",
@@ -271,7 +293,7 @@ export default function Sidebar() {
         <div style={{ flex: 1 }} />
 
         <div
-          onClick={() => router.push("/profile")}
+          onClick={() => guardedAction(() => router.push("/profile"))}
           style={{
             width: isMobile ? 28 : 36, height: isMobile ? 28 : 36, borderRadius: "50%",
             background: grad, padding: isMobile ? 2 : 3,
@@ -285,10 +307,9 @@ export default function Sidebar() {
 
         <button
           title="Odhlásiť sa"
-          onClick={async () => {
-            await auth.signOut();
-            window.location.href = "/login";
-          }}
+          onClick={() => guardedAction(() => {
+            auth.signOut().then(() => { window.location.href = "/login"; });
+          })}
           style={{
             width: isMobile ? 38 : 46, height: isMobile ? 38 : 46, borderRadius: isMobile ? 10 : 13,
             display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
@@ -307,6 +328,52 @@ export default function Sidebar() {
           {!isMobile && "Odhlásiť"}
         </button>
       </aside>
+
+      {/* ── LOGIN PROMPT MODAL — zobrazí sa len neprihlásenému návštevníkovi na stránke zdieľanej poznámky ── */}
+      {showLoginPrompt && (
+        <div
+          onClick={() => setShowLoginPrompt(false)}
+          style={{
+            position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 2000,
+            display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: theme.card, borderRadius: 20, padding: 28, maxWidth: 380, width: "100%",
+              border: `1px solid ${theme.border}`, boxShadow: "0 24px 60px rgba(0,0,0,0.3)",
+              textAlign: "center",
+            }}
+          >
+            <img src="/IKONA.png" alt="TicklyDo" style={{ width: 48, height: 48, borderRadius: 14, margin: "0 auto 16px", display: "block", objectFit: "contain" }} />
+            <div style={{ fontSize: 17, fontWeight: 800, color: theme.text, marginBottom: 8 }}>Prihlás sa do Ticklydo</div>
+            <div style={{ fontSize: 13, color: theme.muted, lineHeight: 1.5, marginBottom: 22 }}>
+              Táto poznámka je zdieľaná verejným odkazom. Pre prístup k ostatným funkciám Ticklydo sa najprv prihlás alebo si vytvor účet.
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <button
+                onClick={() => router.push("/login")}
+                style={{ background: grad, border: "none", borderRadius: 12, padding: "11px", color: "#fff", fontWeight: 800, fontSize: 13.5, cursor: "pointer", fontFamily: "var(--font-geist-sans)", boxShadow: `0 4px 14px ${appliedA}44` }}
+              >
+                Prihlásiť sa
+              </button>
+              <button
+                onClick={() => router.push("/register")}
+                style={{ background: "none", border: `1px solid ${theme.border}`, borderRadius: 12, padding: "11px", color: theme.text, fontWeight: 700, fontSize: 13.5, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}
+              >
+                Vytvoriť účet
+              </button>
+              <button
+                onClick={() => setShowLoginPrompt(false)}
+                style={{ background: "none", border: "none", padding: "6px", color: theme.muted, fontWeight: 600, fontSize: 12.5, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}
+              >
+                Zrušiť
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
