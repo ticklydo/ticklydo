@@ -136,9 +136,10 @@ export default function SharedNoteView({ token }: { token: string }) {
     <div style={{ minHeight: "100vh", background: bg, fontFamily: "var(--font-geist-sans)" }}>
       <style>{`
         .shared-note-content{outline:none;}
+        .shared-note-content, .shared-note-content *{color:inherit !important;background-color:transparent !important;}
         .shared-note-content h1{font-size:26px;font-weight:800;margin:18px 0 8px;line-height:1.3;}
         .shared-note-content h2{font-size:20px;font-weight:800;margin:16px 0 8px;line-height:1.35;}
-        .shared-note-content h3{font-size:16.5px;font-weight:700;margin:14px 0 6px;line-height:1.4;color:${theme.muted};}
+        .shared-note-content h3{font-size:16.5px;font-weight:700;margin:14px 0 6px;line-height:1.4;color:${theme.muted} !important;}
         .shared-note-content p{margin:8px 0;line-height:1.7}
         .shared-note-content ul{margin:10px 0;padding-left:24px;list-style-type:disc;list-style-position:outside;}
         .shared-note-content li{margin:5px 0;line-height:1.6;display:list-item;padding-left:2px;}

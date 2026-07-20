@@ -344,6 +344,35 @@ export default function NotesPage() {
     handleContentChange(contentDivRef.current.innerHTML);
   };
 
+  // Vloženie textu (Ctrl+V) z inej appky (Word, Google Docs a pod.) so sebou často nesie
+  // vlastné "zapečené" farby priamo v HTML (napr. style="color:#333"), ktoré v tmavom režime
+  // spôsobia nečitateľný text. Tu odstránime farbu textu/pozadia zo vloženého obsahu, formátovanie
+  // (tučné, kurzíva, nadpisy, zoznamy) necháme zachované.
+  const stripInlineColors = (html: string): string => {
+    const wrapper = document.createElement("div");
+    wrapper.innerHTML = html;
+    const all = wrapper.querySelectorAll<HTMLElement>("*");
+    all.forEach(el => {
+      el.style.removeProperty("color");
+      el.style.removeProperty("background-color");
+      el.style.removeProperty("background");
+      el.removeAttribute("color");
+      if (el.tagName === "FONT") el.removeAttribute("face");
+      if (!el.getAttribute("style")) el.removeAttribute("style");
+    });
+    return wrapper.innerHTML;
+  };
+
+  const handleEditablePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
+    const html = e.clipboardData.getData("text/html");
+    if (!html) return; // obyčajný text (bez formátovania) necháme spracovať prehliadačom ako obvykle
+    e.preventDefault();
+    const cleaned = stripInlineColors(html);
+    document.execCommand("insertHTML", false, cleaned);
+    syncContentFromDom();
+    updateFormatState();
+  };
+
   // ── skutočné formátovanie: pôsobí priamo na vybraný text v editore (contentEditable) ──
   const applyBold = () => {
     contentDivRef.current?.focus();
@@ -1009,11 +1038,12 @@ export default function NotesPage() {
           @keyframes popIn{from{opacity:0;transform:scale(.95) translateY(4px)}to{opacity:1;transform:scale(1) translateY(0)}}
           .keep-input::placeholder{color:${theme.muted}}
           .keep-editable{outline:none;}
+          .keep-editable, .keep-editable *{color:inherit !important;background-color:transparent !important;}
           .keep-editable:empty:before{content:attr(data-placeholder);color:${theme.muted};pointer-events:none;}
           .keep-editable > *:first-child{margin-top:0 !important;}
           .keep-editable h1{font-size:26px;font-weight:800;margin:18px 0 8px;line-height:1.3;}
           .keep-editable h2{font-size:20px;font-weight:800;margin:16px 0 8px;line-height:1.35;}
-          .keep-editable h3{font-size:16.5px;font-weight:700;margin:14px 0 6px;line-height:1.4;color:${theme.muted};}
+          .keep-editable h3{font-size:16.5px;font-weight:700;margin:14px 0 6px;line-height:1.4;color:${theme.muted} !important;}
           .keep-editable p{margin:8px 0;line-height:1.7}
           .keep-editable ul{margin:10px 0;padding-left:24px;list-style-type:disc;list-style-position:outside;}
           .keep-editable li{margin:5px 0;line-height:1.6;display:list-item;padding-left:2px;}
@@ -1509,6 +1539,7 @@ export default function NotesPage() {
                 suppressContentEditableWarning
                 onInput={syncContentFromDom}
                 onClick={handleEditableClick}
+                onPaste={handleEditablePaste}
                 onKeyDown={handleEditableKeyDown}
                 onMouseUp={updateFormatState}
                 onKeyUp={updateFormatState}
