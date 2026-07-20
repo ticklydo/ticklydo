@@ -507,7 +507,74 @@ export default function NotesPage() {
     syncContentFromDom();
   };
 
-  // ── sledovanie aktívneho formátovania na pozícii kurzora (zvýrazní tlačidlá B/I/•/☑ keď sú aktívne) ──
+  // Enter v riadku so zaškrtávacím políčkom → namiesto predvoleného správania prehliadača
+  // (ktoré vie pôsobiť ako odsadenie/tabulátor) vytvorí NOVÝ riadok s vlastným checkboxom hneď pod ním,
+  // a text za kurzorom presunie do neho (rovnaké správanie ako v Google Keep).
+  // Tab / Shift+Tab v tom istom riadku namiesto presunu fokusu odsadí/vráti riadok o jednu úroveň (max 4).
+  const MAX_CHK_INDENT_LEVEL = 4;
+  const CHK_INDENT_PX = 24;
+
+  const handleEditableKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== "Enter" && e.key !== "Tab") return;
+    const div = contentDivRef.current;
+    if (!div) return;
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+    const range = sel.getRangeAt(0);
+    const anchorNode = range.startContainer;
+    const anchorEl = anchorNode.nodeType === 3 ? anchorNode.parentElement : (anchorNode as Element);
+    const currentLine = anchorEl?.closest?.(".note-chk-line") as HTMLElement | null;
+    if (!currentLine || !div.contains(currentLine)) return; // mimo checklist riadku — necháme predvolené správanie
+
+    if (e.key === "Tab") {
+      e.preventDefault();
+      const currentLevel = parseInt(currentLine.getAttribute("data-level") || "0", 10);
+      const nextLevel = e.shiftKey ? Math.max(0, currentLevel - 1) : Math.min(MAX_CHK_INDENT_LEVEL, currentLevel + 1);
+      currentLine.setAttribute("data-level", String(nextLevel));
+      currentLine.style.marginLeft = nextLevel > 0 ? `${nextLevel * CHK_INDENT_PX}px` : "";
+      syncContentFromDom();
+      return;
+    }
+
+    if (e.shiftKey) return; // Shift+Enter necháme ako mäkký zalom riadku (predvolené správanie)
+    e.preventDefault();
+
+    const textSpan = currentLine.querySelector(".note-chk-text") as HTMLElement | null;
+    if (!textSpan) return;
+
+    // rozdelenie obsahu presne na pozícii kurzora: text pred kurzorom ostáva v pôvodnom riadku,
+    // text za kurzorom sa presunie do nového riadku
+    const splitRange = range.cloneRange();
+    splitRange.selectNodeContents(textSpan);
+    splitRange.setStart(range.endContainer, range.endOffset);
+    const afterFragment = splitRange.extractContents();
+
+    // nový riadok preberá rovnakú úroveň odsadenia ako riadok, z ktorého vznikol
+    const level = parseInt(currentLine.getAttribute("data-level") || "0", 10);
+    const newLine = document.createElement("div");
+    newLine.className = "note-chk-line";
+    if (level > 0) {
+      newLine.setAttribute("data-level", String(level));
+      newLine.style.marginLeft = `${level * CHK_INDENT_PX}px`;
+    }
+    newLine.innerHTML += `<span class="note-chk-box" contenteditable="false" data-checked="false">${checkboxSvg(false)}</span><span class="note-chk-text"></span>`;
+    const newTextSpan = newLine.querySelector(".note-chk-text") as HTMLElement;
+    newTextSpan.appendChild(afterFragment);
+    if (!newTextSpan.textContent || !newTextSpan.textContent.trim()) {
+      newTextSpan.innerHTML = "&nbsp;";
+    }
+
+    currentLine.after(newLine);
+
+    const newRange = document.createRange();
+    newRange.selectNodeContents(newTextSpan);
+    newRange.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(newRange);
+
+    syncContentFromDom();
+    updateFormatState();
+  };
   const updateFormatState = () => {
     const div = contentDivRef.current;
     if (!div) return;
@@ -1442,6 +1509,7 @@ export default function NotesPage() {
                 suppressContentEditableWarning
                 onInput={syncContentFromDom}
                 onClick={handleEditableClick}
+                onKeyDown={handleEditableKeyDown}
                 onMouseUp={updateFormatState}
                 onKeyUp={updateFormatState}
                 onFocus={updateFormatState}
