@@ -125,7 +125,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     card:   darkMode ? "#13141e" : "#ffffff",
     card2:  darkMode ? "#1a1b28" : "#ebebf5",
     text:   darkMode ? "#f0f0f8" : "#111118",
-    muted:  darkMode ? "#6b6c80" : "#8888a0",
+    // muted upravené kvôli kontrastu (WCAG AA, min. 4.5:1) — pôvodné hodnoty mali len ~3.2–3.8:1
+    muted:  darkMode ? "#868aa8" : "#5f5f78",
     border: darkMode ? "#22233a" : "#dddde8",
   };
 
