@@ -300,6 +300,15 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
   const [detailTask, setDetailTask] = useState<Task | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [projectName, setProjectName] = useState(initialName || "Projekt");
+  // initialName z URL sa reálne použije len pri PRVOM vytvorení komponentu (useState inicializátor
+  // beží iba raz). Pri prechode na iný, už predtým navštívený projekt v tej istej "session" (bez
+  // tvrdého obnovenia stránky) React komponent recykluje a initialName sa needs znova prejaviť —
+  // tento efekt to opraví: zakaždým keď sa zmení projectId, resetne názov na ten z URL, kým ho
+  // o chvíľu neprepíše skutočný názov z Firestore.
+  useEffect(() => {
+    setProjectName(initialName || "Projekt");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId]);
   const [editingName, setEditingName] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const [events, setEvents] = useState<CalEvent[]>([]);
