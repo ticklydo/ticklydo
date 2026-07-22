@@ -140,6 +140,7 @@ export default function Sidebar() {
   const [isMobile, setIsMobile] = useState(false);
   const [isAuthed, setIsAuthed] = useState<boolean | null>(null);
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   // Panel je verejne viditeľný aj na stránke zdieľanej poznámky (/notes/shared/[token]),
   // kam prichádzajú aj neprihlásení návštevníci z verejného odkazu.
@@ -149,6 +150,21 @@ export default function Sidebar() {
     const unsub = onAuthStateChanged(auth, (user) => setIsAuthed(!!user));
     return () => unsub();
   }, []);
+
+  // Odznak s počtom nečítaných notifikácií na ikonke "Notifikácie" — počúva v reálnom čase
+  useEffect(() => {
+    if (!isAuthed) { setUnreadCount(0); return; }
+    const user = auth.currentUser;
+    if (!user) return;
+    let unsubNotif: (() => void) | null = null;
+    (async () => {
+      const { getFirestore, collection, query, where, onSnapshot } = await import("firebase/firestore");
+      const db = getFirestore();
+      const q = query(collection(db, "notifications"), where("userId", "==", user.uid), where("read", "==", false));
+      unsubNotif = onSnapshot(q, (snap) => setUnreadCount(snap.size));
+    })();
+    return () => { if (unsubNotif) unsubNotif(); };
+  }, [isAuthed]);
 
   // Ak návštevník príde z verejného odkazu na poznámku a NIE JE prihlásený, klik na
   // čokoľvek v paneli namiesto navigácie zobrazí výzvu na prihlásenie. Prihlásený
@@ -260,6 +276,17 @@ export default function Sidebar() {
               }} />
             )}
             <span style={{ display: "flex", transform: isMobile ? "scale(0.8)" : "none" }}>{item.svg}</span>
+            {item.id === "notifications" && unreadCount > 0 && (
+              <span style={{
+                position: "absolute", top: isMobile ? 2 : 4, right: isMobile ? 2 : 4,
+                minWidth: isMobile ? 14 : 16, height: isMobile ? 14 : 16, borderRadius: 8,
+                background: "#ef4444", color: "#fff", fontSize: isMobile ? 8.5 : 9.5, fontWeight: 800,
+                display: "flex", alignItems: "center", justifyContent: "center", padding: "0 3px",
+                border: `1.5px solid ${theme.card}`, lineHeight: 1,
+              }}>
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
           </button>
         ))}
 

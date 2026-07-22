@@ -67,10 +67,11 @@ export async function GET(req: NextRequest) {
         for (const task of tasks) {
           if (!task.dueDate || task.status === "Hotovo") continue;
 
-          // Nájdi email zodpovedného
+          // Nájdi email A uid zodpovedného (uid potrebujeme pre in-app notifikáciu, email pre ten existujúci)
           let recipientEmail = userEmail; // default = vlastník projektu
+          let recipientUid = ownerUid;    // default = vlastník projektu
 
-          // Ak je owner nastavený, skús nájsť jeho email
+          // Ak je owner nastavený, skús nájsť jeho email aj uid
           if (task.owner) {
             const membersSnap = await db.collection("users")
               .where("displayName", "==", task.owner)
@@ -78,6 +79,7 @@ export async function GET(req: NextRequest) {
               .get();
             if (!membersSnap.empty) {
               recipientEmail = membersSnap.docs[0].data().email ?? userEmail;
+              recipientUid = membersSnap.docs[0].id;
             }
           }
 
@@ -101,6 +103,27 @@ export async function GET(req: NextRequest) {
                 },
               }),
             });
+
+            // ── Notifikácia priamo v appke (popri emaili) ──
+            // Deterministické ID dokumentu (nie auto-generované) — ak cron náhodou beží
+            // dvakrát v ten istý deň pre tú istú úlohu, prepíše sa ten istý záznam namiesto duplicity.
+            const titleByType: Record<string, string> = {
+              deadline_week: "Termín o týždeň",
+              deadline_tomorrow: "Termín zajtra",
+              deadline_today: "Termín dnes",
+            };
+            const notifId = `${ownerUid}_${projectId}_${task.id}_${type}_${todayStr}`;
+            await db.collection("notifications").doc(notifId).set({
+              userId: recipientUid,
+              type: "deadline",
+              title: titleByType[type] ?? "Blížiaci sa termín",
+              body: `Úloha „${task.name}" v projekte ${projectName}`,
+              projectDocId: `${ownerUid}_${projectId}`,
+              projectName,
+              read: false,
+              createdAt: Date.now(),
+            }, { merge: true });
+
             notificationsSent++;
           }
         }

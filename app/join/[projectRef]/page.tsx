@@ -95,6 +95,23 @@ export default function JoinPage({ params }: { params: Promise<{ projectRef: str
         }, { merge: true });
       }
 
+      // ── Notifikácia priamo v appke pre vlastníka projektu ──
+      try {
+        const { addDoc, collection } = await import("firebase/firestore");
+        await addDoc(collection(db, "notifications"), {
+          userId: ownerUid,
+          type: "member_joined",
+          title: "Nový člen v projekte",
+          body: `${user.displayName || user.email || "Niekto"} sa pripojil/a k projektu „${data.projectName || projectRef}"`,
+          projectDocId: projectRef,
+          projectName: data.projectName || projectRef,
+          read: false,
+          createdAt: Date.now(),
+        });
+      } catch (err) {
+        console.error("Notification write error:", err);
+      }
+
       setStatus("success");
       setTimeout(() => router.push(`/project/${projectRef}`), 2000);
     });
