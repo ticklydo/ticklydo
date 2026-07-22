@@ -373,11 +373,21 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
   }, [editingName]);
 
   useEffect(() => {
+    // pri prepnutí na iný projekt hneď ukáž loading, aby nebliklo obsahom predchádzajúceho projektu
+    setLoading(true);
+
+    // Dôležité: unsubSnap sa musí uložiť MIMO async callbacku, inak sa listener starého
+    // projektu nikdy nezruší pri prepnutí na iný projekt — a keď Firestore neskôr pošle
+    // aktualizáciu zo starého projektu, prepíše ňou dáta práve otvoreného nového projektu.
+    let unsubSnap: (() => void) | null = null;
+
     const unsub = auth.onAuthStateChanged(async (user) => {
+      // zrušiť prípadný predchádzajúci listener (napr. z minulého renderu) skôr, než založíme nový
+      if (unsubSnap) { unsubSnap(); unsubSnap = null; }
       if (!user) { setLoading(false); return; }
       const { getFirestore, doc, onSnapshot } = await import("firebase/firestore");
       const db = getFirestore();
-      const unsubSnap = onSnapshot(doc(db, "projects", `${user.uid}_${projectId}`), (snap) => {
+      unsubSnap = onSnapshot(doc(db, "projects", `${user.uid}_${projectId}`), (snap) => {
         if (snap.exists()) {
           const data = snap.data();
           if (data.projectName) setProjectName(data.projectName);
@@ -406,9 +416,13 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
         }
         setLoading(false);
       });
-      return () => unsubSnap();
     });
-    return () => unsub();
+
+    // cleanup: pri zmene projectId (alebo odchode zo stránky) sa zrušia OBA listenery
+    return () => {
+      unsub();
+      if (unsubSnap) unsubSnap();
+    };
   }, [projectId]);
 
   // ── priložené poznámky: vlastné + zdieľané, ktoré majú v projectIds tento projekt ──
