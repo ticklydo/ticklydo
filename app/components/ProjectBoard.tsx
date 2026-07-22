@@ -300,15 +300,6 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
   const [detailTask, setDetailTask] = useState<Task | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [projectName, setProjectName] = useState(initialName || "Projekt");
-  // initialName z URL sa reálne použije len pri PRVOM vytvorení komponentu (useState inicializátor
-  // beží iba raz). Pri prechode na iný, už predtým navštívený projekt v tej istej "session" (bez
-  // tvrdého obnovenia stránky) React komponent recykluje a initialName sa needs znova prejaviť —
-  // tento efekt to opraví: zakaždým keď sa zmení projectId, resetne názov na ten z URL, kým ho
-  // o chvíľu neprepíše skutočný názov z Firestore.
-  useEffect(() => {
-    setProjectName(initialName || "Projekt");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId]);
   const [editingName, setEditingName] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const [events, setEvents] = useState<CalEvent[]>([]);
@@ -349,6 +340,12 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
   const headerBg = darkMode ? theme.card2 : "#f8f9fb";
   const subBg = darkMode ? appliedA + "08" : appliedA + "04";
   const shadow = darkMode ? "0 2px 16px rgba(0,0,0,0.25)" : "0 2px 16px rgba(0,0,0,0.06)";
+
+  // DÔLEŽITÉ: `projectId` prop teraz obsahuje CELÉ Firestore ID dokumentu (`${ownerId}_${skutočnéId}`),
+  // nie len krátke ID projektu — vďaka tomu appka číta/zapisuje VŽDY ten istý dokument bez ohľadu na to,
+  // či je prihlásený vlastník alebo pozvaný člen (predtým sa ID nesprávne skladalo z UID aktuálneho
+  // používateľa, čo pre pozvaných členov ukazovalo na neexistujúci dokument).
+  const ownerId = projectId.split("_")[0];
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768);
@@ -396,7 +393,7 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
       if (!user) { setLoading(false); return; }
       const { getFirestore, doc, onSnapshot } = await import("firebase/firestore");
       const db = getFirestore();
-      unsubSnap = onSnapshot(doc(db, "projects", `${user.uid}_${projectId}`), (snap) => {
+      unsubSnap = onSnapshot(doc(db, "projects", projectId), (snap) => {
         if (snap.exists()) {
           const data = snap.data();
           if (data.projectName) setProjectName(data.projectName);
@@ -528,13 +525,17 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
       });
       return clean;
     });
-    await setDoc(doc(db, "projects", `${user.uid}_${projectId}`), {
+    await setDoc(doc(db, "projects", projectId), {
       tasks: cleanTasks,
       projectName: newName ?? projectNameRef.current,
       events: newEvents ?? eventsRef.current,
       activityLog: (newLog ?? activityLogRef.current).slice(0, 100),
       members,
       invites,
+      // ownerId + memberUids sú tu kvôli Firestore security rules (potrebujú vedieť, kto smie čítať/zapisovať
+      // tento dokument) — zapisujú sa pri každom uložení, aby sa "samoopravili" aj na starších dokumentoch
+      ownerId,
+      memberUids: members.map(m => m.uid),
     }, { merge: true });
   };
 
@@ -572,7 +573,13 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
       getDoc(doc(db, "users", user.uid)).then(snap => {
         if (!snap.exists()) return;
         const projects = snap.data().projects ?? [];
-        const updated = projects.map((p: any) => p.id === projectId ? { ...p, name: trimmed, updatedAt: Date.now() } : p);
+        // p.id v zozname projektov na Domovskej stránke je buď krátke ID (vlastný projekt — treba
+        // doplniť ownerId, aby sme ho porovnali s celým projectId), alebo p.docId (zdieľaný projekt,
+        // tam je už celé ID uložené priamo)
+        const updated = projects.map((p: any) => {
+          const resolvedId = p.docId || `${user.uid}_${p.id}`;
+          return resolvedId === projectId ? { ...p, name: trimmed, updatedAt: Date.now() } : p;
+        });
         setDoc(doc(db, "users", user.uid), { projects: updated }, { merge: true });
       });
     });
@@ -623,7 +630,7 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
     if (!user) return;
     const { getFirestore, doc, setDoc } = await import("firebase/firestore");
     const db = getFirestore();
-    await setDoc(doc(db, "projects", `${user.uid}_${projectId}`), {
+    await setDoc(doc(db, "projects", projectId), {
       tasks: updated,
       projectName: projectNameRef.current,
       events: eventsRef.current,
@@ -653,7 +660,10 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
     if (!user) return;
     const { getFirestore, doc, setDoc } = await import("firebase/firestore");
     const db = getFirestore();
-    await setDoc(doc(db, "projects", `${user.uid}_${projectId}`), { members: newMembers, invites: newInvites }, { merge: true });
+    await setDoc(doc(db, "projects", projectId), {
+      members: newMembers, invites: newInvites,
+      ownerId, memberUids: newMembers.map(m => m.uid),
+    }, { merge: true });
   };
 
   const inviteByEmail = async () => {
@@ -701,7 +711,7 @@ try {
 
     // ── Odosla\u0165 email cez Resend ──
     try {
-      const inviteLink = `${window.location.origin}/join/${user.uid}_${projectId}?token=${token}`;
+      const inviteLink = `${window.location.origin}/join/${projectId}?token=${token}`;
       await fetch("/api/send-invite", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -728,7 +738,7 @@ try {
     const newInvites = [...invites, newInvite];
     setInvites(newInvites);
     await saveSharing(members, newInvites);
-    setShareLink(`${window.location.origin}/join/${user.uid}_${projectId}?token=${token}`);
+    setShareLink(`${window.location.origin}/join/${projectId}?token=${token}`);
   };
 
   const copyLink = () => {

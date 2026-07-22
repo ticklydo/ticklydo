@@ -35,18 +35,18 @@ export default function JoinPage({ params }: { params: Promise<{ projectRef: str
       const { getFirestore, doc, getDoc, setDoc } = await import("firebase/firestore");
       const db = getFirestore();
 
-      // Parse projectRef: ownerUid_projectId
+      // projectRef JE UŽ celé Firestore ID dokumentu (ownerUid_projectId) — netreba nič skladať,
+      // len z neho vieme vytiahnuť ownerUid (potrebný pre pole ownerId kvôli security rules)
       const resolvedParams = await params;
       const projectRef = resolvedParams.projectRef;
       const lastUnderscore = projectRef.lastIndexOf("_");
       const ownerUid = projectRef.slice(0, lastUnderscore);
-      const projectId = projectRef.slice(lastUnderscore + 1);
 
-      const projectSnap = await getDoc(doc(db, "projects", `${ownerUid}_${projectId}`));
+      const projectSnap = await getDoc(doc(db, "projects", projectRef));
       if (!projectSnap.exists()) { setStatus("error"); setError("Projekt neexistuje"); return; }
 
       const data = projectSnap.data();
-      setProjectName(data.projectName || projectId);
+      setProjectName(data.projectName || projectRef);
 
       const invites = data.invites ?? [];
       const invite = invites.find((i: any) => i.token === token);
@@ -70,29 +70,33 @@ export default function JoinPage({ params }: { params: Promise<{ projectRef: str
       // Remove used invite if email-specific
       const newInvites = invite.email ? invites.filter((i: any) => i.token !== token) : invites;
 
-      await setDoc(doc(db, "projects", `${ownerUid}_${projectId}`), {
+      await setDoc(doc(db, "projects", projectRef), {
         members: newMembers,
         invites: newInvites,
+        // ownerId + memberUids sú kvôli Firestore security rules (potvrdzujú, kto smie k dokumentu pristupovať)
+        ownerId: ownerUid,
+        memberUids: newMembers.map((m: any) => m.uid),
       }, { merge: true });
 
-      // Add project to user's project list
+      // Add project to user's project list — docId je celé Firestore ID, aby appka vedela
+      // priamo (bez skladania) nájsť ten istý dokument pri každom ďalšom otvorení
       const userSnap = await getDoc(doc(db, "users", user.uid));
       const userProjects = userSnap.exists() ? (userSnap.data().projects ?? []) : [];
-      if (!userProjects.some((p: any) => p.id === `shared_${ownerUid}_${projectId}`)) {
+      if (!userProjects.some((p: any) => p.docId === projectRef)) {
         await setDoc(doc(db, "users", user.uid), {
           projects: [...userProjects, {
-            id: `shared_${ownerUid}_${projectId}`,
-            name: data.projectName || projectId,
+            id: `shared_${projectRef}`,
+            name: data.projectName || projectRef,
             color1: "#6366f1", color2: "#8b5cf6",
             iconId: "doc", starred: false, archived: false,
             createdAt: Date.now(), updatedAt: Date.now(),
-            shared: true, ownerUid, projectId,
+            shared: true, docId: projectRef,
           }]
         }, { merge: true });
       }
 
       setStatus("success");
-      setTimeout(() => router.push(`/project/${ownerUid}_${projectId}`), 2000);
+      setTimeout(() => router.push(`/project/${projectRef}`), 2000);
     });
     return () => unsub();
   }, []);
