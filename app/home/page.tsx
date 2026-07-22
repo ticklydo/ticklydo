@@ -289,7 +289,7 @@ export default function HomePage() {
     }
     setShowOnboarding(false);
     setCreating(false);
-    router.push(`/project/${p.id}`);
+    router.push(`/project/${p.id}?name=${encodeURIComponent(p.name)}`);
   };
 
   const skipOnboarding = async () => {
@@ -315,7 +315,7 @@ export default function HomePage() {
     setShowNewModal(false);
     setNewName(""); setNewGradIdx(0); setNewIconId("doc");
     setCreating(false);
-    router.push(`/project/${p.id}`);
+    router.push(`/project/${p.id}?name=${encodeURIComponent(p.name)}`);
   };
 
   const toggleStar = async (id: string) => {
@@ -368,7 +368,7 @@ export default function HomePage() {
     const icon = ICONS.find(ic => ic.id === p.iconId) ?? ICONS[0];
     return (
       <div style={{ position: "relative" }}>
-        <div onClick={() => router.push(`/project/${p.id}`)} style={{
+        <div onClick={() => router.push(`/project/${p.id}?name=${encodeURIComponent(p.name)}`)} style={{
           borderRadius: 18, padding: "16px 18px",
           display: "flex", alignItems: "center", gap: 14,
           cursor: "pointer", overflow: "hidden",
@@ -400,7 +400,7 @@ export default function HomePage() {
             <div onClick={() => setShowMenuId(null)} style={{ position: "fixed", inset: 0, zIndex: 50 }} />
             <div style={{ position: "absolute", top: "calc(100% + 4px)", right: 0, background: surface, border: `1px solid ${theme.border}`, borderRadius: 12, padding: 6, zIndex: 51, minWidth: 160, boxShadow: "0 8px 24px rgba(0,0,0,0.15)", animation: "fadeIn .15s ease" }}>
               {[
-                { label: "Otvoriť", icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>, action: () => { router.push(`/project/${p.id}`); setShowMenuId(null); }, color: theme.text },
+                { label: "Otvoriť", icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>, action: () => { router.push(`/project/${p.id}?name=${encodeURIComponent(p.name)}`); setShowMenuId(null); }, color: theme.text },
                 { label: "Archivovať", icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>, action: () => archiveProject(p.id), color: theme.muted },
                 { label: "Vymazať", icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>, action: () => { setShowMenuId(null); setConfirmDelete(p.id); }, color: "#ef4444" },
               ].map(item => (
