@@ -21,7 +21,7 @@ export default function JoinPage({ params }: { params: Promise<{ projectRef: str
   const router = useRouter();
   const searchParams = useSearchParams();
   const { grad, theme, appliedA } = useTheme();
-  const [status, setStatus] = useState<"loading" | "joining" | "success" | "error" | "already">("loading");
+  const [status, setStatus] = useState<"loading" | "joining" | "success" | "error" | "already" | "own-project">("loading");
   const [projectName, setProjectName] = useState("");
   const [error, setError] = useState("");
 
@@ -42,11 +42,21 @@ export default function JoinPage({ params }: { params: Promise<{ projectRef: str
       const lastUnderscore = projectRef.lastIndexOf("_");
       const ownerUid = projectRef.slice(0, lastUnderscore);
 
+      // Vlastník klikol na vlastný pozývací/zdieľací link (napr. pri testovaní) — nesmie sa "pridať sám
+      // k sebe" ako člen, lebo by to vytvorilo duplicitnú kartu projektu na jeho vlastnej Domovskej stránke.
+      const isOwnProject = user.uid === ownerUid;
+
       const projectSnap = await getDoc(doc(db, "projects", projectRef));
       if (!projectSnap.exists()) { setStatus("error"); setError("Projekt neexistuje"); return; }
 
       const data = projectSnap.data();
       setProjectName(data.projectName || projectRef);
+
+      if (isOwnProject) {
+        setStatus("own-project");
+        setTimeout(() => router.push(`/project/${projectRef}`), 1500);
+        return;
+      }
 
       const invites = data.invites ?? [];
       const invite = invites.find((i: any) => i.token === token);
@@ -140,6 +150,15 @@ export default function JoinPage({ params }: { params: Promise<{ projectRef: str
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
             </div>
             <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 8 }}>Vitaj v projekte!</div>
+            <div style={{ fontSize: 13, color: theme.muted }}>Presmerovávam ťa na <strong>{projectName}</strong>...</div>
+          </>
+        )}
+        {status === "own-project" && (
+          <>
+            <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#dbeafe", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            </div>
+            <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 8 }}>Toto je tvoj vlastný projekt</div>
             <div style={{ fontSize: 13, color: theme.muted }}>Presmerovávam ťa na <strong>{projectName}</strong>...</div>
           </>
         )}
