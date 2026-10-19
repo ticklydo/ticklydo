@@ -150,7 +150,7 @@ export default function SharedNoteView({ token }: { token: string }) {
         .note-chk-line{display:flex;align-items:flex-start;gap:9px;margin:6px 0;}
         .note-img-wrap{position:relative;display:block;width:fit-content;max-width:100%;margin:10px 0;line-height:0;}
         .note-img-wrap img{max-width:100%;max-height:520px;height:auto;border-radius:10px;display:block;}
-        .shared-note-content .note-img-del{display:none !important;}
+        .shared-note-content .note-img-del, .shared-note-content .note-img-up, .shared-note-content .note-img-down, .shared-note-content .note-img-pending{display:none !important;}
         .note-chk-box{flex-shrink:0;display:inline-flex;margin-top:3px;}
         .note-chk-text{flex:1;min-width:0;}
         .note-chk-text.note-chk-done{text-decoration:line-through;opacity:.55;}

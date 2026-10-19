@@ -126,6 +126,29 @@ function legacyToContent(n: any): string {
   return html;
 }
 
+// zabezpečí, že každá fotka v texte má ovládacie tlačidlá (▲ hore, ▼ dole, ✕ zmazať) — aj tie zo starších uložených poznámok
+function ensureImgControls(root: HTMLElement) {
+  root.querySelectorAll<HTMLElement>(".note-img-wrap").forEach(w => {
+    w.setAttribute("contenteditable", "false");
+    const defs: [string, string, string][] = [
+      ["note-img-up", "▲", "Posunúť vyššie"],
+      ["note-img-down", "▼", "Posunúť nižšie"],
+      ["note-img-del", "✕", "Odstrániť fotku"],
+    ];
+    defs.forEach(([cls, label, title]) => {
+      let el = w.querySelector<HTMLElement>("." + cls);
+      if (!el) {
+        el = document.createElement("span");
+        el.className = cls;
+        el.textContent = label;
+        w.appendChild(el);
+      }
+      el.classList.add("note-img-ctl");
+      el.setAttribute("title", title);
+    });
+  });
+}
+
 type PreviewLine = { text: string; chk: boolean; checked: boolean; level: number };
 function extractCardPreview(html: string): { firstImg: string | null; lines: PreviewLine[] } {
   const out: { firstImg: string | null; lines: PreviewLine[] } = { firstImg: null, lines: [] };
@@ -240,6 +263,10 @@ export default function NotesPage() {
   const pdfInputRef = useRef<HTMLInputElement | null>(null);
   const contentDivRef = useRef<HTMLDivElement | null>(null);
   const savedRangeRef = useRef<Range | null>(null);
+  const draggingImgRef = useRef<HTMLElement | null>(null);
+  const removedImgRef = useRef<{ node: HTMLElement; parent: Node; next: Node | null } | null>(null);
+  const [showUndoImg, setShowUndoImg] = useState(false);
+  const undoImgTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showHeadingMenu, setShowHeadingMenu] = useState(false);
   const [formatState, setFormatState] = useState<{ bold: boolean; italic: boolean; bullet: boolean; heading: string | null; checklist: boolean }>({ bold: false, italic: false, bullet: false, heading: null, checklist: false });
 
@@ -300,6 +327,7 @@ export default function NotesPage() {
   useEffect(() => {
     if (contentDivRef.current && !editChecklist) {
       contentDivRef.current.innerHTML = editContent || "";
+      ensureImgControls(contentDivRef.current);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openId, editChecklist]);
@@ -399,8 +427,16 @@ export default function NotesPage() {
 
   // ── prečíta aktuálny obsah editovateľného poľa a uloží ho ──
   const syncContentFromDom = () => {
-    if (!contentDivRef.current) return;
-    handleContentChange(contentDivRef.current.innerHTML);
+    const div = contentDivRef.current;
+    if (!div) return;
+    // zástupný blok "Nahrávam fotku…" sa nikdy neukladá do poznámky
+    if (div.querySelector(".note-img-pending")) {
+      const copy = div.cloneNode(true) as HTMLElement;
+      copy.querySelectorAll(".note-img-pending").forEach(x => x.remove());
+      handleContentChange(copy.innerHTML);
+      return;
+    }
+    handleContentChange(div.innerHTML);
   };
 
   // Vloženie textu (Ctrl+V) z inej appky (Word, Google Docs a pod.) so sebou často nesie
@@ -585,27 +621,29 @@ export default function NotesPage() {
   // klik na políčko / fotku nesmie presunúť kurzor ani rozhodiť výber (inak by sa text "zalomil" inde)
   const handleEditableMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     const t = e.target as HTMLElement;
-    if (t.closest(".note-chk-box") || t.closest(".note-img-wrap")) e.preventDefault();
+    // samotná fotka musí zostať "chytiteľná" (ťahanie), preto blokujeme len políčka a tlačidlá na fotke
+    if (t.closest(".note-chk-box") || t.closest(".note-img-ctl")) e.preventDefault();
   };
 
-  // vloží fotku PRIAMO do textu na pozíciu kurzora (ako v Xiaomi poznámkach) — text môže pokračovať pod ňou
-  const insertImageInline = (src: string) => {
-    const div = contentDivRef.current;
-    if (!div || !canEditOpenNote) return;
-
+  const buildImageWrap = (src: string): HTMLElement => {
     const wrap = document.createElement("div");
     wrap.className = "note-img-wrap";
     wrap.setAttribute("contenteditable", "false");
     const img = document.createElement("img");
     img.src = src;
     img.alt = "";
-    const del = document.createElement("span");
-    del.className = "note-img-del";
-    del.setAttribute("data-del", "1");
-    del.textContent = "✕";
     wrap.appendChild(img);
-    wrap.appendChild(del);
+    const tmp = document.createElement("div");
+    tmp.appendChild(wrap);
+    ensureImgControls(tmp);
+    tmp.removeChild(wrap);
+    return wrap;
+  };
 
+  // vloží blok na pozíciu kurzora (alebo za riadok / nadpis / zoznam, v ktorom kurzor je)
+  const placeNodeAtCaret = (node: HTMLElement) => {
+    const div = contentDivRef.current;
+    if (!div) return;
     let range = savedRangeRef.current;
     if (!range || !div.contains(range.startContainer) || !div.contains(range.endContainer)) {
       range = document.createRange();
@@ -615,28 +653,40 @@ export default function NotesPage() {
       range = range.cloneRange();
       range.collapse(false);
     }
-
-    // nájdi prvok najvyššej úrovne, v ktorom je kurzor
     let top: Node | null = range.startContainer;
     while (top && top.parentNode !== div && top !== div) top = top.parentNode;
     const topEl = top && top !== div && top.nodeType === 1 ? (top as HTMLElement) : null;
     const blockTags = ["H1", "H2", "H3", "UL", "OL", "P", "PRE"];
-    if (topEl && (topEl.classList.contains("note-chk-line") || topEl.classList.contains("note-img-wrap") || blockTags.includes(topEl.tagName))) {
-      topEl.after(wrap);
+    if (topEl && (topEl.classList.contains("note-chk-line") || topEl.classList.contains("note-img-wrap") || topEl.classList.contains("note-img-pending") || blockTags.includes(topEl.tagName))) {
+      topEl.after(node);
     } else {
-      range.insertNode(wrap);
+      range.insertNode(node);
     }
+  };
 
-    // za fotkou musí byť vždy miesto, kam sa dá písať ďalej
-    let caretTarget: HTMLElement | null = null;
+  // za fotkou musí byť vždy riadok, do ktorého sa dá písať ďalej
+  const ensureLineAfter = (wrap: HTMLElement): HTMLElement | null => {
     const next = wrap.nextSibling;
-    const nextIsEmpty = !next || (next.nodeType === 1 && (next as HTMLElement).classList.contains("note-img-wrap"));
-    if (nextIsEmpty) {
-      const p = document.createElement("div");
-      p.innerHTML = "<br>";
-      wrap.after(p);
-      caretTarget = p;
-    }
+    const needs = !next || (next.nodeType === 1 && ((next as HTMLElement).classList.contains("note-img-wrap") || (next as HTMLElement).classList.contains("note-img-pending")));
+    if (!needs) return null;
+    const p = document.createElement("div");
+    p.innerHTML = "<br>";
+    wrap.after(p);
+    return p;
+  };
+
+  // vloží fotku PRIAMO do textu na pozíciu kurzora (ako v Xiaomi poznámkach) — text môže pokračovať pod ňou
+  // `pending` = zástupný blok "Nahrávam fotku…", ktorý sa nahradí hotovou fotkou
+  const insertImageInline = (src: string, pending?: HTMLElement | null) => {
+    const div = contentDivRef.current;
+    if (!div || !canEditOpenNote) return;
+    if (pending && !div.contains(pending)) return; // medzitým sa otvorila iná poznámka
+
+    const wrap = buildImageWrap(src);
+    if (pending) pending.replaceWith(wrap);
+    else placeNodeAtCaret(wrap);
+
+    const caretTarget = ensureLineAfter(wrap);
 
     if (div.innerHTML.length > 950000) {
       wrap.remove();
@@ -658,15 +708,109 @@ export default function NotesPage() {
     updateFormatState();
   };
 
+  // zmazanie fotky s možnosťou vrátenia (lišta "Fotka odstránená · Vrátiť")
+  const removeImageWrap = (wrap: HTMLElement) => {
+    removedImgRef.current = { node: wrap, parent: wrap.parentNode as Node, next: wrap.nextSibling };
+    wrap.remove();
+    syncContentFromDom();
+    setShowUndoImg(true);
+    if (undoImgTimer.current) clearTimeout(undoImgTimer.current);
+    undoImgTimer.current = setTimeout(() => { setShowUndoImg(false); removedImgRef.current = null; }, 7000);
+  };
+  const undoRemoveImage = () => {
+    const div = contentDivRef.current;
+    const r = removedImgRef.current;
+    if (!div || !r) return;
+    if (r.next && r.next.parentNode) r.next.parentNode.insertBefore(r.node, r.next);
+    else if (r.parent && div.contains(r.parent)) r.parent.appendChild(r.node);
+    else div.appendChild(r.node);
+    ensureLineAfter(r.node);
+    removedImgRef.current = null;
+    setShowUndoImg(false);
+    if (undoImgTimer.current) clearTimeout(undoImgTimer.current);
+    syncContentFromDom();
+  };
+
+  // posun fotky o jeden blok vyššie / nižšie (funguje aj na mobile, kde ťahanie nejde)
+  const moveImageWrap = (wrap: HTMLElement, dir: "up" | "down") => {
+    const div = contentDivRef.current;
+    if (!div) return;
+    while (wrap.parentNode && wrap.parentNode !== div) {
+      const parentEl = wrap.parentNode as HTMLElement;
+      parentEl.after(wrap);
+      if (parentEl !== div && !(parentEl.textContent || "").trim() && !parentEl.querySelector("img, .note-chk-line")) parentEl.remove();
+    }
+    if (dir === "up") {
+      const prev = wrap.previousElementSibling;
+      if (prev) prev.before(wrap);
+    } else {
+      const next = wrap.nextElementSibling;
+      if (next) next.after(wrap);
+    }
+    ensureLineAfter(wrap);
+    syncContentFromDom();
+    wrap.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  };
+
+  // ťahanie fotky myšou na iné miesto v texte
+  const handleEditableDragStart = (e: React.DragEvent<HTMLDivElement>) => {
+    const w = (e.target as HTMLElement).closest?.(".note-img-wrap") as HTMLElement | null;
+    if (!w || !canEditOpenNote) return;
+    draggingImgRef.current = w;
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", "note-img");
+  };
+  const handleEditableDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    const hasFile = (Array.from(e.dataTransfer.items || []) as DataTransferItem[]).some(it => it.kind === "file");
+    if (draggingImgRef.current || hasFile) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = draggingImgRef.current ? "move" : "copy";
+    }
+  };
+  const handleEditableDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    const div = contentDivRef.current;
+    const dragged = draggingImgRef.current;
+    draggingImgRef.current = null;
+    if (!div || !canEditOpenNote) return;
+    if (dragged) {
+      e.preventDefault();
+      let before: Element | null = null;
+      for (const child of Array.from(div.children) as Element[]) {
+        if (child === dragged) continue;
+        const r = child.getBoundingClientRect();
+        if (e.clientY < r.top + r.height / 2) { before = child; break; }
+      }
+      if (before) before.before(dragged);
+      else div.appendChild(dragged);
+      ensureLineAfter(dragged);
+      syncContentFromDom();
+      return;
+    }
+    const imgFile = (Array.from(e.dataTransfer.files || []) as File[]).find(f => f.type.startsWith("image/"));
+    if (imgFile) {
+      e.preventDefault();
+      const caretFn = (document as any).caretRangeFromPoint;
+      if (caretFn) {
+        const r = caretFn.call(document, e.clientX, e.clientY) as Range | null;
+        if (r && div.contains(r.startContainer)) savedRangeRef.current = r;
+      }
+      uploadImageFile(imgFile);
+    }
+  };
+  const handleEditableDragEnd = () => { draggingImgRef.current = null; };
+
   // klik kdekoľvek v editore — ak zasiahol zaškrtávacie políčko, prepne jeho stav (a preškrtne text v tom riadku)
   const handleEditableClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
-    const delBtn = target.closest(".note-img-del") as HTMLElement | null;
-    if (delBtn) {
+    const ctl = target.closest(".note-img-ctl") as HTMLElement | null;
+    if (ctl) {
       e.preventDefault();
       if (!canEditOpenNote) return;
-      delBtn.closest(".note-img-wrap")?.remove();
-      syncContentFromDom();
+      const w = ctl.closest(".note-img-wrap") as HTMLElement | null;
+      if (!w) return;
+      if (ctl.classList.contains("note-img-del")) removeImageWrap(w);
+      else if (ctl.classList.contains("note-img-up")) moveImageWrap(w, "up");
+      else if (ctl.classList.contains("note-img-down")) moveImageWrap(w, "down");
       return;
     }
     const imgEl = target.closest(".note-img-wrap img") as HTMLImageElement | null;
@@ -965,12 +1109,25 @@ export default function NotesPage() {
 
   const uploadImageFile = async (file: File) => {
     if (!openId) return;
+    let pending: HTMLElement | null = null;
+    if (contentDivRef.current && canEditOpenNote) {
+      pending = document.createElement("div");
+      pending.className = "note-img-pending";
+      pending.setAttribute("contenteditable", "false");
+      pending.textContent = "Nahrávam fotku…";
+      placeNodeAtCaret(pending);
+    }
     setUploadingImage(true);
     try {
       const dataUrl = await compressImageToDataUrl(file, 150 * 1024);
-      insertImageInline(dataUrl);
+      insertImageInline(dataUrl, pending);
     } catch (err) {
       console.error("Chyba pri spracovaní obrázka:", err);
+      if (pending) {
+        const p = pending;
+        p.textContent = "Fotku sa nepodarilo vložiť";
+        setTimeout(() => p.remove(), 3000);
+      }
     }
     setUploadingImage(false);
     setShowImageMenu(false);
@@ -1265,11 +1422,17 @@ export default function NotesPage() {
           .note-chk-text.note-chk-done{text-decoration:line-through;opacity:.55;}
           .note-chk-box{user-select:none;-webkit-user-select:none;}
           .note-img-wrap{position:relative;display:block;width:fit-content;max-width:100%;margin:10px 0;line-height:0;}
-          .note-img-wrap img{max-width:100%;max-height:460px;height:auto;border-radius:10px;display:block;cursor:zoom-in;}
-          .keep-editable .note-img-del{position:absolute;top:6px;right:6px;width:24px;height:24px;border-radius:50%;background-color:rgba(0,0,0,0.6) !important;color:#fff !important;display:flex;align-items:center;justify-content:center;font-size:12px;line-height:1;cursor:pointer;opacity:0;transition:opacity .12s;user-select:none;}
-          .keep-editable .note-img-wrap:hover .note-img-del{opacity:1;}
-          @media (hover:none){.keep-editable .note-img-del{opacity:1;}}
-          .keep-editable[contenteditable="false"] .note-img-del{display:none;}
+          .note-img-wrap img{max-width:100%;max-height:460px;height:auto;border-radius:10px;display:block;}
+          .note-img-wrap img{cursor:grab;}
+          .keep-editable .note-img-ctl{position:absolute;top:6px;width:24px;height:24px;border-radius:50%;background-color:rgba(0,0,0,0.6) !important;color:#fff !important;display:flex;align-items:center;justify-content:center;font-size:11px;line-height:1;cursor:pointer;opacity:0;transition:opacity .12s;user-select:none;}
+          .keep-editable .note-img-del{right:6px;}
+          .keep-editable .note-img-down{right:34px;}
+          .keep-editable .note-img-up{right:62px;}
+          .keep-editable .note-img-wrap:hover .note-img-ctl{opacity:1;}
+          @media (hover:none){.keep-editable .note-img-ctl{opacity:1;}}
+          .keep-editable[contenteditable="false"] .note-img-ctl{display:none;}
+          .keep-editable .note-img-pending{display:block;margin:10px 0;padding:22px 12px;border-radius:10px;border:1px dashed ${theme.muted};text-align:center;font-size:13px;color:${theme.muted} !important;animation:notePulse 1.2s ease-in-out infinite;}
+          @keyframes notePulse{0%,100%{opacity:.5}50%{opacity:1}}
           .keep-swatch{transition:transform .12s ease}
           .keep-swatch:hover{transform:scale(1.15)}
           .keep-toolbtn:hover{opacity:0.7}
@@ -1380,7 +1543,59 @@ export default function NotesPage() {
                 style={{ padding: "5px 8px", borderRadius: 7, background: formatState.checklist ? appliedA + "33" : "rgba(0,0,0,0.06)", border: "none", color: formatState.checklist ? appliedA : theme.text, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
               >
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><polyline points="8 12 11 15 16 9"/></svg>
+                {!isMobile && <span style={{ marginLeft: 5, fontSize: 12, fontWeight: 700, fontFamily: "var(--font-geist-sans)" }}>Úlohy</span>}
               </button>
+          {/* Obrázok */}
+          <div style={{ position: "relative" }}>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              style={{ display: "none" }}
+              onChange={e => { const f = e.target.files?.[0]; if (f) uploadImageFile(f); e.target.value = ""; }}
+            />
+            <button
+              onMouseDown={e => e.preventDefault()}
+              onClick={() => setShowImageMenu(v => !v)}
+              title="Vložiť fotku do textu na miesto kurzora"
+              style={{ padding: "5px 8px", borderRadius: 7, background: showImageMenu ? appliedA + "33" : "rgba(0,0,0,0.06)", border: "none", color: showImageMenu ? appliedA : theme.text, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 5, fontSize: 12, fontWeight: 700, fontFamily: "var(--font-geist-sans)" }}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+              {!isMobile && "Fotka"}
+            </button>
+            {showImageMenu && (
+              <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, width: 220, maxWidth: "90vw", background: surface, border: `1px solid ${lineColor}`, borderRadius: 12, padding: 12, display: "flex", flexDirection: "column", gap: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.2)", zIndex: 10, boxSizing: "border-box" }}>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploadingImage}
+                  style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 8, background: theme.card2, border: "none", color: theme.text, fontSize: 12.5, fontWeight: 700, cursor: uploadingImage ? "default" : "pointer", fontFamily: "var(--font-geist-sans)" }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  {uploadingImage ? "Nahrávam..." : "Nahrať z počítača"}
+                </button>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <input
+                    value={newImageUrl}
+                    onChange={e => setNewImageUrl(e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter") addImageUrl(); }}
+                    placeholder="URL adresa obrázka"
+                    style={{ flex: 1, minWidth: 0, padding: "7px 9px", borderRadius: 8, border: `1px solid ${lineColor}`, background: "transparent", outline: "none", fontSize: 12, color: theme.text, fontFamily: "var(--font-geist-sans)" }}
+                  />
+                  <button
+                    onClick={addImageUrl}
+                    disabled={!newImageUrl.trim()}
+                    style={{ padding: "7px 10px", borderRadius: 8, background: !newImageUrl.trim() ? lineColor : appliedA, border: "none", color: "#fff", fontSize: 12, fontWeight: 700, cursor: !newImageUrl.trim() ? "default" : "pointer", fontFamily: "var(--font-geist-sans)" }}
+                  >
+                    +
+                  </button>
+                </div>
+                <div style={{ fontSize: 10, color: theme.muted, lineHeight: 1.4 }}>
+                  Fotka sa vloží do textu tam, kde máš kurzor, a môžeš za ňou písať ďalej. Fotky sa automaticky zmenšia (limit úložiska). Vložiť ju môžeš aj cez Ctrl+V.
+                </div>
+              </div>
+            )}
+          </div>
+
               <button
                 title="Kód (zvýrazní vybraný text ako kód, klik znova vypne)"
                 onMouseDown={e => e.preventDefault()}
@@ -1443,55 +1658,6 @@ export default function NotesPage() {
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 7v6h-6"/><path d="M21 13a9 9 0 1 1-3-7.7L21 8"/></svg>
           </button>
-
-          {/* Obrázok */}
-          <div style={{ position: "relative" }}>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              style={{ display: "none" }}
-              onChange={e => { const f = e.target.files?.[0]; if (f) uploadImageFile(f); e.target.value = ""; }}
-            />
-            <button
-              onClick={() => setShowImageMenu(v => !v)}
-              title="Pridať obrázok"
-              style={{ width: 30, height: 30, borderRadius: 8, background: showImageMenu ? appliedA + "22" : "transparent", border: "none", color: showImageMenu ? appliedA : theme.muted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
-            >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-            </button>
-            {showImageMenu && (
-              <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, width: 220, maxWidth: "90vw", background: surface, border: `1px solid ${lineColor}`, borderRadius: 12, padding: 12, display: "flex", flexDirection: "column", gap: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.2)", zIndex: 10, boxSizing: "border-box" }}>
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploadingImage}
-                  style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 8, background: theme.card2, border: "none", color: theme.text, fontSize: 12.5, fontWeight: 700, cursor: uploadingImage ? "default" : "pointer", fontFamily: "var(--font-geist-sans)" }}
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                  {uploadingImage ? "Nahrávam..." : "Nahrať z počítača"}
-                </button>
-                <div style={{ display: "flex", gap: 6 }}>
-                  <input
-                    value={newImageUrl}
-                    onChange={e => setNewImageUrl(e.target.value)}
-                    onKeyDown={e => { if (e.key === "Enter") addImageUrl(); }}
-                    placeholder="URL adresa obrázka"
-                    style={{ flex: 1, minWidth: 0, padding: "7px 9px", borderRadius: 8, border: `1px solid ${lineColor}`, background: "transparent", outline: "none", fontSize: 12, color: theme.text, fontFamily: "var(--font-geist-sans)" }}
-                  />
-                  <button
-                    onClick={addImageUrl}
-                    disabled={!newImageUrl.trim()}
-                    style={{ padding: "7px 10px", borderRadius: 8, background: !newImageUrl.trim() ? lineColor : appliedA, border: "none", color: "#fff", fontSize: 12, fontWeight: 700, cursor: !newImageUrl.trim() ? "default" : "pointer", fontFamily: "var(--font-geist-sans)" }}
-                  >
-                    +
-                  </button>
-                </div>
-                <div style={{ fontSize: 10, color: theme.muted, lineHeight: 1.4 }}>
-                  Fotka sa vloží do textu tam, kde máš kurzor, a môžeš za ňou písať ďalej. Fotky sa automaticky zmenšia (limit úložiska). Vložiť ju môžeš aj cez Ctrl+V.
-                </div>
-              </div>
-            )}
-          </div>
 
           {/* PDF / súbor */}
           <div style={{ position: "relative" }}>
@@ -1746,6 +1912,10 @@ export default function NotesPage() {
                 onInput={syncContentFromDom}
                 onClick={handleEditableClick}
                 onMouseDown={handleEditableMouseDown}
+                onDragStart={handleEditableDragStart}
+                onDragOver={handleEditableDragOver}
+                onDrop={handleEditableDrop}
+                onDragEnd={handleEditableDragEnd}
                 onBlur={saveSelection}
                 onPaste={handleEditablePaste}
                 onKeyDown={handleEditableKeyDown}
@@ -1815,6 +1985,13 @@ export default function NotesPage() {
             )}
           </div>
         </div>
+
+        {showUndoImg && (
+          <div style={{ position: "fixed", left: "50%", bottom: 28, transform: "translateX(-50%)", display: "flex", alignItems: "center", gap: 14, background: surface, color: theme.text, border: `1px solid ${lineColor}`, borderRadius: 12, padding: "10px 16px", fontSize: 13, fontWeight: 600, boxShadow: "0 8px 28px rgba(0,0,0,0.3)", zIndex: 1200, fontFamily: "var(--font-geist-sans)" }}>
+            <span>Fotka odstránená</span>
+            <button onClick={undoRemoveImage} style={{ background: "transparent", border: "none", color: appliedA, fontWeight: 800, fontSize: 13, cursor: "pointer", fontFamily: "var(--font-geist-sans)", padding: 0 }}>Vrátiť</button>
+          </div>
+        )}
 
         {/* ── CONFIRM DELETE MODAL ── */}
         {confirmDelete && (
