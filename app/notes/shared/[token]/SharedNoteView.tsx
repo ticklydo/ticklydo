@@ -148,6 +148,9 @@ export default function SharedNoteView({ token }: { token: string }) {
         .shared-note-content code{background:rgba(0,0,0,0.08);padding:2px 6px;border-radius:4px;font-family:monospace;font-size:13px}
         .shared-note-content hr{border:none;border-top:1px solid rgba(0,0,0,0.15);margin:18px 0}
         .note-chk-line{display:flex;align-items:flex-start;gap:9px;margin:6px 0;}
+        .note-img-wrap{position:relative;display:block;width:fit-content;max-width:100%;margin:10px 0;line-height:0;}
+        .note-img-wrap img{max-width:100%;max-height:520px;height:auto;border-radius:10px;display:block;}
+        .shared-note-content .note-img-del{display:none !important;}
         .note-chk-box{flex-shrink:0;display:inline-flex;margin-top:3px;}
         .note-chk-text{flex:1;min-width:0;}
         .note-chk-text.note-chk-done{text-decoration:line-through;opacity:.55;}

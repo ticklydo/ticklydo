@@ -102,15 +102,73 @@ function getLabelColor(label: string): string {
   return LABEL_COLORS[index];
 }
 
+// ── prevod starých poznámok (samostatný režim zoznamu úloh + prílohy-obrázky) na jednotný obsah v texte ──
+function escHtml(str: string): string {
+  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+function legacyCheckboxSvg(checked: boolean): string {
+  return checked
+    ? `<svg width="15" height="15" viewBox="0 0 24 24" fill="#7c63ff" stroke="#7c63ff" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="4"/><polyline points="8 12 11 15 16 8" stroke="white" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`
+    : `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8a8aa0" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="4"/></svg>`;
+}
+function legacyToContent(n: any): string {
+  let html: string = n.content || "";
+  if (n.checklist && Array.isArray(n.items) && n.items.length > 0) {
+    html += n.items.map((it: any) =>
+      `<div class="note-chk-line"><span class="note-chk-box" contenteditable="false" data-checked="${it.checked ? "true" : "false"}">${legacyCheckboxSvg(!!it.checked)}</span><span class="note-chk-text${it.checked ? " note-chk-done" : ""}">${escHtml(String(it.text || "")) || "&nbsp;"}</span></div>`
+    ).join("");
+  }
+  if (Array.isArray(n.images) && n.images.length > 0) {
+    html += n.images.map((u: string) =>
+      `<div class="note-img-wrap" contenteditable="false"><img src="${escHtml(String(u))}" alt=""><span class="note-img-del" data-del="1">✕</span></div>`
+    ).join("") + "<div><br></div>";
+  }
+  return html;
+}
+
+type PreviewLine = { text: string; chk: boolean; checked: boolean; level: number };
+function extractCardPreview(html: string): { firstImg: string | null; lines: PreviewLine[] } {
+  const out: { firstImg: string | null; lines: PreviewLine[] } = { firstImg: null, lines: [] };
+  if (!html || typeof DOMParser === "undefined") return out;
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  const firstImg = doc.querySelector("img");
+  if (firstImg) out.firstImg = firstImg.getAttribute("src");
+  const walk = (node: Node) => {
+    node.childNodes.forEach(child => {
+      if (out.lines.length >= 12) return;
+      if (child.nodeType === 3) {
+        const t = (child.textContent || "").replace(/\u00a0/g, " ").trim();
+        if (t) out.lines.push({ text: t, chk: false, checked: false, level: 0 });
+        return;
+      }
+      if (child.nodeType !== 1) return;
+      const el = child as HTMLElement;
+      if (el.classList.contains("note-img-wrap") || el.tagName === "BR") return;
+      if (el.classList.contains("note-chk-line")) {
+        const t = (el.querySelector(".note-chk-text")?.textContent || "").replace(/\u00a0/g, " ").trim();
+        const checked = el.querySelector(".note-chk-box")?.getAttribute("data-checked") === "true";
+        out.lines.push({ text: t, chk: true, checked, level: parseInt(el.getAttribute("data-level") || "0", 10) || 0 });
+        return;
+      }
+      if (el.querySelector(".note-chk-line, .note-img-wrap")) { walk(el); return; }
+      const t = (el.textContent || "").replace(/\u00a0/g, " ").trim();
+      if (t) out.lines.push({ text: t, chk: false, checked: false, level: 0 });
+    });
+  };
+  walk(doc.body);
+  return out;
+}
+
 function normalizeNote(n: any, fallbackOwnerId?: string): Note {
+  const migratedContent = legacyToContent(n);
   return {
-    id: n.id, ownerId: n.ownerId || fallbackOwnerId || "", title: n.title || "", content: n.content || "",
+    id: n.id, ownerId: n.ownerId || fallbackOwnerId || "", title: n.title || "", content: migratedContent,
     color: n.color || "default",
     pinned: !!n.pinned, archived: !!n.archived,
     labels: Array.isArray(n.labels) ? n.labels : [],
-    checklist: !!n.checklist,
-    items: Array.isArray(n.items) ? n.items : [],
-    images: Array.isArray(n.images) ? n.images : [],
+    checklist: false,
+    items: [],
+    images: [],
     files: Array.isArray(n.files) ? n.files : [],
     createdAt: n.createdAt || Date.now(), updatedAt: n.updatedAt || Date.now(),
     sharedWithUids: Array.isArray(n.sharedWithUids) ? n.sharedWithUids : [],
@@ -181,6 +239,7 @@ export default function NotesPage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const pdfInputRef = useRef<HTMLInputElement | null>(null);
   const contentDivRef = useRef<HTMLDivElement | null>(null);
+  const savedRangeRef = useRef<Range | null>(null);
   const [showHeadingMenu, setShowHeadingMenu] = useState(false);
   const [formatState, setFormatState] = useState<{ bold: boolean; italic: boolean; bullet: boolean; heading: string | null; checklist: boolean }>({ bold: false, italic: false, bullet: false, heading: null, checklist: false });
 
@@ -364,6 +423,12 @@ export default function NotesPage() {
   };
 
   const handleEditablePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
+    const imgFile = (Array.from(e.clipboardData.files || []) as File[]).find(f => f.type.startsWith("image/"));
+    if (imgFile) {
+      e.preventDefault();
+      uploadImageFile(imgFile);
+      return;
+    }
     const html = e.clipboardData.getData("text/html");
     if (!html) return; // obyčajný text (bez formátovania) necháme spracovať prehliadačom ako obvykle
     e.preventDefault();
@@ -517,12 +582,104 @@ export default function NotesPage() {
     updateFormatState();
   };
 
+  // klik na políčko / fotku nesmie presunúť kurzor ani rozhodiť výber (inak by sa text "zalomil" inde)
+  const handleEditableMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    const t = e.target as HTMLElement;
+    if (t.closest(".note-chk-box") || t.closest(".note-img-wrap")) e.preventDefault();
+  };
+
+  // vloží fotku PRIAMO do textu na pozíciu kurzora (ako v Xiaomi poznámkach) — text môže pokračovať pod ňou
+  const insertImageInline = (src: string) => {
+    const div = contentDivRef.current;
+    if (!div || !canEditOpenNote) return;
+
+    const wrap = document.createElement("div");
+    wrap.className = "note-img-wrap";
+    wrap.setAttribute("contenteditable", "false");
+    const img = document.createElement("img");
+    img.src = src;
+    img.alt = "";
+    const del = document.createElement("span");
+    del.className = "note-img-del";
+    del.setAttribute("data-del", "1");
+    del.textContent = "✕";
+    wrap.appendChild(img);
+    wrap.appendChild(del);
+
+    let range = savedRangeRef.current;
+    if (!range || !div.contains(range.startContainer) || !div.contains(range.endContainer)) {
+      range = document.createRange();
+      range.selectNodeContents(div);
+      range.collapse(false);
+    } else {
+      range = range.cloneRange();
+      range.collapse(false);
+    }
+
+    // nájdi prvok najvyššej úrovne, v ktorom je kurzor
+    let top: Node | null = range.startContainer;
+    while (top && top.parentNode !== div && top !== div) top = top.parentNode;
+    const topEl = top && top !== div && top.nodeType === 1 ? (top as HTMLElement) : null;
+    const blockTags = ["H1", "H2", "H3", "UL", "OL", "P", "PRE"];
+    if (topEl && (topEl.classList.contains("note-chk-line") || topEl.classList.contains("note-img-wrap") || blockTags.includes(topEl.tagName))) {
+      topEl.after(wrap);
+    } else {
+      range.insertNode(wrap);
+    }
+
+    // za fotkou musí byť vždy miesto, kam sa dá písať ďalej
+    let caretTarget: HTMLElement | null = null;
+    const next = wrap.nextSibling;
+    const nextIsEmpty = !next || (next.nodeType === 1 && (next as HTMLElement).classList.contains("note-img-wrap"));
+    if (nextIsEmpty) {
+      const p = document.createElement("div");
+      p.innerHTML = "<br>";
+      wrap.after(p);
+      caretTarget = p;
+    }
+
+    if (div.innerHTML.length > 950000) {
+      wrap.remove();
+      if (caretTarget && caretTarget.parentNode) caretTarget.remove();
+      alert("Poznámka je už príliš veľká (veľa fotiek). Odstráň niektorú fotku alebo vlož menšiu.");
+      return;
+    }
+
+    const sel = window.getSelection();
+    const nr = document.createRange();
+    if (caretTarget) nr.setStart(caretTarget, 0);
+    else nr.setStartAfter(wrap);
+    nr.collapse(true);
+    sel?.removeAllRanges();
+    sel?.addRange(nr);
+    savedRangeRef.current = nr.cloneRange();
+
+    syncContentFromDom();
+    updateFormatState();
+  };
+
   // klik kdekoľvek v editore — ak zasiahol zaškrtávacie políčko, prepne jeho stav (a preškrtne text v tom riadku)
   const handleEditableClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
+    const delBtn = target.closest(".note-img-del") as HTMLElement | null;
+    if (delBtn) {
+      e.preventDefault();
+      if (!canEditOpenNote) return;
+      delBtn.closest(".note-img-wrap")?.remove();
+      syncContentFromDom();
+      return;
+    }
+    const imgEl = target.closest(".note-img-wrap img") as HTMLImageElement | null;
+    if (imgEl) {
+      e.preventDefault();
+      setViewingImage(imgEl.src);
+      setImageZoom(1);
+      return;
+    }
     const box = target.closest(".note-chk-box") as HTMLElement | null;
     if (!box) return;
     e.preventDefault();
+    if (!canEditOpenNote) return;
     const wasChecked = box.getAttribute("data-checked") === "true";
     const nowChecked = !wasChecked;
     box.setAttribute("data-checked", String(nowChecked));
@@ -544,7 +701,7 @@ export default function NotesPage() {
   const CHK_INDENT_PX = 24;
 
   const handleEditableKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (e.key !== "Enter" && e.key !== "Tab") return;
+    if (e.key !== "Enter" && e.key !== "Tab" && e.key !== "Backspace") return;
     const div = contentDivRef.current;
     if (!div) return;
     const sel = window.getSelection();
@@ -554,6 +711,52 @@ export default function NotesPage() {
     const anchorEl = anchorNode.nodeType === 3 ? anchorNode.parentElement : (anchorNode as Element);
     const currentLine = anchorEl?.closest?.(".note-chk-line") as HTMLElement | null;
     if (!currentLine || !div.contains(currentLine)) return; // mimo checklist riadku — necháme predvolené správanie
+
+    const textSpanNow = currentLine.querySelector(".note-chk-text") as HTMLElement | null;
+
+    // zmení riadok so zaškrtávacím políčkom na obyčajný riadok textu (políčko zmizne, text ostane)
+    const convertToPlainLine = () => {
+      const plain = document.createElement("div");
+      const hasText = !!textSpanNow && (textSpanNow.textContent || "").replace(/\u00a0/g, "").trim() !== "";
+      if (hasText && textSpanNow) {
+        while (textSpanNow.firstChild) plain.appendChild(textSpanNow.firstChild);
+      } else {
+        plain.innerHTML = "<br>";
+      }
+      currentLine.replaceWith(plain);
+      const nr = document.createRange();
+      nr.setStart(plain, 0);
+      nr.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(nr);
+      syncContentFromDom();
+      updateFormatState();
+    };
+
+    if (e.key === "Backspace") {
+      if (!range.collapsed || !textSpanNow) return;
+      const pre = document.createRange();
+      pre.selectNodeContents(textSpanNow);
+      pre.setEnd(range.startContainer, range.startOffset);
+      if (pre.toString().replace(/\u00a0/g, "") !== "") return; // kurzor nie je na začiatku textu — normálne mazanie
+      e.preventDefault();
+      convertToPlainLine();
+      return;
+    }
+
+    if (e.key === "Enter" && !e.shiftKey && range.collapsed && textSpanNow && (textSpanNow.textContent || "").replace(/\u00a0/g, "").trim() === "") {
+      // Enter na prázdnom riadku s políčkom ukončí zoznam (najprv vráti odsadenie)
+      e.preventDefault();
+      const lvl = parseInt(currentLine.getAttribute("data-level") || "0", 10);
+      if (lvl > 0) {
+        currentLine.setAttribute("data-level", String(lvl - 1));
+        currentLine.style.marginLeft = lvl - 1 > 0 ? `${(lvl - 1) * CHK_INDENT_PX}px` : "";
+        syncContentFromDom();
+      } else {
+        convertToPlainLine();
+      }
+      return;
+    }
 
     if (e.key === "Tab") {
       e.preventDefault();
@@ -604,9 +807,18 @@ export default function NotesPage() {
     syncContentFromDom();
     updateFormatState();
   };
+  const saveSelection = () => {
+    const div = contentDivRef.current;
+    const sel = window.getSelection();
+    if (!div || !sel || sel.rangeCount === 0) return;
+    const r = sel.getRangeAt(0);
+    if (div.contains(r.startContainer) && div.contains(r.endContainer)) savedRangeRef.current = r.cloneRange();
+  };
+
   const updateFormatState = () => {
     const div = contentDivRef.current;
     if (!div) return;
+    saveSelection();
     let bold = false, italic = false, bullet = false, checklist = false;
     let heading: string | null = null;
     try {
@@ -703,9 +915,7 @@ export default function NotesPage() {
   const addImageUrl = () => {
     const val = newImageUrl.trim();
     if (!val) return;
-    const updated = [...editImages, val];
-    setEditImages(updated);
-    persistCurrent({ images: updated });
+    insertImageInline(val);
     setNewImageUrl("");
     setShowImageMenu(false);
   };
@@ -758,9 +968,7 @@ export default function NotesPage() {
     setUploadingImage(true);
     try {
       const dataUrl = await compressImageToDataUrl(file, 150 * 1024);
-      const updated = [...editImages, dataUrl];
-      setEditImages(updated);
-      persistCurrent({ images: updated });
+      insertImageInline(dataUrl);
     } catch (err) {
       console.error("Chyba pri spracovaní obrázka:", err);
     }
@@ -1055,6 +1263,13 @@ export default function NotesPage() {
           .note-chk-box{cursor:pointer;flex-shrink:0;display:inline-flex;margin-top:3px;}
           .note-chk-text{flex:1;min-width:0;}
           .note-chk-text.note-chk-done{text-decoration:line-through;opacity:.55;}
+          .note-chk-box{user-select:none;-webkit-user-select:none;}
+          .note-img-wrap{position:relative;display:block;width:fit-content;max-width:100%;margin:10px 0;line-height:0;}
+          .note-img-wrap img{max-width:100%;max-height:460px;height:auto;border-radius:10px;display:block;cursor:zoom-in;}
+          .keep-editable .note-img-del{position:absolute;top:6px;right:6px;width:24px;height:24px;border-radius:50%;background-color:rgba(0,0,0,0.6) !important;color:#fff !important;display:flex;align-items:center;justify-content:center;font-size:12px;line-height:1;cursor:pointer;opacity:0;transition:opacity .12s;user-select:none;}
+          .keep-editable .note-img-wrap:hover .note-img-del{opacity:1;}
+          @media (hover:none){.keep-editable .note-img-del{opacity:1;}}
+          .keep-editable[contenteditable="false"] .note-img-del{display:none;}
           .keep-swatch{transition:transform .12s ease}
           .keep-swatch:hover{transform:scale(1.15)}
           .keep-toolbtn:hover{opacity:0.7}
@@ -1087,15 +1302,6 @@ export default function NotesPage() {
             style={{ width: 30, height: 30, borderRadius: 8, background: editPinned ? appliedA + "22" : "transparent", border: "none", color: editPinned ? appliedA : theme.muted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
           >
             <svg width="15" height="15" viewBox="0 0 24 24" fill={editPinned ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg>
-          </button>
-
-          {/* Checklist toggle */}
-          <button
-            onClick={toggleChecklistMode}
-            title={editChecklist ? "Prepnúť na text" : "Prepnúť na zoznam úloh"}
-            style={{ width: 30, height: 30, borderRadius: 8, background: editChecklist ? appliedA + "22" : "transparent", border: "none", color: editChecklist ? appliedA : theme.muted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
-          >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
           </button>
 
           <div style={{ width: 1, height: 20, background: dividerColor, margin: "0 4px" }} />
@@ -1168,7 +1374,7 @@ export default function NotesPage() {
                 •
               </button>
               <button
-                title="Zaškrtávacie políčko v texte (klik na už vloženom riadku ho odstráni)"
+                title="Zoznam úloh — políčko na začiatku riadka (Enter = ďalšie, Tab = podpoložka, klik znova = zrušiť)"
                 onMouseDown={e => e.preventDefault()}
                 onClick={toggleChecklistLine}
                 style={{ padding: "5px 8px", borderRadius: 7, background: formatState.checklist ? appliedA + "33" : "rgba(0,0,0,0.06)", border: "none", color: formatState.checklist ? appliedA : theme.text, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
@@ -1281,7 +1487,7 @@ export default function NotesPage() {
                   </button>
                 </div>
                 <div style={{ fontSize: 10, color: theme.muted, lineHeight: 1.4 }}>
-                  Fotky sa automaticky zmenšia a skomprimujú (limit úložiska). Pre viac/väčšie fotky použi radšej URL adresu.
+                  Fotka sa vloží do textu tam, kde máš kurzor, a môžeš za ňou písať ďalej. Fotky sa automaticky zmenšia (limit úložiska). Vložiť ju môžeš aj cez Ctrl+V.
                 </div>
               </div>
             )}
@@ -1539,6 +1745,8 @@ export default function NotesPage() {
                 suppressContentEditableWarning
                 onInput={syncContentFromDom}
                 onClick={handleEditableClick}
+                onMouseDown={handleEditableMouseDown}
+                onBlur={saveSelection}
                 onPaste={handleEditablePaste}
                 onKeyDown={handleEditableKeyDown}
                 onMouseUp={updateFormatState}
@@ -1840,6 +2048,7 @@ export default function NotesPage() {
     const textColor = darkMode || !isDefault ? theme.text : "#1a1a1a";
     const mutedColor = darkMode || !isDefault ? theme.muted : "#666";
     const isSharedWithMe = !!(uid && note.ownerId !== uid);
+    const preview = extractCardPreview(note.content);
     return (
       <div className="keep-card-wrap">
         <div
@@ -1878,22 +2087,20 @@ export default function NotesPage() {
               </div>
             )}
           </div>
-          {note.images && note.images.length > 0 && (
-            <img src={note.images[0]} alt="" style={{ width: "calc(100% + 32px)", margin: "0 -16px", height: 130, objectFit: "cover", display: "block" }} />
+          {preview.firstImg && (
+            <img src={preview.firstImg} alt="" style={{ width: "calc(100% + 32px)", margin: "0 -16px", height: 130, objectFit: "cover", display: "block" }} />
           )}
-          {note.checklist ? (
+          {preview.lines.length > 0 && (
             <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-              {note.items.slice(0, 6).map(item => (
-                <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5 }}>
-                  <div style={{ width: 13, height: 13, borderRadius: 3, flexShrink: 0, border: `1.5px solid ${item.checked ? appliedA : mutedColor}`, background: item.checked ? appliedA : "transparent" }} />
-                  <span style={{ color: item.checked ? mutedColor : textColor, textDecoration: item.checked ? "line-through" : "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.text}</span>
+              {preview.lines.slice(0, 8).map((ln, idx) => ln.chk ? (
+                <div key={idx} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, marginLeft: ln.level * 10 }}>
+                  <div style={{ width: 13, height: 13, borderRadius: 3, flexShrink: 0, border: `1.5px solid ${ln.checked ? appliedA : mutedColor}`, background: ln.checked ? appliedA : "transparent" }} />
+                  <span style={{ color: ln.checked ? mutedColor : textColor, textDecoration: ln.checked ? "line-through" : "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ln.text}</span>
                 </div>
+              ) : (
+                <div key={idx} style={{ fontSize: 13, color: mutedColor, lineHeight: 1.5, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical" }}>{ln.text}</div>
               ))}
-              {note.items.length > 6 && <div style={{ fontSize: 11, color: mutedColor }}>+{note.items.length - 6} ďalších</div>}
-            </div>
-          ) : note.content && (
-            <div style={{ fontSize: 13, color: mutedColor, lineHeight: 1.5, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 8, WebkitBoxOrient: "vertical", whiteSpace: "pre-wrap" }}>
-              {note.content.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()}
+              {preview.lines.length > 8 && <div style={{ fontSize: 11, color: mutedColor }}>…</div>}
             </div>
           )}
           {note.labels && note.labels.length > 0 && (
