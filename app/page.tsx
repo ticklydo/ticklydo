@@ -33,6 +33,19 @@ export default function LandingPage() {
   const router = useRouter();
   const [checking, setChecking] = useState(true);
   const [cookieBanner, setCookieBanner] = useState(false);
+  const [dark, setDark] = useState(false);
+
+  useEffect(() => {
+    try {
+      if (localStorage.getItem("landing-theme") === "dark") setDark(true);
+    } catch {}
+  }, []);
+
+  const toggleTheme = () => {
+    const next = !dark;
+    setDark(next);
+    try { localStorage.setItem("landing-theme", next ? "dark" : "light"); } catch {}
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -53,7 +66,7 @@ export default function LandingPage() {
   };
 
   if (checking) return (
-    <div style={{minHeight:"100vh",background:"#fafafc",display:"flex",alignItems:"center",justifyContent:"center"}}>
+    <div style={{minHeight:"100vh",background:dark?"#09090f":"#fafafc",display:"flex",alignItems:"center",justifyContent:"center"}}>
       <img src="/IKONA.png" alt="loading" style={{width:"120px",animation:"bounce 0.8s infinite alternate"}} />
       <style>{`@keyframes bounce { from { transform: translateY(0px) rotate(-5deg); } to { transform: translateY(-30px) rotate(5deg); } }`}</style>
     </div>
@@ -86,17 +99,28 @@ export default function LandingPage() {
         .footer-links span, .footer-links a { cursor: pointer; color: var(--muted); font-size: 0.8rem; text-decoration: none; }
         .footer-links span:hover, .footer-links a:hover { color: var(--text); }
 
-        .split { position: relative; min-height: 100vh; display: grid; grid-template-columns: 1.15fr 1fr; }
+        .split.theme-light { --bg: #fafafc; --surface: #ffffff; --border: #e4e4ee; --text: #14141f; --muted: #5c5c72; --icon-bg: #ffffff; --glow: 0.38; }
+        .split.theme-dark { --bg: #09090f; --surface: #111119; --border: rgba(255,255,255,0.1); --text: #f0eeff; --muted: rgba(240,238,255,0.62); --icon-bg: #1a1a26; --glow: 0.42; }
+        .split { background: var(--bg); color: var(--text); transition: background 0.3s, color 0.3s; position: relative; min-height: 100vh; display: grid; grid-template-columns: 1.15fr 1fr; }
         .split::before {
           content: "";
-          position: absolute; inset: 0; z-index: 0; pointer-events: none;
-          background: linear-gradient(180deg, #f472b6, #a78bfa, #60a5fa, #2dd4bf, #f472b6);
-          background-size: 100% 400%;
-          opacity: 0.55;
-          -webkit-mask-image: linear-gradient(90deg, #000 0%, rgba(0,0,0,0.6) 30%, transparent 70%);
-          mask-image: linear-gradient(90deg, #000 0%, rgba(0,0,0,0.6) 30%, transparent 70%);
-          animation: colorFlow 14s ease-in-out infinite alternate;
+          position: absolute; left: 0; right: 0; bottom: 0; height: 60%; z-index: 0; pointer-events: none;
+          background: linear-gradient(90deg, #f472b6, #a78bfa, #60a5fa, #2dd4bf, #f472b6);
+          background-size: 400% 100%;
+          opacity: var(--glow);
+          -webkit-mask-image: linear-gradient(0deg, #000 0%, rgba(0,0,0,0.55) 40%, transparent 100%);
+          mask-image: linear-gradient(0deg, #000 0%, rgba(0,0,0,0.55) 40%, transparent 100%);
+          animation: colorFlow 16s ease-in-out infinite alternate;
         }
+        .theme-toggle {
+          position: absolute; top: 1.4rem; right: 1.5rem; z-index: 5;
+          width: 42px; height: 42px; border-radius: 50%;
+          display: flex; align-items: center; justify-content: center;
+          background: var(--surface); color: var(--text);
+          border: 1px solid var(--border); cursor: pointer;
+          transition: border-color 0.2s;
+        }
+        .theme-toggle:hover { border-color: var(--muted); }
         .brand-side {
           padding: 2.2rem 4rem 2.5rem;
           position: relative; z-index: 1;
@@ -107,7 +131,7 @@ export default function LandingPage() {
         .brand-main .sub { margin-top: 1rem; font-size: 1.05rem; color: var(--muted); line-height: 1.65; max-width: 460px; }
         .feat-list { margin-top: 2.2rem; display: flex; flex-direction: column; gap: 1.1rem; }
         .feat { display: flex; gap: 0.9rem; align-items: flex-start; }
-        .feat-icon { width: 40px; height: 40px; border-radius: 50%; background: #fff; color: var(--purple); display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: 0 2px 10px rgba(139,92,246,0.15); }
+        .feat-icon { width: 40px; height: 40px; border-radius: 50%; background: var(--icon-bg); color: var(--purple); display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: 0 2px 10px rgba(139,92,246,0.15); }
         .feat h3 { font-size: 0.98rem; font-weight: 700; }
         .feat p { font-size: 0.88rem; color: var(--muted); line-height: 1.55; margin-top: 0.15rem; }
         .action-side { position: relative; z-index: 1; display: flex; flex-direction: column; justify-content: space-between; align-items: center; padding: 2.2rem 2rem 1.5rem; }
@@ -123,7 +147,7 @@ export default function LandingPage() {
         .action-footer .footer-links { justify-content: center; }
         @keyframes colorFlow {
           from { background-position: 0% 0%; }
-          to { background-position: 0% 100%; }
+          to { background-position: 100% 0%; }
         }
         @media (max-width: 900px) {
           .split { grid-template-columns: 1fr; }
@@ -132,7 +156,14 @@ export default function LandingPage() {
         }
       `}</style>
 
-      <div className="split">
+      <div className={"split " + (dark ? "theme-dark" : "theme-light")}>
+        <button className="theme-toggle" onClick={toggleTheme} aria-label={dark ? "Prepnúť na svetlý režim" : "Prepnúť na tmavý režim"} title={dark ? "Svetlý režim" : "Tmavý režim"}>
+          {dark ? (
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/><line x1="4.9" y1="4.9" x2="6.3" y2="6.3"/><line x1="17.7" y1="17.7" x2="19.1" y2="19.1"/><line x1="2" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22" y2="12"/><line x1="4.9" y1="19.1" x2="6.3" y2="17.7"/><line x1="17.7" y1="6.3" x2="19.1" y2="4.9"/></svg>
+          ) : (
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+          )}
+        </button>
         <section className="brand-side">
           <img src="/LOGO.png" alt="TicklyDo" style={{height:"68px",width:"auto",alignSelf:"flex-start"}} />
           <div className="brand-main">
@@ -182,8 +213,8 @@ export default function LandingPage() {
       </div>
 
       {cookieBanner && (
-        <div style={{position:"fixed",bottom:"20px",left:"50%",transform:"translateX(-50%)",zIndex:999,background:"#ffffff",border:"1px solid #e0e0ea",borderRadius:"16px",padding:"16px 24px",display:"flex",alignItems:"center",gap:"16px",flexWrap:"wrap",justifyContent:"center",maxWidth:"600px",width:"calc(100% - 40px)",boxShadow:"0 8px 40px rgba(0,0,0,0.25)"}}>
-          <p style={{color:"#3a3a4e",fontFamily:"sans-serif",fontSize:"13px",margin:0,flex:1,minWidth:"200px"}}>
+        <div style={{position:"fixed",bottom:"20px",left:"50%",transform:"translateX(-50%)",zIndex:999,background:dark?"#13131f":"#ffffff",border:dark?"1px solid rgba(255,255,255,0.1)":"1px solid #e0e0ea",borderRadius:"16px",padding:"16px 24px",display:"flex",alignItems:"center",gap:"16px",flexWrap:"wrap",justifyContent:"center",maxWidth:"600px",width:"calc(100% - 40px)",boxShadow:"0 8px 40px rgba(0,0,0,0.25)"}}>
+          <p style={{color:dark?"rgba(200,190,255,0.85)":"#3a3a4e",fontFamily:"sans-serif",fontSize:"13px",margin:0,flex:1,minWidth:"200px"}}>
             Používame cookies nevyhnutné pre fungovanie prihlásenia. Viac info v{" "}
             <span onClick={() => router.push("/privacy")} style={{color:"#a855f7",cursor:"pointer"}}>Podmienkach & GDPR</span>.
           </p>
