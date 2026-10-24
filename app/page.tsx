@@ -152,9 +152,24 @@ export default function LandingPage() {
           to { background-position: 100% 0%; }
         }
         @media (max-width: 900px) {
-          .split { grid-template-columns: 1fr; }
-          .brand-side { padding: 1.5rem 1.4rem 2rem; }
-          .action-side { padding: 2rem 1.4rem 1.5rem; }
+          /* mobil: logo -> nadpis -> tlačidlá hneď navrchu -> funkcie -> pre koho -> pätička */
+          .split { display: flex; flex-direction: column; padding: 1.1rem 1.25rem 2rem; gap: 0; min-height: 100vh; min-height: 100dvh; }
+          .brand-side, .brand-main, .action-side, .action-card { display: contents; }
+          .brand-side > div:last-child, .action-side > div:first-child { display: none; }
+          .split > .theme-toggle { top: 0.9rem; right: 1.1rem; }
+          .brand-logo { order: 1; height: 44px !important; margin-bottom: 1.6rem; }
+          .brand-main h1 { order: 2; font-size: 2rem; }
+          .brand-main .sub { order: 3; margin-top: 0.7rem; font-size: 1rem; max-width: none; }
+          .action-icon, .action-card h2 { display: none; }
+          .action-card .note { order: 4; margin-top: 1.4rem; text-align: center; }
+          .action-buttons { order: 5; margin-top: 0.7rem; gap: 0.7rem; }
+          .btn-primary, .btn-secondary { min-height: 52px; font-size: 1rem; width: 100%; }
+          .feat-list { order: 6; margin-top: 2.2rem; }
+          .aud { order: 7; margin-top: 1.8rem; }
+          .action-footer { order: 8; margin: 2rem auto 0; max-width: none; }
+          .footer-links { gap: 0.6rem 1.1rem; }
+          .footer-links span, .footer-links a { font-size: 0.85rem; padding: 0.25rem 0; }
+          .theme-toggle { width: 46px; height: 46px; }
         }
       `}</style>
 
@@ -167,7 +182,7 @@ export default function LandingPage() {
           )}
         </button>
         <section className="brand-side">
-          <img src="/LOGO.png" alt="TicklyDo" style={{height:"68px",width:"auto",alignSelf:"flex-start"}} />
+          <img src="/LOGO.png" alt="TicklyDo" className="brand-logo" style={{height:"68px",width:"auto",alignSelf:"flex-start"}} />
           <div className="brand-main">
             <h1>Projekty, poznámky a plán týždňa <span className="gradient-text">na jednom mieste.</span></h1>
             <p className="sub">Prehľadne si zorganizuj prácu aj štúdium bez chaosu.</p>
@@ -189,7 +204,7 @@ export default function LandingPage() {
         <section className="action-side">
           <div />
           <div className="action-card">
-            <img src="/IKONA.png" alt="" style={{width:"84px",height:"auto"}} />
+            <img className="action-icon" src="/IKONA.png" alt="" style={{width:"84px",height:"auto"}} />
             <h2>Začni s TicklyDo</h2>
             <p className="note">Registrácia je zadarmo, bez kreditnej karty.</p>
             <div className="action-buttons">

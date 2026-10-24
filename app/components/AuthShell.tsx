@@ -57,8 +57,15 @@ export default function AuthShell({ children }: { children: (t: AuthTheme) => Re
   const t = getAuthTheme(dark);
 
   return (
-    <div className="auth-root" style={{ position: "relative", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px 16px", background: dark ? "#09090f" : "#fafafc", color: t.text, overflow: "hidden", transition: "background .3s" }}>
+    <div className="auth-root" style={{ position: "relative", minHeight: "100dvh", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px 16px", background: dark ? "#09090f" : "#fafafc", color: t.text, overflow: "hidden", transition: "background .3s" }}>
       <style>{`
+        /* mobil: väčšie ťukateľné polia, 16px písmo (iOS inak pri ťuknutí približuje stránku), menší vnútorný okraj karty */
+        .auth-root input { font-size: 16px !important; min-height: 48px; }
+        .auth-root button { min-height: 48px; }
+        @media (max-width: 480px) {
+          .auth-root { align-items: flex-start !important; padding: 64px 14px 28px !important; }
+          .auth-root [style*="max-width: 400px"] { padding: 26px 20px !important; }
+        }
         .auth-glow {
           position: absolute; left: 0; right: 0; bottom: 0; height: 60%; z-index: 0; pointer-events: none;
           background: linear-gradient(90deg, #f472b6, #a78bfa, #60a5fa, #2dd4bf, #f472b6);
