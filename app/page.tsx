@@ -125,9 +125,6 @@ export default function LandingPage() {
           from { background-position: 0% 0%; }
           to { background-position: 0% 100%; }
         }
-        @media (prefers-reduced-motion: reduce) {
-          .split::before { animation: none; }
-        }
         @media (max-width: 900px) {
           .split { grid-template-columns: 1fr; }
           .brand-side { padding: 1.5rem 1.4rem 2rem; }
