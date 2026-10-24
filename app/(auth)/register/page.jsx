@@ -63,6 +63,7 @@ export default function RegisterPage() {
       <div style={{background:t.card,border:`1px solid ${t.cardBorder}`,borderRadius:"16px",padding:"40px",width:"100%",maxWidth:"400px",boxShadow:"0 12px 40px rgba(0,0,0,0.12)"}}>
         <img src="/LOGO.png" alt="TicklyDo" style={{height:"100px",marginBottom:"8px"}} />
         <p style={{color:t.muted,marginBottom:"24px",fontFamily:"sans-serif"}}>Vytvor si účet</p>
+        <p style={{color:t.muted,fontSize:"12.5px",lineHeight:1.6,marginTop:"-14px",marginBottom:"20px",fontFamily:"sans-serif"}}>Nové účty schvaľujeme ručne. Po registrácii budeš chvíľu čakať na potvrdenie.</p>
 
         <div style={{marginBottom:"16px"}}>
           <label style={labelStyle}>Email</label>
