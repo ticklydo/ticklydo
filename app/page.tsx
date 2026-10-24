@@ -1,199 +1,230 @@
 "use client";
 
-import { usePathname, useRouter } from "next/navigation";
-import { ThemeProvider, useTheme } from "../context/ThemeContext";
-import Sidebar from "./Sidebar";
-import { ReactNode, useEffect, useState } from "react";
-import { auth, db } from "../firebase";
-import { onAuthStateChanged, signOut } from "firebase/auth";
-import { doc, onSnapshot, setDoc } from "firebase/firestore";
+import { useEffect, useLayoutEffect, useState } from "react";
 
-// Pages where sidebar should NOT appear
-const NO_SIDEBAR_PATHS = ["/", "/login", "/register", "/privacy", "/terms"];
+const useIsoLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
+import { useRouter } from "next/navigation";
+import { auth } from "./firebase";
+import { onAuthStateChanged } from "firebase/auth";
 
-// Stránky, ktoré sú dostupné aj bez schváleného účtu (verejné stránky a verejný odkaz na poznámku)
-const isPublicPath = (pathname: string) =>
-  NO_SIDEBAR_PATHS.includes(pathname) || pathname.startsWith("/notes/shared/");
+const iconProps = { width: 20, height: 20, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
 
-type ApprovalState = "loading" | "anon" | "approved" | "pending" | "rejected";
+const IconBoard = () => (
+  <svg {...iconProps}><rect x="3" y="3" width="7" height="18" rx="2"/><rect x="14" y="3" width="7" height="11" rx="2"/></svg>
+);
+const IconNote = () => (
+  <svg {...iconProps}><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><polyline points="14 3 14 8 19 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>
+);
+const IconWeek = () => (
+  <svg {...iconProps}><rect x="3" y="4" width="18" height="17" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/></svg>
+);
 
-// Nové účty sa po registrácii vytvoria ako "čakajúce" (approved: false). Kým ich správca
-// neschváli na stránke /admin, používateľ vidí len obrazovku "Čakáš na schválenie".
-// Účty vytvorené pred zavedením schvaľovania (bez poľa approved) sa považujú za schválené.
-function ApprovalGate({ children }: { children: ReactNode }) {
-  const pathname = usePathname();
+const features = [
+  { icon: <IconBoard />, title: "Projekty a úlohy", text: "Úlohy s termínmi na prehľadnej tabuli. Pozvi ostatných a pracujte spolu, pripomienky ti prídu e-mailom aj v aplikácii." },
+  { icon: <IconNote />, title: "Poznámky", text: "Text, fotky priamo v texte a zoznamy s políčkami. Zdieľaj odkazom alebo prepoj s projektom." },
+  { icon: <IconWeek />, title: "Týždenný plán", text: "Celý týždeň na jednom prehľade, aby si vždy vedela, čo ťa čaká." },
+];
+
+const audience = [
+  { title: "Študenti", text: "Semestrálky, termíny a poznámky z prednášok." },
+  { title: "Tímy", text: "Spoločné projekty a zdieľané poznámky." },
+  { title: "Jednotlivci", text: "Osobný plán týždňa a nápady." },
+];
+
+export default function LandingPage() {
   const router = useRouter();
-  const [state, setState] = useState<ApprovalState>("loading");
-  const [email, setEmail] = useState("");
+  const [checking, setChecking] = useState(true);
+  const [cookieBanner, setCookieBanner] = useState(false);
+  const [dark, setDark] = useState(false);
 
-  useEffect(() => {
-    let unsubDoc: (() => void) | null = null;
-    const unsubAuth = onAuthStateChanged(auth, (user) => {
-      if (unsubDoc) { unsubDoc(); unsubDoc = null; }
-      if (!user) { setState("anon"); return; }
-      setEmail(user.email ?? "");
-      unsubDoc = onSnapshot(
-        doc(db, "users", user.uid),
-        async (snap) => {
-          if (!snap.exists()) {
-            // úplne nový účet — založ čakajúci záznam
-            setState("pending");
-            try {
-              await setDoc(doc(db, "users", user.uid), {
-                email: user.email ?? "",
-                approved: false,
-                createdAt: Date.now(),
-              }, { merge: true });
-            } catch (e) {
-              console.error("Nepodarilo sa založiť záznam používateľa:", e);
-            }
-            return;
-          }
-          const d = snap.data();
-          if (d.rejected === true) setState("rejected");
-          else if (d.approved === false) setState("pending");
-          else setState("approved");
-        },
-        (err) => {
-          // pri chybe čítania (napr. výpadok siete) nezamykaj aplikáciu
-          console.error("Kontrola schválenia zlyhala:", err);
-          setState("approved");
-        }
-      );
-    });
-    return () => {
-      unsubAuth();
-      if (unsubDoc) unsubDoc();
-    };
+  useIsoLayoutEffect(() => {
+    try {
+      if (localStorage.getItem("landing-theme") === "dark") setDark(true);
+    } catch {}
   }, []);
 
-  if (isPublicPath(pathname) || state === "anon" || state === "approved") return <>{children}</>;
+  const toggleTheme = () => {
+    const next = !dark;
+    setDark(next);
+    try { localStorage.setItem("landing-theme", next ? "dark" : "light"); } catch {}
+  };
 
-  if (state === "loading") {
-    return (
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#0b0c13" }}>
-        <style>{`@keyframes gateSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
-        <div style={{ width: 32, height: 32, borderRadius: "50%", border: "3px solid #22233a", borderTopColor: "#e040fb", animation: "gateSpin .8s linear infinite" }} />
-      </div>
-    );
-  }
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) router.push("/home");
+      else setChecking(false);
+    });
+    return () => unsubscribe();
+  }, [router]);
 
-  const rejected = state === "rejected";
+  useEffect(() => {
+    const accepted = localStorage.getItem("cookies-accepted");
+    if (!accepted) setCookieBanner(true);
+  }, []);
+
+  const acceptCookies = () => {
+    localStorage.setItem("cookies-accepted", "true");
+    setCookieBanner(false);
+  };
+
+  if (checking) return (
+    <div style={{minHeight:"100vh",background:dark?"#09090f":"#fafafc",display:"flex",alignItems:"center",justifyContent:"center"}}>
+      <img src="/IKONA.png" alt="loading" style={{width:"120px",animation:"bounce 0.8s infinite alternate"}} />
+      <style>{`@keyframes bounce { from { transform: translateY(0px) rotate(-5deg); } to { transform: translateY(-30px) rotate(5deg); } }`}</style>
+    </div>
+  );
+
   return (
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 16, background: "#09090f", fontFamily: "var(--font-geist-sans)" }}>
-      <div style={{ background: "#13131f", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 16, padding: "36px 32px", width: "100%", maxWidth: 440, textAlign: "center" }}>
-        <img src="/LOGO.png" alt="TicklyDo" style={{ height: 72, marginBottom: 12 }} />
-        <h1 style={{ fontSize: 20, fontWeight: 800, color: "#f0eeff", marginBottom: 10 }}>
-          {rejected ? "Registrácia nebola schválená" : "Čakáš na schválenie"}
-        </h1>
-        <p style={{ fontSize: 14, lineHeight: 1.7, color: "rgba(200,190,255,0.75)", marginBottom: 6 }}>
-          {rejected
-            ? "Tvoju žiadosť o prístup sme zatiaľ nepotvrdili. Ak si myslíš, že ide o omyl, napíš nám."
-            : "Tvoj účet ešte musí potvrdiť správca. Hneď ako to urobí, aplikácia sa ti sama sprístupní, stránku nemusíš obnovovať."}
-        </p>
-        {email && <p style={{ fontSize: 13, color: "rgba(200,190,255,0.5)", marginBottom: 20 }}>{email}</p>}
-        <a href="mailto:support@ticklydo.com" style={{ display: "block", fontSize: 13, color: "#c084fc", marginBottom: 20, textDecoration: "none" }}>support@ticklydo.com</a>
-        <button
-          onClick={async () => { await signOut(auth); router.push("/"); }}
-          style={{ padding: "10px 24px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.2)", background: "transparent", color: "#f0eeff", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}
-        >
-          Odhlásiť sa
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+          --pink: #d94fbf; --purple: #8b5cf6; --blue: #4f8ef7;
+          --bg: #fafafc; --surface: #ffffff; --border: #e4e4ee;
+          --text: #14141f; --muted: #5c5c72;
+        }
+        html { scroll-behavior: smooth; }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; overflow-x: hidden; }
+        .btn-primary, .btn-secondary {
+          display: inline-flex; align-items: center; justify-content: center;
+          border-radius: 10px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 600;
+          cursor: pointer; white-space: nowrap; transition: opacity 0.2s, border-color 0.2s;
+          padding: 0.85rem 1.7rem; font-size: 0.95rem;
+        }
+        .btn-primary { border: none; color: #fff; background: linear-gradient(135deg, var(--pink), var(--purple)); }
+        .btn-primary:hover { opacity: 0.88; }
+        .btn-secondary { background: transparent; color: var(--text); border: 1px solid var(--border); }
+        .btn-secondary:hover { border-color: var(--muted); }
+        .gradient-text { background: linear-gradient(90deg, var(--pink), var(--purple) 55%, var(--blue)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .footer-links { display: flex; gap: 1.1rem; flex-wrap: wrap; }
+        .footer-links span, .footer-links a { cursor: pointer; color: var(--muted); font-size: 0.8rem; text-decoration: none; }
+        .footer-links span:hover, .footer-links a:hover { color: var(--text); }
+
+        .split.theme-light { --bg: #fafafc; --surface: #ffffff; --border: #e4e4ee; --text: #14141f; --muted: #5c5c72; --icon-bg: #ffffff; --glow: 0.38; }
+        .split.theme-dark { --bg: #09090f; --surface: #111119; --border: rgba(255,255,255,0.1); --text: #f0eeff; --muted: rgba(240,238,255,0.62); --icon-bg: #1a1a26; --glow: 0.42; }
+        .split { background: var(--bg); color: var(--text); transition: background 0.3s, color 0.3s; position: relative; min-height: 100vh; display: grid; grid-template-columns: 1.15fr 1fr; }
+        .split::before {
+          content: "";
+          position: absolute; left: 0; right: 0; bottom: 0; height: 60%; z-index: 0; pointer-events: none;
+          background: linear-gradient(90deg, #f472b6, #a78bfa, #60a5fa, #2dd4bf, #f472b6);
+          background-size: 400% 100%;
+          opacity: var(--glow);
+          -webkit-mask-image: linear-gradient(0deg, #000 0%, rgba(0,0,0,0.55) 40%, transparent 100%);
+          mask-image: linear-gradient(0deg, #000 0%, rgba(0,0,0,0.55) 40%, transparent 100%);
+          animation: colorFlow 16s ease-in-out infinite alternate;
+        }
+        .theme-toggle {
+          position: absolute; top: 1.4rem; right: 1.5rem; z-index: 5;
+          width: 42px; height: 42px; border-radius: 50%;
+          display: flex; align-items: center; justify-content: center;
+          background: var(--surface); color: var(--text);
+          border: 1px solid var(--border); cursor: pointer;
+          transition: border-color 0.2s;
+        }
+        .theme-toggle:hover { border-color: var(--muted); }
+        .brand-side {
+          padding: 2.2rem 4rem 2.5rem;
+          position: relative; z-index: 1;
+          display: flex; flex-direction: column; justify-content: space-between; gap: 2rem;
+        }
+        .brand-main { max-width: 520px; }
+        .brand-main h1 { font-size: clamp(2rem, 4vw, 3.1rem); font-weight: 800; line-height: 1.12; letter-spacing: -0.03em; }
+        .brand-main .sub { margin-top: 1rem; font-size: 1.05rem; color: var(--muted); line-height: 1.65; max-width: 460px; }
+        .feat-list { margin-top: 2.2rem; display: flex; flex-direction: column; gap: 1.1rem; }
+        .feat { display: flex; gap: 0.9rem; align-items: flex-start; }
+        .feat-icon { width: 40px; height: 40px; border-radius: 50%; background: var(--icon-bg); color: var(--purple); display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: 0 2px 10px rgba(139,92,246,0.15); }
+        .feat h3 { font-size: 0.98rem; font-weight: 700; }
+        .feat p { font-size: 0.88rem; color: var(--muted); line-height: 1.55; margin-top: 0.15rem; }
+        .action-side { position: relative; z-index: 1; display: flex; flex-direction: column; justify-content: space-between; align-items: center; padding: 2.2rem 2rem 1.5rem; }
+        .action-card { width: 100%; max-width: 380px; margin: auto 0; text-align: center; }
+        .action-card h2 { font-size: 1.5rem; font-weight: 700; margin-top: 0.8rem; }
+        .action-card .note { font-size: 0.85rem; color: var(--muted); margin-top: 0.4rem; }
+        .action-buttons { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 1.6rem; }
+        .aud { margin-top: 2rem; padding-top: 1.4rem; border-top: 1px solid var(--border); text-align: left; display: flex; flex-direction: column; gap: 0.8rem; }
+        .aud-label { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+        .aud-item { font-size: 0.88rem; color: var(--muted); line-height: 1.5; }
+        .aud-item b { color: var(--text); font-weight: 600; }
+        .action-footer { width: 100%; max-width: 380px; display: flex; flex-direction: column; gap: 0.5rem; align-items: center; font-size: 0.78rem; color: var(--muted); text-align: center; }
+        .action-footer .footer-links { justify-content: center; }
+        @keyframes colorFlow {
+          from { background-position: 0% 0%; }
+          to { background-position: 100% 0%; }
+        }
+        @media (max-width: 900px) {
+          .split { grid-template-columns: 1fr; }
+          .brand-side { padding: 1.5rem 1.4rem 2rem; }
+          .action-side { padding: 2rem 1.4rem 1.5rem; }
+        }
+      `}</style>
+
+      <div className={"split " + (dark ? "theme-dark" : "theme-light")}>
+        <button className="theme-toggle" onClick={toggleTheme} aria-label={dark ? "Prepnúť na svetlý režim" : "Prepnúť na tmavý režim"} title={dark ? "Svetlý režim" : "Tmavý režim"}>
+          {dark ? (
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/><line x1="4.9" y1="4.9" x2="6.3" y2="6.3"/><line x1="17.7" y1="17.7" x2="19.1" y2="19.1"/><line x1="2" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22" y2="12"/><line x1="4.9" y1="19.1" x2="6.3" y2="17.7"/><line x1="17.7" y1="6.3" x2="19.1" y2="4.9"/></svg>
+          ) : (
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+          )}
         </button>
+        <section className="brand-side">
+          <img src="/LOGO.png" alt="TicklyDo" style={{height:"68px",width:"auto",alignSelf:"flex-start"}} />
+          <div className="brand-main">
+            <h1>Projekty, poznámky a plán týždňa <span className="gradient-text">na jednom mieste.</span></h1>
+            <p className="sub">Prehľadne si zorganizuj prácu aj štúdium bez chaosu.</p>
+            <div className="feat-list">
+              {features.map(f => (
+                <div className="feat" key={f.title}>
+                  <div className="feat-icon">{f.icon}</div>
+                  <div>
+                    <h3>{f.title}</h3>
+                    <p>{f.text}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div />
+        </section>
+
+        <section className="action-side">
+          <div />
+          <div className="action-card">
+            <img src="/IKONA.png" alt="" style={{width:"84px",height:"auto"}} />
+            <h2>Začni s TicklyDo</h2>
+            <p className="note">Registrácia je zadarmo, bez kreditnej karty.</p>
+            <div className="action-buttons">
+              <button className="btn-primary" onClick={() => router.push("/register")}>Registrácia</button>
+              <button className="btn-secondary" onClick={() => router.push("/login")}>Prihlásenie</button>
+            </div>
+            <div className="aud">
+              <div className="aud-label">Pre koho je</div>
+              {audience.map(a => (
+                <div className="aud-item" key={a.title}><b>{a.title}</b> · {a.text}</div>
+              ))}
+            </div>
+          </div>
+          <div className="action-footer">
+            <span>© 2026 TicklyDo</span>
+            <div className="footer-links">
+              <span onClick={() => router.push("/privacy")}>Podmienky & GDPR</span>
+              <span onClick={() => router.push("/terms")}>Podmienky používania</span>
+              <a href="mailto:support@ticklydo.com">support@ticklydo.com</a>
+            </div>
+          </div>
+        </section>
       </div>
-    </div>
-  );
-}
 
-function Shell({ children }: { children: ReactNode }) {
-  const pathname = usePathname();
-  const { theme, loaded } = useTheme();
-
-  const showSidebar = !NO_SIDEBAR_PATHS.includes(pathname);
-
-  // Loading screen (only for authed pages)
-  if (!loaded && showSidebar) {
-    return (
-      <div style={{
-        height: "100vh",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "#0b0c13",
-        gap: 20,
-      }}>
-        <style>{`
-          @keyframes pulse {
-            0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.6; transform: scale(0.92); }
-          }
-          @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-          }
-        `}</style>
-        <img
-          src="/IKONA.png"
-          alt="TicklyDo"
-          style={{
-            width: 72, height: 72, borderRadius: 20,
-            animation: "pulse 1.6s ease-in-out infinite",
-            objectFit: "contain",
-          }}
-        />
-        <div style={{
-          width: 32, height: 32, borderRadius: "50%",
-          border: "3px solid #22233a",
-          borderTopColor: "#e040fb",
-          animation: "spin .8s linear infinite",
-        }} />
-        <div style={{
-          color: "#6b6c80", fontSize: 13, fontWeight: 700,
-          fontFamily: "var(--font-geist-sans)",
-          letterSpacing: "0.5px",
-        }}>
-          Načítavam...
+      {cookieBanner && (
+        <div style={{position:"fixed",bottom:"20px",left:"50%",transform:"translateX(-50%)",zIndex:999,background:dark?"#13131f":"#ffffff",border:dark?"1px solid rgba(255,255,255,0.1)":"1px solid #e0e0ea",borderRadius:"16px",padding:"16px 24px",display:"flex",alignItems:"center",gap:"16px",flexWrap:"wrap",justifyContent:"center",maxWidth:"600px",width:"calc(100% - 40px)",boxShadow:"0 8px 40px rgba(0,0,0,0.25)"}}>
+          <p style={{color:dark?"rgba(200,190,255,0.85)":"#3a3a4e",fontFamily:"sans-serif",fontSize:"13px",margin:0,flex:1,minWidth:"200px"}}>
+            Používame cookies nevyhnutné pre fungovanie prihlásenia. Viac info v{" "}
+            <span onClick={() => router.push("/privacy")} style={{color:"#a855f7",cursor:"pointer"}}>Podmienkach & GDPR</span>.
+          </p>
+          <button onClick={acceptCookies} style={{padding:"8px 20px",background:"linear-gradient(135deg,#db2777,#9333ea)",border:"none",borderRadius:"10px",color:"#fff",fontSize:"13px",fontWeight:"700",cursor:"pointer",fontFamily:"sans-serif",whiteSpace:"nowrap"}}>
+            Rozumiem
+          </button>
         </div>
-      </div>
-    );
-  }
-
-  if (!showSidebar) {
-    return <>{children}</>;
-  }
-
-  return (
-    <div style={{
-      display: "flex",
-      height: "100vh",
-      overflow: "hidden",
-      background: theme.bg,
-      color: theme.text,
-      fontFamily: "var(--font-geist-sans)",
-      transition: "background .3s, color .3s",
-    }}>
-      <Sidebar />
-      <main style={{
-        flex: 1,
-        minHeight: 0,
-        minWidth: 0,
-        overflowY: "auto",
-        WebkitOverflowScrolling: "touch",
-        display: "flex",
-        flexDirection: "column",
-      }}>
-        {children}
-      </main>
-    </div>
-  );
-}
-
-export function LayoutShell({ children }: { children: ReactNode }) {
-  return (
-    <ThemeProvider>
-      <ApprovalGate>
-        <Shell>{children}</Shell>
-      </ApprovalGate>
-    </ThemeProvider>
+      )}
+    </>
   );
 }
