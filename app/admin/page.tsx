@@ -67,7 +67,20 @@ export default function AdminPage() {
     setBusyId(null);
   };
 
-  const approve = (uid: string) => setStatus(uid, { approved: true, rejected: false, approvedAt: Date.now() });
+  const approve = async (uid: string) => {
+    await setStatus(uid, { approved: true, rejected: false, approvedAt: Date.now() });
+    // pošle používateľovi potvrdzovací email (chyba pri odosielaní schválenie nezruší)
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      await fetch("/api/send-approval", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ uid, idToken: token }),
+      });
+    } catch (e) {
+      console.error("Email o schválení sa nepodarilo odoslať:", e);
+    }
+  };
   const reject = (uid: string) => setStatus(uid, { rejected: true });
 
   const fmt = (ts?: number) => (ts ? new Date(ts).toLocaleString("sk-SK") : "—");
