@@ -14,14 +14,14 @@ export default function PrivacyPage() {
         <p style={{color:"rgba(200,190,255,0.4)",fontFamily:"sans-serif",fontSize:"13px",marginBottom:"32px"}}>Platné od: máj 2026 · ticklydo.com</p>
 
         <h2 style={h}>Aké údaje zbierame</h2>
-        <p style={s}>TicklyDo zbiera nasledovné údaje: osobné identifikačné údaje ako email a meno, obsah ktorý vytvoríš v aplikácii ako tasky, nápady a kalendárne záznamy, a technické údaje ako IP adresa a typ zariadenia.</p>
+        <p style={s}>TicklyDo zbiera nasledovné údaje: osobné identifikačné údaje ako email a meno, obsah ktorý vytvoríš v aplikácii ako tasky, nápady a kalendárne záznamy, a technické údaje ako IP adresa a typ zariadenia. Zaznamenávame tiež čas poslednej aktivity v aplikácii a dni, kedy sa aplikácia používala (nie obsah tvojej práce), a ak si zapneš push upozornenia, identifikátor tvojho zariadenia na ich doručovanie.</p>
 
         <h2 style={h}>Ako zbierame tvoje údaje</h2>
         <p style={s}>Väčšinu údajov nám poskytuješ priamo ty. Zbierame a spracúvame údaje keď sa registruješ alebo prihlásiš do TicklyDo, keď vytváraš a spravuješ obsah v aplikácii, a keď používaš naše služby prostredníctvom cookies.</p>
         <p style={s}>TicklyDo môže získavať tvoje údaje nepriamo z nasledovných zdrojov: pri prihlásení cez Google získavame email, meno a profilovú fotku z tvojho Google účtu.</p>
 
         <h2 style={h}>Ako budeme tvoje údaje používať</h2>
-        <p style={s}>TicklyDo zbiera tvoje údaje aby mohla spravovať tvoj účet a poskytovať ti prístup k aplikácii, ukladať obsah ktorý vytvoríš, a zabezpečiť fungovanie prihlásenia a autentifikácie.</p>
+        <p style={s}>TicklyDo zbiera tvoje údaje aby mohla spravovať tvoj účet a poskytovať ti prístup k aplikácii, ukladať obsah ktorý vytvoríš, a zabezpečiť fungovanie prihlásenia a autentifikácie. Údaje o aktivite používame na správu a zlepšovanie služby, identifikátor zariadenia na doručenie upozornení, ktoré si sám zapneš a kedykoľvek vypneš v nastaveniach profilu.</p>
         <p style={s}>TicklyDo nezdieľa tvoje údaje s partnerskými spoločnosťami na marketingové účely.</p>
 
         <h2 style={h}>Ako uchovávame tvoje údaje</h2>

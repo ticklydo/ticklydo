@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { getAuth } from "firebase/auth";
 import { initializeApp, getApps } from "firebase/app";
 import { useTheme } from "../context/ThemeContext";
 import { Emoji, EmojiText, AVATAR_EMOJIS } from "../components/Emoji";
 import AvatarContent from "../components/Avatar";
+import { enablePush, disablePush, pushEnabledHere, pushSupported } from "../utils/push";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -68,6 +69,35 @@ export default function ProfilePage() {
 
   const currentAvatar = AVATARS.find(a => a.id === avatarId) ?? AVATARS[0];
   const [photoError, setPhotoError] = useState("");
+  const [pushOn, setPushOn] = useState(false);
+  const [pushOk, setPushOk] = useState(true);
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushMsg, setPushMsg] = useState("");
+  const [uidNow, setUidNow] = useState<string | null>(null);
+
+  useEffect(() => {
+    pushSupported().then(setPushOk);
+    const unsub = getAuth(app).onAuthStateChanged(u => {
+      setUidNow(u?.uid ?? null);
+      setPushOn(u ? pushEnabledHere(u.uid) : false);
+    });
+    return () => unsub();
+  }, []);
+
+  async function togglePush() {
+    if (!uidNow || pushBusy) return;
+    setPushBusy(true);
+    setPushMsg("");
+    if (pushOn) {
+      await disablePush(uidNow);
+      setPushOn(false);
+    } else {
+      const r = await enablePush(uidNow);
+      if (r.ok) setPushOn(true);
+      else setPushMsg(r.error || "Nepodarilo sa zapnúť upozornenia.");
+    }
+    setPushBusy(false);
+  }
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   // Fotka z galérie: orežeme na štvorec 256×256 a zmenšíme (aby sa zmestila do databázy)
@@ -310,6 +340,40 @@ export default function ProfilePage() {
           fontFamily: "var(--font-geist-sans)", fontWeight: 800, fontSize: 14,
           cursor: "pointer", width: "100%", boxShadow: `0 6px 20px ${appliedA}55`,
         }}>{applyLabel}</button>
+      </div>
+
+      {/* Upozornenia v zariadení */}
+      <div style={{
+        background: theme.card, border: `1px solid ${theme.border}`,
+        borderRadius: 18, padding: 20, maxWidth: 480, transition: "background .3s",
+      }}>
+        <div style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase", letterSpacing: 1, color: theme.muted, marginBottom: 14 }}>Upozornenia v zariadení</div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14 }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 700 }}>Push upozornenia</div>
+            <div style={{ fontSize: 11.5, fontWeight: 600, color: theme.muted, marginTop: 2, lineHeight: 1.5 }}>
+              {pushOk
+                ? "Termíny úloh a nové udalosti ti prídu na toto zariadenie, aj keď je aplikácia zatvorená."
+                : "Tento prehliadač push upozornenia nepodporuje. Na iPhone najprv pridaj Ticklydo na plochu (Zdieľať → Pridať na plochu)."}
+            </div>
+          </div>
+          {pushOk && (
+            <div onClick={togglePush} style={{
+              width: 44, height: 24, borderRadius: 12, cursor: pushBusy ? "default" : "pointer",
+              background: pushOn ? grad : theme.border, position: "relative", transition: "background .25s",
+              flexShrink: 0, opacity: pushBusy ? 0.6 : 1,
+            }}>
+              <div style={{
+                position: "absolute", top: 3, left: pushOn ? 23 : 3, width: 18, height: 18, borderRadius: "50%",
+                background: "#fff", transition: "left .25s", boxShadow: "0 1px 4px rgba(0,0,0,0.3)",
+              }} />
+            </div>
+          )}
+        </div>
+        {pushMsg && <div style={{ color: "#ef4444", fontSize: 12.5, marginTop: 10 }}>{pushMsg}</div>}
+        <div style={{ fontSize: 11.5, color: theme.muted, marginTop: 10, lineHeight: 1.5 }}>
+          Nastavenie platí pre tento účet na tomto zariadení. Ak používaš viac účtov, zapni ho v každom z nich.
+        </div>
       </div>
 
       {/* Všeobecné */}

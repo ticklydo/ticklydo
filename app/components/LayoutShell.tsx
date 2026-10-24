@@ -7,7 +7,7 @@ import { useAutoSaveAccount } from "./AccountSwitcher";
 import { ReactNode, useEffect, useState } from "react";
 import { auth, db } from "../firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
-import { doc, onSnapshot, setDoc } from "firebase/firestore";
+import { doc, onSnapshot, setDoc, updateDoc } from "firebase/firestore";
 
 // Pages where sidebar should NOT appear
 const NO_SIDEBAR_PATHS = ["/", "/login", "/register", "/privacy", "/terms"];
@@ -48,6 +48,15 @@ function ApprovalGate({ children }: { children: ReactNode }) {
                 approved: false,
                 createdAt: Date.now(),
               }, { merge: true });
+              // správcovi príde email, upozornenie a push o novej registrácii
+              try {
+                const idToken = await user.getIdToken();
+                fetch("/api/notify-registration", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ idToken }),
+                }).catch(() => {});
+              } catch {}
             } catch (e) {
               console.error("Nepodarilo sa založiť záznam používateľa:", e);
             }
@@ -56,7 +65,22 @@ function ApprovalGate({ children }: { children: ReactNode }) {
           const d = snap.data();
           if (d.rejected === true) setState("rejected");
           else if (d.approved === false) setState("pending");
-          else setState("approved");
+          else {
+            setState("approved");
+            // zaznamenanie aktivity (čas poslednej aktivity a dni, kedy sa appka používala) — pre správcu
+            try {
+              const now = Date.now();
+              const last = Number(sessionStorage.getItem("ticklydo_ping_" + user.uid) || 0);
+              if (now - last > 10 * 60 * 1000) {
+                sessionStorage.setItem("ticklydo_ping_" + user.uid, String(now));
+                const today = new Date().toISOString().slice(0, 10);
+                const cutoff = new Date(now - 60 * 86400000).toISOString().slice(0, 10);
+                const days: string[] = (Array.isArray(d.activeDays) ? d.activeDays : []).filter((x: string) => x >= cutoff);
+                if (!days.includes(today)) days.push(today);
+                updateDoc(doc(db, "users", user.uid), { lastActiveAt: now, activeDays: days }).catch(() => {});
+              }
+            } catch {}
+          }
         },
         (err) => {
           // pri chybe čítania (napr. výpadok siete) nezamykaj aplikáciu

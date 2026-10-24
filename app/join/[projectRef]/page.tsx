@@ -108,7 +108,7 @@ export default function JoinPage({ params }: { params: Promise<{ projectRef: str
       // ── Notifikácia priamo v appke pre vlastníka projektu ──
       try {
         const { addDoc, collection } = await import("firebase/firestore");
-        await addDoc(collection(db, "notifications"), {
+        const notifRef = await addDoc(collection(db, "notifications"), {
           userId: ownerUid,
           type: "member_joined",
           title: "Nový člen v projekte",
@@ -118,6 +118,15 @@ export default function JoinPage({ params }: { params: Promise<{ projectRef: str
           read: false,
           createdAt: Date.now(),
         });
+        // push na zariadenia vlastníka projektu
+        try {
+          const idToken = await user.getIdToken();
+          await fetch("/api/push", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ notifId: notifRef.id, idToken }),
+          });
+        } catch {}
       } catch (err) {
         console.error("Notification write error:", err);
       }

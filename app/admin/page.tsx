@@ -7,6 +7,21 @@ import { auth, db } from "../firebase";
 import { useTheme } from "../context/ThemeContext";
 
 type PendingUser = { uid: string; email: string; createdAt?: number; approvedAt?: number; isAdmin?: boolean };
+type ActivityUser = { uid: string; email: string; createdAt?: number; lastActiveAt?: number; days30: number; approved: boolean; rejected: boolean };
+
+function relTime(ts?: number): string {
+  if (!ts) return "zatiaľ nezaznamenané";
+  const diff = Date.now() - ts;
+  const min = Math.floor(diff / 60000);
+  if (min < 5) return "teraz";
+  if (min < 60) return `pred ${min} min`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `pred ${h} h`;
+  const d = Math.floor(h / 24);
+  if (d === 1) return "včera";
+  if (d < 5) return `pred ${d} dňami`;
+  return `pred ${d} dňami`;
+}
 
 export default function AdminPage() {
   const { theme, grad } = useTheme();
@@ -15,6 +30,7 @@ export default function AdminPage() {
   const [pending, setPending] = useState<PendingUser[]>([]);
   const [rejected, setRejected] = useState<PendingUser[]>([]);
   const [approved, setApproved] = useState<PendingUser[]>([]);
+  const [activity, setActivity] = useState<ActivityUser[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState("");
 
@@ -48,6 +64,31 @@ export default function AdminPage() {
               .filter((u: PendingUser) => !u.isAdmin)
               .sort((a: PendingUser, b: PendingUser) => (b.approvedAt || b.createdAt || 0) - (a.approvedAt || a.createdAt || 0))
           ),
+          (e) => setError("Načítanie zlyhalo: " + e.message)
+        ));
+        unsubs.push(onSnapshot(
+          collection(db, "users"),
+          (snap) => {
+            const cutoff = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+            setActivity(
+              snap.docs
+                .filter((d: any) => d.data().isAdmin !== true)
+                .map((d: any) => {
+                  const x = d.data();
+                  const days: string[] = Array.isArray(x.activeDays) ? x.activeDays : [];
+                  return {
+                    uid: d.id,
+                    email: x.email || "(bez e-mailu)",
+                    createdAt: x.createdAt,
+                    lastActiveAt: x.lastActiveAt,
+                    days30: days.filter(day => day >= cutoff).length,
+                    approved: x.approved !== false && x.rejected !== true,
+                    rejected: x.rejected === true,
+                  } as ActivityUser;
+                })
+                .sort((a: ActivityUser, b: ActivityUser) => (b.lastActiveAt || 0) - (a.lastActiveAt || 0))
+            );
+          },
           (e) => setError("Načítanie zlyhalo: " + e.message)
         ));
         unsubs.push(onSnapshot(
@@ -170,6 +211,45 @@ export default function AdminPage() {
               </div>
             </div>
             {btn("Odobrať prístup", () => revoke(u.uid), false, u.uid)}
+          </div>
+        ))}
+      </div>
+
+      <h2 style={{ fontSize: 14, fontWeight: 800, marginBottom: 10 }}>Aktivita používateľov</h2>
+      {(() => {
+        const now = Date.now();
+        const active = (ms: number) => activity.filter(u => u.lastActiveAt && now - u.lastActiveAt < ms).length;
+        const newWeek = activity.filter(u => u.createdAt && now - u.createdAt < 7 * 86400000).length;
+        const tile = (label: string, value: number) => (
+          <div key={label} style={{ flex: "1 1 120px", background: theme.card, border: `1px solid ${theme.border}`, borderRadius: 12, padding: "12px 14px" }}>
+            <div style={{ fontSize: 22, fontWeight: 800, color: theme.text }}>{value}</div>
+            <div style={{ fontSize: 12, color: theme.muted, marginTop: 2 }}>{label}</div>
+          </div>
+        );
+        return (
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
+            {tile("Aktívni dnes", active(86400000))}
+            {tile("Aktívni za 7 dní", active(7 * 86400000))}
+            {tile("Aktívni za 30 dní", active(30 * 86400000))}
+            {tile("Nové za 7 dní", newWeek)}
+            {tile("Spolu účtov", activity.length)}
+          </div>
+        );
+      })()}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 28 }}>
+        {activity.length === 0 && <div style={{ fontSize: 13.5, color: theme.muted }}>Zatiaľ žiadni používatelia.</div>}
+        {activity.map(u => (
+          <div key={u.uid} style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "12px 16px", background: theme.card, border: `1px solid ${theme.border}`, borderRadius: 12 }}>
+            <div style={{ flex: 1, minWidth: 180 }}>
+              <div style={{ fontSize: 13.5, fontWeight: 700, color: theme.text, wordBreak: "break-all" }}>{u.email}</div>
+              <div style={{ fontSize: 12, color: theme.muted, marginTop: 2 }}>
+                Naposledy: {relTime(u.lastActiveAt)}{u.lastActiveAt ? ` (${fmt(u.lastActiveAt)})` : ""}
+              </div>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontSize: 15, fontWeight: 800, color: theme.text }}>{u.days30}<span style={{ fontSize: 12, fontWeight: 600, color: theme.muted }}> / 30 dní</span></div>
+              <div style={{ fontSize: 11, color: theme.muted }}>{u.rejected ? "zamietnutý" : u.approved ? "dní s aktivitou" : "čaká na schválenie"}</div>
+            </div>
           </div>
         ))}
       </div>
