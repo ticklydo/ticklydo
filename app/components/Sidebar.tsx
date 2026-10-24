@@ -6,6 +6,8 @@ import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { initializeApp, getApps } from "firebase/app";
 import { useTheme } from "../context/ThemeContext";
 import GlobalSearch from "./GlobalSearch";
+import AccountSwitcher, { useAccounts } from "./AccountSwitcher";
+import { logoutCurrent } from "../utils/accounts";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -149,6 +151,9 @@ export default function Sidebar() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [isAdmin, setIsAdmin] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
+  const [showAccounts, setShowAccounts] = useState(false);
+  const { accounts: savedAccounts, unread: accountUnread, activeUid } = useAccounts();
+  const otherUnread = savedAccounts.filter(a => a.uid !== activeUid).reduce((sum, a) => sum + (accountUnread[a.uid] || 0), 0);
 
   // Panel je verejne viditeľný aj na stránke zdieľanej poznámky (/notes/shared/[token]),
   // kam prichádzajú aj neprihlásení návštevníci z verejného odkazu.
@@ -369,22 +374,35 @@ export default function Sidebar() {
         <div style={{ flex: 1 }} />
 
         <div
-          onClick={() => guardedAction(() => router.push("/profile"))}
+          onClick={() => guardedAction(() => setShowAccounts(v => !v))}
           style={{
+            position: "relative",
             width: isMobile ? 28 : 36, height: isMobile ? 28 : 36, borderRadius: "50%",
             background: grad, padding: isMobile ? 2 : 3,
             cursor: "pointer", marginBottom: isMobile ? 6 : 8,
             boxShadow: `0 2px 10px ${appliedA}44`,
           }}
-          title="Môj profil"
+          title="Účty a prepínanie"
         >
           {avatarFn(appliedA, appliedB)}
+          {otherUnread > 0 && (
+            <span style={{
+              position: "absolute", top: -4, right: -4,
+              minWidth: 16, height: 16, borderRadius: 8,
+              background: "#ef4444", color: "#fff", fontSize: 9.5, fontWeight: 800,
+              display: "flex", alignItems: "center", justifyContent: "center", padding: "0 3px",
+              border: `1.5px solid ${theme.card}`, lineHeight: 1,
+            }}>
+              {otherUnread > 9 ? "9+" : otherUnread}
+            </span>
+          )}
         </div>
+        {showAccounts && <AccountSwitcher isMobile={isMobile} onClose={() => setShowAccounts(false)} />}
 
         <button
           title="Odhlásiť sa"
           onClick={() => guardedAction(() => {
-            auth.signOut().then(() => { window.location.href = "/login"; });
+            logoutCurrent();
           })}
           style={{
             width: isMobile ? 38 : 46, height: isMobile ? 38 : 46, borderRadius: isMobile ? 10 : 13,

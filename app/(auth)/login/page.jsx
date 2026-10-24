@@ -18,8 +18,12 @@ export default function LoginPage() {
   const router = useRouter();
 
   useEffect(() => {
+    const addingAccount = new URLSearchParams(window.location.search).get("add") === "1";
     const unsubscribe = auth.onAuthStateChanged((user) => {
-      if (user) {
+      if (user && addingAccount) {
+        // pridávaš ďalší účet — zostaň na prihlasovacej stránke
+        setChecking(false);
+      } else if (user) {
         const rememberUntil = localStorage.getItem(REMEMBER_KEY);
         const isWithin30Days = rememberUntil && Date.now() < parseInt(rememberUntil);
         if (isWithin30Days) {

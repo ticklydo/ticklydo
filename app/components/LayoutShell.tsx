@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from "next/navigation";
 import { ThemeProvider, useTheme } from "../context/ThemeContext";
 import Sidebar from "./Sidebar";
+import { useAutoSaveAccount } from "./AccountSwitcher";
 import { ReactNode, useEffect, useState } from "react";
 import { auth, db } from "../firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
@@ -25,6 +26,9 @@ function ApprovalGate({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [state, setState] = useState<ApprovalState>("loading");
   const [email, setEmail] = useState("");
+
+  // uloží prihláseného používateľa medzi účty na tomto zariadení (prepínanie účtov)
+  useAutoSaveAccount();
 
   useEffect(() => {
     let unsubDoc: (() => void) | null = null;
