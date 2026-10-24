@@ -132,6 +132,12 @@ const NAV: { id: string; label: string; path: string; svg: React.ReactElement }[
   },
 ];
 
+// Položka "Admin" — zobrazí sa len správcovi (používateľ s poľom isAdmin: true)
+const ADMIN_NAV = {
+  id: "admin", label: "Admin: schvaľovanie registrácií", path: "/admin",
+  svg: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>,
+};
+
 export default function Sidebar() {
   const router = useRouter();
   const pathname = usePathname();
@@ -141,6 +147,8 @@ export default function Sidebar() {
   const [isAuthed, setIsAuthed] = useState<boolean | null>(null);
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
 
   // Panel je verejne viditeľný aj na stránke zdieľanej poznámky (/notes/shared/[token]),
   // kam prichádzajú aj neprihlásení návštevníci z verejného odkazu.
@@ -165,6 +173,36 @@ export default function Sidebar() {
     })();
     return () => { if (unsubNotif) unsubNotif(); };
   }, [isAuthed]);
+
+  // Správca: zisti, či má používateľ isAdmin, a počúvaj počet čakajúcich registrácií (odznak pri položke Admin)
+  useEffect(() => {
+    if (!isAuthed) { setIsAdmin(false); setPendingCount(0); return; }
+    const user = auth.currentUser;
+    if (!user) return;
+    let unsubPending: (() => void) | null = null;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { getFirestore, doc, getDoc, collection, query, where, onSnapshot } = await import("firebase/firestore");
+        const db = getFirestore();
+        const me = await getDoc(doc(db, "users", user.uid));
+        if (cancelled) return;
+        const admin = me.exists() && me.data().isAdmin === true;
+        setIsAdmin(admin);
+        if (!admin) return;
+        unsubPending = onSnapshot(
+          query(collection(db, "users"), where("approved", "==", false)),
+          (snap) => setPendingCount(snap.docs.filter(d => d.data().rejected !== true).length),
+          () => setPendingCount(0)
+        );
+      } catch {
+        setIsAdmin(false);
+      }
+    })();
+    return () => { cancelled = true; if (unsubPending) unsubPending(); };
+  }, [isAuthed]);
+
+  const navItems = isAdmin ? [...NAV, ADMIN_NAV] : NAV;
 
   // Ak návštevník príde z verejného odkazu na poznámku a NIE JE prihlásený, klik na
   // čokoľvek v paneli namiesto navigácie zobrazí výzvu na prihlásenie. Prihlásený
@@ -254,7 +292,7 @@ export default function Sidebar() {
 
         <div style={{ width: isMobile ? 26 : 36, height: 1, background: theme.border, margin: "2px 0" }} />
 
-        {NAV.map((item) => (
+        {navItems.map((item) => (
           <button
             key={item.id}
             title={item.label}
@@ -276,6 +314,17 @@ export default function Sidebar() {
               }} />
             )}
             <span style={{ display: "flex", transform: isMobile ? "scale(0.8)" : "none" }}>{item.svg}</span>
+            {item.id === "admin" && pendingCount > 0 && (
+              <span style={{
+                position: "absolute", top: isMobile ? 2 : 4, right: isMobile ? 2 : 4,
+                minWidth: isMobile ? 14 : 16, height: isMobile ? 14 : 16, borderRadius: 8,
+                background: "#ef4444", color: "#fff", fontSize: isMobile ? 8.5 : 9.5, fontWeight: 800,
+                display: "flex", alignItems: "center", justifyContent: "center", padding: "0 3px",
+                border: `1.5px solid ${theme.card}`, lineHeight: 1,
+              }}>
+                {pendingCount > 9 ? "9+" : pendingCount}
+              </span>
+            )}
             {item.id === "notifications" && unreadCount > 0 && (
               <span style={{
                 position: "absolute", top: isMobile ? 2 : 4, right: isMobile ? 2 : 4,
