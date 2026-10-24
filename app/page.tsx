@@ -86,12 +86,20 @@ export default function LandingPage() {
         .footer-links span, .footer-links a { cursor: pointer; color: var(--muted); font-size: 0.8rem; text-decoration: none; }
         .footer-links span:hover, .footer-links a:hover { color: var(--text); }
 
-        .split { min-height: 100vh; display: grid; grid-template-columns: 1.15fr 1fr; }
+        .split { position: relative; min-height: 100vh; display: grid; grid-template-columns: 1.15fr 1fr; }
+        .split::before {
+          content: "";
+          position: absolute; inset: 0; z-index: 0; pointer-events: none;
+          background: linear-gradient(180deg, #f472b6, #a78bfa, #60a5fa, #2dd4bf, #f472b6);
+          background-size: 100% 400%;
+          opacity: 0.55;
+          -webkit-mask-image: linear-gradient(90deg, #000 0%, rgba(0,0,0,0.6) 30%, transparent 70%);
+          mask-image: linear-gradient(90deg, #000 0%, rgba(0,0,0,0.6) 30%, transparent 70%);
+          animation: colorFlow 14s ease-in-out infinite alternate;
+        }
         .brand-side {
           padding: 2.2rem 4rem 2.5rem;
-          background: linear-gradient(125deg, #fdf3f9, #eff6ff, #edfaf7, #f7f3ff, #fdf3f9);
-          background-size: 300% 300%;
-          animation: softShift 22s ease-in-out infinite;
+          position: relative; z-index: 1;
           display: flex; flex-direction: column; justify-content: space-between; gap: 2rem;
         }
         .brand-main { max-width: 520px; }
@@ -102,7 +110,7 @@ export default function LandingPage() {
         .feat-icon { width: 40px; height: 40px; border-radius: 50%; background: #fff; color: var(--purple); display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: 0 2px 10px rgba(139,92,246,0.15); }
         .feat h3 { font-size: 0.98rem; font-weight: 700; }
         .feat p { font-size: 0.88rem; color: var(--muted); line-height: 1.55; margin-top: 0.15rem; }
-        .action-side { display: flex; flex-direction: column; justify-content: space-between; align-items: center; padding: 2.2rem 2rem 1.5rem; }
+        .action-side { position: relative; z-index: 1; display: flex; flex-direction: column; justify-content: space-between; align-items: center; padding: 2.2rem 2rem 1.5rem; }
         .action-card { width: 100%; max-width: 380px; margin: auto 0; text-align: center; }
         .action-card h2 { font-size: 1.5rem; font-weight: 700; margin-top: 0.8rem; }
         .action-card .note { font-size: 0.85rem; color: var(--muted); margin-top: 0.4rem; }
@@ -113,13 +121,12 @@ export default function LandingPage() {
         .aud-item b { color: var(--text); font-weight: 600; }
         .action-footer { width: 100%; max-width: 380px; display: flex; flex-direction: column; gap: 0.5rem; align-items: center; font-size: 0.78rem; color: var(--muted); text-align: center; }
         .action-footer .footer-links { justify-content: center; }
-        @keyframes softShift {
-          0% { background-position: 0% 50%; }
-          50% { background-position: 100% 50%; }
-          100% { background-position: 0% 50%; }
+        @keyframes colorFlow {
+          from { background-position: 0% 0%; }
+          to { background-position: 0% 100%; }
         }
         @media (prefers-reduced-motion: reduce) {
-          .brand-side { animation: none; }
+          .split::before { animation: none; }
         }
         @media (max-width: 900px) {
           .split { grid-template-columns: 1fr; }
