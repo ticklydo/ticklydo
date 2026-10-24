@@ -57,8 +57,22 @@ export default function AuthShell({ children }: { children: (t: AuthTheme) => Re
   const t = getAuthTheme(dark);
 
   return (
-    <div className="auth-root" style={{ position: "relative", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px 16px", background: dark ? "#09090f" : "#fafafc", color: t.text, overflow: "hidden", transition: "background .3s" }}>
+    <div className="auth-root" style={{ position: "relative", minHeight: "100dvh", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px 16px", background: dark ? "#09090f" : "#fafafc", color: t.text, overflow: "hidden", transition: "background .3s" }}>
       <style>{`
+        /* mobil: karta sa zmestí na obrazovku bez rolovania; polia majú 16px písmo (iOS inak približuje stránku) */
+        .auth-root input:not([type="checkbox"]) { font-size: 16px !important; }
+        @media (max-width: 480px) {
+          .auth-root { padding: 58px 12px 14px !important; }
+          .auth-root [style*="max-width: 400px"] { padding: 18px 18px 14px !important; border-radius: 14px !important; }
+          .auth-root [style*="max-width: 400px"] > img:first-child { height: 52px !important; margin-bottom: 4px !important; }
+          .auth-root [style*="max-width: 400px"] > p:nth-of-type(1) { margin-bottom: 12px !important; font-size: 14px; }
+          .auth-root [style*="max-width: 400px"] > p:nth-of-type(2) { margin-top: -6px !important; margin-bottom: 12px !important; font-size: 12px !important; line-height: 1.45 !important; }
+          .auth-root [style*="max-width: 400px"] > div { margin-bottom: 10px !important; }
+          .auth-root [style*="max-width: 400px"] label { margin-bottom: 4px !important; }
+          .auth-root [style*="max-width: 400px"] input:not([type="checkbox"]) { padding: 9px 12px !important; min-height: 44px; }
+          .auth-root [style*="max-width: 400px"] button { min-height: 44px; padding-top: 9px !important; padding-bottom: 9px !important; margin-bottom: 8px !important; }
+          .auth-root [style*="max-width: 400px"] > button:last-child { margin-top: 2px !important; margin-bottom: 0 !important; min-height: 36px; }
+        }
         .auth-glow {
           position: absolute; left: 0; right: 0; bottom: 0; height: 60%; z-index: 0; pointer-events: none;
           background: linear-gradient(90deg, #f472b6, #a78bfa, #60a5fa, #2dd4bf, #f472b6);
