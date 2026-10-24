@@ -5,6 +5,30 @@ import { useRouter } from "next/navigation";
 import { auth } from "./firebase";
 import { onAuthStateChanged } from "firebase/auth";
 
+const iconProps = { width: 20, height: 20, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+
+const IconBoard = () => (
+  <svg {...iconProps}><rect x="3" y="3" width="7" height="18" rx="2"/><rect x="14" y="3" width="7" height="11" rx="2"/></svg>
+);
+const IconNote = () => (
+  <svg {...iconProps}><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><polyline points="14 3 14 8 19 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>
+);
+const IconWeek = () => (
+  <svg {...iconProps}><rect x="3" y="4" width="18" height="17" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/></svg>
+);
+
+const features = [
+  { icon: <IconBoard />, title: "Projekty a úlohy", text: "Úlohy s termínmi na prehľadnej tabuli. Pozvi ostatných a pracujte spolu, pripomienky ti prídu e-mailom aj v aplikácii." },
+  { icon: <IconNote />, title: "Poznámky", text: "Text, fotky priamo v texte a zoznamy s políčkami. Zdieľaj odkazom alebo prepoj s projektom." },
+  { icon: <IconWeek />, title: "Týždenný plán", text: "Celý týždeň na jednom prehľade, aby si vždy vedela, čo ťa čaká." },
+];
+
+const audience = [
+  { title: "Študenti", text: "Semestrálky, termíny a poznámky z prednášok." },
+  { title: "Tímy", text: "Spoločné projekty a zdieľané poznámky." },
+  { title: "Jednotlivci", text: "Osobný plán týždňa a nápady." },
+];
+
 export default function LandingPage() {
   const router = useRouter();
   const [checking, setChecking] = useState(true);
@@ -29,322 +53,127 @@ export default function LandingPage() {
   };
 
   if (checking) return (
-    <div style={{minHeight:"100vh",background:"#09090f",display:"flex",alignItems:"center",justifyContent:"center"}}>
+    <div style={{minHeight:"100vh",background:"#fafafc",display:"flex",alignItems:"center",justifyContent:"center"}}>
       <img src="/IKONA.png" alt="loading" style={{width:"120px",animation:"bounce 0.8s infinite alternate"}} />
       <style>{`@keyframes bounce { from { transform: translateY(0px) rotate(-5deg); } to { transform: translateY(-30px) rotate(5deg); } }`}</style>
     </div>
   );
 
-  const features = [
-    {
-      icon: "✦",
-      tone: "purple",
-      title: "Projekty a úlohy",
-      text: "Tabuľa s úlohami, prioritami a termínmi. Pozvi ostatných a pracujte na projekte spolu. Pripomienky termínov ti prídu e-mailom aj v aplikácii.",
-    },
-    {
-      icon: "📝",
-      tone: "pink",
-      title: "Poznámky",
-      text: "Píš text, vkladaj fotky priamo doň a pridávaj zoznamy s políčkami. Poznámku zdieľaj odkazom alebo ju prepoj s projektom.",
-    },
-    {
-      icon: "📅",
-      tone: "blue",
-      title: "Týždenný plán",
-      text: "Celý týždeň na jednom prehľade. Vidíš, čo ťa čaká každý deň, a nič ti neunikne.",
-    },
-  ];
-
   return (
     <>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-
         * { box-sizing: border-box; margin: 0; padding: 0; }
-
         :root {
-          --pink: #d94fbf;
-          --blue: #4f8ef7;
-          --purple: #a066ff;
-          --bg: #09090f;
-          --surface: #111119;
-          --border: rgba(255,255,255,0.07);
-          --text: #f0eeff;
-          --muted: rgba(240,238,255,0.6);
+          --pink: #d94fbf; --purple: #8b5cf6; --blue: #4f8ef7;
+          --bg: #fafafc; --surface: #ffffff; --border: #e4e4ee;
+          --text: #14141f; --muted: #5c5c72;
         }
-
         html { scroll-behavior: smooth; }
-
-        body {
-          font-family: 'Plus Jakarta Sans', sans-serif;
-          background: var(--bg);
-          color: var(--text);
-          min-height: 100vh;
-          overflow-x: hidden;
-        }
-
-        .landing-nav {
-          position: fixed;
-          top: 0; left: 0; right: 0;
-          z-index: 100;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 0.8rem;
-          padding: 0.9rem 2rem;
-          background: rgba(9,9,15,0.85);
-          backdrop-filter: blur(16px);
-          border-bottom: 1px solid var(--border);
-        }
-        .nav-actions { display: flex; align-items: center; gap: 0.6rem; }
-
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; overflow-x: hidden; }
         .btn-primary, .btn-secondary {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          border-radius: 50px;
-          font-family: 'Plus Jakarta Sans', sans-serif;
-          font-weight: 700;
-          cursor: pointer;
-          white-space: nowrap;
-          transition: opacity 0.2s, transform 0.2s, border-color 0.2s, color 0.2s;
+          display: inline-flex; align-items: center; justify-content: center;
+          border-radius: 10px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 600;
+          cursor: pointer; white-space: nowrap; transition: opacity 0.2s, border-color 0.2s;
+          padding: 0.85rem 1.7rem; font-size: 0.95rem;
         }
-        .btn-primary {
-          padding: 0.85rem 2rem;
-          font-size: 1rem;
-          border: none;
-          color: #fff;
-          background: linear-gradient(135deg, var(--pink), var(--purple));
-          box-shadow: 0 0 30px rgba(160,102,255,0.25);
-        }
-        .btn-primary:hover { opacity: 0.88; transform: translateY(-2px); }
-        .btn-secondary {
-          padding: 0.85rem 2rem;
-          font-size: 1rem;
-          background: none;
-          color: var(--text);
-          border: 1px solid rgba(255,255,255,0.18);
-        }
-        .btn-secondary:hover { border-color: rgba(255,255,255,0.4); }
-        .btn-small { padding: 0.5rem 1.1rem; font-size: 0.85rem; box-shadow: none; }
-
-        .hero {
-          position: relative;
-          min-height: 88vh;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          text-align: center;
-          padding: 7rem 1.5rem 4rem;
-          overflow: hidden;
-        }
-        .hero-glow {
-          position: absolute;
-          width: min(700px, 100vw);
-          height: min(700px, 100vw);
-          border-radius: 50%;
-          background: radial-gradient(circle, rgba(160,102,255,0.16) 0%, transparent 70%);
-          top: 50%; left: 50%;
-          transform: translate(-50%, -55%);
-          pointer-events: none;
-        }
-        .hero h1 {
-          position: relative;
-          font-size: clamp(2.4rem, 7vw, 4.6rem);
-          font-weight: 800;
-          line-height: 1.1;
-          letter-spacing: -0.02em;
-          max-width: 760px;
-          animation: fadeUp 0.6s 0.1s ease both;
-        }
-        .gradient-text {
-          background: linear-gradient(90deg, var(--pink) 0%, var(--purple) 45%, var(--blue) 100%);
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-        }
-        .hero-sub {
-          position: relative;
-          margin-top: 1.3rem;
-          font-size: clamp(1rem, 2.5vw, 1.2rem);
-          color: var(--muted);
-          max-width: 540px;
-          line-height: 1.7;
-          animation: fadeUp 0.6s 0.2s ease both;
-        }
-        .hero-actions {
-          position: relative;
-          display: flex;
-          gap: 0.8rem;
-          margin-top: 2.2rem;
-          flex-wrap: wrap;
-          justify-content: center;
-          animation: fadeUp 0.6s 0.3s ease both;
-        }
-
-        .features-section {
-          padding: 3rem 1.5rem 5rem;
-          max-width: 1050px;
-          margin: 0 auto;
-        }
-        .features-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-          gap: 1.2rem;
-        }
-        .feature-card {
-          padding: 1.8rem;
-          border-radius: 18px;
-          border: 1px solid var(--border);
-          background: var(--surface);
-          transition: border-color 0.3s, transform 0.3s;
-        }
-        .feature-card:hover { border-color: rgba(160,102,255,0.3); transform: translateY(-4px); }
-        .feature-icon {
-          width: 46px; height: 46px;
-          border-radius: 12px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 1.35rem;
-          margin-bottom: 1.1rem;
-        }
-        .icon-purple { background: rgba(160,102,255,0.15); }
-        .icon-pink { background: rgba(217,79,191,0.15); }
-        .icon-blue { background: rgba(79,142,247,0.15); }
-        .feature-card h3 { font-size: 1.1rem; font-weight: 700; margin-bottom: 0.55rem; }
-        .feature-card p { font-size: 0.92rem; color: var(--muted); line-height: 1.7; }
-
-        .cta-section {
-          position: relative;
-          padding: 4rem 1.5rem 5rem;
-          text-align: center;
-          overflow: hidden;
-        }
-        .cta-glow {
-          position: absolute;
-          width: min(600px, 100vw);
-          height: 300px;
-          border-radius: 50%;
-          background: radial-gradient(ellipse, rgba(217,79,191,0.14) 0%, transparent 70%);
-          top: 50%; left: 50%;
-          transform: translate(-50%, -50%);
-          pointer-events: none;
-        }
-        .cta-inner { position: relative; max-width: 560px; margin: 0 auto; }
-        .cta-inner h2 { font-size: clamp(1.8rem, 4vw, 2.6rem); font-weight: 800; line-height: 1.2; margin-bottom: 0.9rem; }
-        .cta-inner p { color: var(--muted); font-size: 1rem; margin-bottom: 1.8rem; }
-
-        .landing-footer {
-          border-top: 1px solid var(--border);
-          padding: 1.5rem 2rem;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          flex-wrap: wrap;
-          gap: 0.6rem 1.5rem;
-          font-size: 0.82rem;
-          color: var(--muted);
-        }
-        .footer-links { display: flex; gap: 1.2rem; flex-wrap: wrap; justify-content: center; }
-        .footer-links span, .footer-links a {
-          cursor: pointer;
-          color: var(--muted);
-          font-size: 0.82rem;
-          text-decoration: none;
-        }
+        .btn-primary { border: none; color: #fff; background: linear-gradient(135deg, var(--pink), var(--purple)); }
+        .btn-primary:hover { opacity: 0.88; }
+        .btn-secondary { background: transparent; color: var(--text); border: 1px solid var(--border); }
+        .btn-secondary:hover { border-color: var(--muted); }
+        .gradient-text { background: linear-gradient(90deg, var(--pink), var(--purple) 55%, var(--blue)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .footer-links { display: flex; gap: 1.1rem; flex-wrap: wrap; }
+        .footer-links span, .footer-links a { cursor: pointer; color: var(--muted); font-size: 0.8rem; text-decoration: none; }
         .footer-links span:hover, .footer-links a:hover { color: var(--text); }
 
-        @keyframes fadeUp {
-          from { opacity: 0; transform: translateY(24px); }
-          to { opacity: 1; transform: translateY(0); }
+        .split { min-height: 100vh; display: grid; grid-template-columns: 1.15fr 1fr; }
+        .brand-side {
+          padding: 2.2rem 4rem 2.5rem;
+          background: linear-gradient(160deg, #fdf1fb 0%, #f1ecff 55%, #e9f1ff 100%);
+          display: flex; flex-direction: column; justify-content: space-between; gap: 2rem;
         }
-
-        @media (max-width: 600px) {
-          .landing-nav { padding: 0.7rem 1rem; }
-          .hero { padding: 6.5rem 1.2rem 3rem; min-height: 80vh; }
-          .hero-actions { flex-direction: column; align-items: stretch; width: 100%; max-width: 300px; }
-          .landing-footer { flex-direction: column; text-align: center; }
+        .brand-main { max-width: 520px; }
+        .brand-main h1 { font-size: clamp(2rem, 4vw, 3.1rem); font-weight: 800; line-height: 1.12; letter-spacing: -0.03em; }
+        .brand-main .sub { margin-top: 1rem; font-size: 1.05rem; color: var(--muted); line-height: 1.65; max-width: 460px; }
+        .feat-list { margin-top: 2.2rem; display: flex; flex-direction: column; gap: 1.1rem; }
+        .feat { display: flex; gap: 0.9rem; align-items: flex-start; }
+        .feat-icon { width: 40px; height: 40px; border-radius: 50%; background: #fff; color: var(--purple); display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: 0 2px 10px rgba(139,92,246,0.15); }
+        .feat h3 { font-size: 0.98rem; font-weight: 700; }
+        .feat p { font-size: 0.88rem; color: var(--muted); line-height: 1.55; margin-top: 0.15rem; }
+        .action-side { display: flex; flex-direction: column; justify-content: space-between; align-items: center; padding: 2.2rem 2rem 1.5rem; }
+        .action-card { width: 100%; max-width: 380px; margin: auto 0; text-align: center; }
+        .action-card h2 { font-size: 1.5rem; font-weight: 700; margin-top: 0.8rem; }
+        .action-card .note { font-size: 0.85rem; color: var(--muted); margin-top: 0.4rem; }
+        .action-buttons { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 1.6rem; }
+        .aud { margin-top: 2rem; padding-top: 1.4rem; border-top: 1px solid var(--border); text-align: left; display: flex; flex-direction: column; gap: 0.8rem; }
+        .aud-label { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+        .aud-item { font-size: 0.88rem; color: var(--muted); line-height: 1.5; }
+        .aud-item b { color: var(--text); font-weight: 600; }
+        .action-footer { width: 100%; max-width: 380px; display: flex; flex-direction: column; gap: 0.5rem; align-items: center; font-size: 0.78rem; color: var(--muted); text-align: center; }
+        .action-footer .footer-links { justify-content: center; }
+        @media (max-width: 900px) {
+          .split { grid-template-columns: 1fr; }
+          .brand-side { padding: 1.5rem 1.4rem 2rem; }
+          .action-side { padding: 2rem 1.4rem 1.5rem; }
         }
       `}</style>
 
-      {/* NAV */}
-      <nav className="landing-nav">
-        <img src="/LOGO.png" alt="TicklyDo" style={{height:"44px"}} />
-        <div className="nav-actions">
-          <button className="btn-secondary btn-small" onClick={() => router.push("/login")}>
-            Prihlásiť sa
-          </button>
-          <button className="btn-primary btn-small" onClick={() => router.push("/register")}>
-            Registrovať sa
-          </button>
-        </div>
-      </nav>
-
-      {/* HERO */}
-      <section className="hero">
-        <div className="hero-glow" />
-        <h1>
-          Organizuj nápady<br />
-          <span className="gradient-text">po svojom.</span>
-        </h1>
-        <p className="hero-sub">
-          Projekty, poznámky a týždenný plán na jednom mieste. Žiadny chaos, len čistý flow.
-        </p>
-        <div className="hero-actions">
-          <button className="btn-primary" onClick={() => router.push("/register")}>
-            Začať zadarmo
-          </button>
-          <button className="btn-secondary" onClick={() => router.push("/login")}>
-            Prihlásiť sa
-          </button>
-        </div>
-      </section>
-
-      {/* FEATURES */}
-      <section className="features-section">
-        <div className="features-grid">
-          {features.map(f => (
-            <div className="feature-card" key={f.title}>
-              <div className={`feature-icon icon-${f.tone}`}>{f.icon}</div>
-              <h3>{f.title}</h3>
-              <p>{f.text}</p>
+      <div className="split">
+        <section className="brand-side">
+          <img src="/LOGO.png" alt="TicklyDo" style={{height:"44px",width:"auto",alignSelf:"flex-start"}} />
+          <div className="brand-main">
+            <h1>Projekty, poznámky a plán týždňa <span className="gradient-text">na jednom mieste.</span></h1>
+            <p className="sub">Prehľadne si zorganizuj prácu aj štúdium bez chaosu.</p>
+            <div className="feat-list">
+              {features.map(f => (
+                <div className="feat" key={f.title}>
+                  <div className="feat-icon">{f.icon}</div>
+                  <div>
+                    <h3>{f.title}</h3>
+                    <p>{f.text}</p>
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      </section>
+          </div>
+          <div />
+        </section>
 
-      {/* CTA */}
-      <section className="cta-section">
-        <div className="cta-glow" />
-        <div className="cta-inner">
-          <h2>Začni organizovať<br /><span className="gradient-text">dnes, nie zajtra.</span></h2>
-          <p>Registrácia je zadarmo. Žiadna kreditná karta.</p>
-          <button className="btn-primary" onClick={() => router.push("/register")}>
-            Vytvoriť účet
-          </button>
-        </div>
-      </section>
+        <section className="action-side">
+          <div />
+          <div className="action-card">
+            <img src="/IKONA.png" alt="" style={{width:"84px",height:"auto"}} />
+            <h2>Začni s TicklyDo</h2>
+            <p className="note">Registrácia je zadarmo, bez kreditnej karty.</p>
+            <div className="action-buttons">
+              <button className="btn-primary" onClick={() => router.push("/register")}>Začať zadarmo</button>
+              <button className="btn-secondary" onClick={() => router.push("/login")}>Už mám účet, prihlásiť sa</button>
+            </div>
+            <div className="aud">
+              <div className="aud-label">Pre koho je</div>
+              {audience.map(a => (
+                <div className="aud-item" key={a.title}><b>{a.title}</b> · {a.text}</div>
+              ))}
+            </div>
+          </div>
+          <div className="action-footer">
+            <span>© 2026 TicklyDo</span>
+            <div className="footer-links">
+              <span onClick={() => router.push("/privacy")}>Podmienky & GDPR</span>
+              <span onClick={() => router.push("/terms")}>Podmienky používania</span>
+              <a href="mailto:support@ticklydo.com">support@ticklydo.com</a>
+            </div>
+          </div>
+        </section>
+      </div>
 
-      {/* FOOTER */}
-      <footer className="landing-footer">
-        <span>© 2026 TicklyDo. Všetky práva vyhradené.</span>
-        <div className="footer-links">
-          <span onClick={() => router.push("/privacy")}>Podmienky & GDPR</span>
-          <span onClick={() => router.push("/terms")}>Podmienky používania</span>
-          <a href="mailto:support@ticklydo.com">support@ticklydo.com</a>
-        </div>
-      </footer>
-
-      {/* COOKIE BANNER */}
       {cookieBanner && (
-        <div style={{position:"fixed",bottom:"20px",left:"50%",transform:"translateX(-50%)",zIndex:999,background:"#13131f",border:"1px solid rgba(255,255,255,0.1)",borderRadius:"16px",padding:"16px 24px",display:"flex",alignItems:"center",gap:"16px",flexWrap:"wrap",justifyContent:"center",maxWidth:"600px",width:"calc(100% - 40px)",boxShadow:"0 8px 40px rgba(0,0,0,0.5)"}}>
-          <p style={{color:"rgba(200,190,255,0.8)",fontFamily:"sans-serif",fontSize:"13px",margin:0,flex:1,minWidth:"200px"}}>
+        <div style={{position:"fixed",bottom:"20px",left:"50%",transform:"translateX(-50%)",zIndex:999,background:"#ffffff",border:"1px solid #e0e0ea",borderRadius:"16px",padding:"16px 24px",display:"flex",alignItems:"center",gap:"16px",flexWrap:"wrap",justifyContent:"center",maxWidth:"600px",width:"calc(100% - 40px)",boxShadow:"0 8px 40px rgba(0,0,0,0.25)"}}>
+          <p style={{color:"#3a3a4e",fontFamily:"sans-serif",fontSize:"13px",margin:0,flex:1,minWidth:"200px"}}>
             Používame cookies nevyhnutné pre fungovanie prihlásenia. Viac info v{" "}
-            <span onClick={() => router.push("/privacy")} style={{color:"#c084fc",cursor:"pointer"}}>Podmienkach & GDPR</span>.
+            <span onClick={() => router.push("/privacy")} style={{color:"#a855f7",cursor:"pointer"}}>Podmienkach & GDPR</span>.
           </p>
-          <button onClick={acceptCookies} style={{padding:"8px 20px",background:"linear-gradient(135deg,#db2777,#9333ea)",border:"none",borderRadius:"50px",color:"#fff",fontSize:"13px",fontWeight:"700",cursor:"pointer",fontFamily:"sans-serif",whiteSpace:"nowrap"}}>
+          <button onClick={acceptCookies} style={{padding:"8px 20px",background:"linear-gradient(135deg,#db2777,#9333ea)",border:"none",borderRadius:"10px",color:"#fff",fontSize:"13px",fontWeight:"700",cursor:"pointer",fontFamily:"sans-serif",whiteSpace:"nowrap"}}>
             Rozumiem
           </button>
         </div>
