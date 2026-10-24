@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { initializeApp, getApps } from "firebase/app";
+import AvatarContent from "../components/Avatar";
 import { useTheme } from "../context/ThemeContext";
 import { EmojiText } from "../components/Emoji";
 
@@ -545,7 +546,7 @@ export default function HomePage() {
           {/* Header */}
           <div style={{ fontSize: 22, fontWeight: 900, display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
             <div style={{ width: 44, height: 44, borderRadius: "50%", background: grad, padding: 3, flexShrink: 0 }}>
-              {avatarFn(appliedA, appliedB)}
+              <AvatarContent fallback={avatarFn(appliedA, appliedB)} />
             </div>
             Vitaj{userName ? `, ${userName}` : ""}
           </div>

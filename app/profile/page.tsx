@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { getAuth } from "firebase/auth";
 import { initializeApp, getApps } from "firebase/app";
 import { useTheme } from "../context/ThemeContext";
-import { EmojiText } from "../components/Emoji";
+import { Emoji, EmojiText, AVATAR_EMOJIS } from "../components/Emoji";
+import AvatarContent from "../components/Avatar";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -53,6 +54,7 @@ export default function ProfilePage() {
     grad, theme,
     userName, setUserName,
     avatarId, setAvatarId,
+    avatarPhoto, setAvatarPhoto, googlePhoto,
     userEmail,
   } = useTheme();
 
@@ -65,6 +67,34 @@ export default function ProfilePage() {
   const [pickingAvatar, setPickingAvatar] = useState(false);
 
   const currentAvatar = AVATARS.find(a => a.id === avatarId) ?? AVATARS[0];
+  const [photoError, setPhotoError] = useState("");
+  const fileRef = useRef<HTMLInputElement | null>(null);
+
+  // Fotka z galérie: orežeme na štvorec 256×256 a zmenšíme (aby sa zmestila do databázy)
+  function handlePhotoFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setPhotoError("");
+    if (!file.type.startsWith("image/")) { setPhotoError("Vyber obrázok (JPG, PNG…)."); return; }
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const size = 256;
+      const canvas = document.createElement("canvas");
+      canvas.width = size; canvas.height = size;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) { setPhotoError("Fotku sa nepodarilo spracovať."); URL.revokeObjectURL(url); return; }
+      const side = Math.min(img.width, img.height);
+      ctx.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, size, size);
+      URL.revokeObjectURL(url);
+      setAvatarPhoto(canvas.toDataURL("image/jpeg", 0.85));
+      setAvatarId("photo");
+      setPickingAvatar(false);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); setPhotoError("Fotku sa nepodarilo načítať."); };
+    img.src = url;
+  }
 
   function applyColors() {
     setAppliedA(colorA);
@@ -113,7 +143,7 @@ export default function ProfilePage() {
             background: grad, padding: 4, cursor: "pointer",
             boxShadow: `0 4px 16px ${appliedA}55`,
           }}>
-            {currentAvatar.svg(appliedA, appliedB)}
+            <AvatarContent fallback={currentAvatar.svg(appliedA, appliedB)} />
           </div>
           <div style={{
             position: "absolute", bottom: 0, right: 0,
@@ -128,20 +158,73 @@ export default function ProfilePage() {
               position: "absolute", top: 74, left: 0,
               background: theme.card, border: `1px solid ${theme.border}`,
               borderRadius: 16, padding: 12,
-              display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8,
-              zIndex: 100, boxShadow: "0 8px 32px rgba(0,0,0,0.3)", width: 280,
+              zIndex: 100, boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+              width: 300, maxWidth: "calc(100vw - 48px)", maxHeight: "70vh", overflowY: "auto",
             }}>
-              {AVATARS.map(a => (
-                <div key={a.id} onClick={() => { setAvatarId(a.id); setPickingAvatar(false); }}
+              <input ref={fileRef} type="file" accept="image/*" onChange={handlePhotoFile} style={{ display: "none" }} />
+
+              <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1, textTransform: "uppercase", color: theme.muted, marginBottom: 8 }}>Fotka</div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
+                {googlePhoto && (
+                  <div onClick={() => { setAvatarId("google"); setPickingAvatar(false); }}
+                    title="Fotka z tvojho Google účtu"
+                    style={{
+                      display: "flex", alignItems: "center", gap: 8, padding: "6px 12px 6px 6px", borderRadius: 999, cursor: "pointer",
+                      background: avatarId === "google" ? grad : theme.card2,
+                      border: avatarId === "google" ? `2px solid ${appliedA}` : "2px solid transparent",
+                      color: avatarId === "google" ? "#fff" : theme.text, fontSize: 12.5, fontWeight: 700,
+                    }}>
+                    <img src={googlePhoto} alt="" referrerPolicy="no-referrer" style={{ width: 30, height: 30, borderRadius: "50%", objectFit: "cover" }} />
+                    Z Google účtu
+                  </div>
+                )}
+                <div onClick={() => fileRef.current?.click()}
                   style={{
-                    width: 52, height: 52, borderRadius: 12, cursor: "pointer",
-                    background: avatarId === a.id ? grad : theme.card2, padding: 6,
-                    border: avatarId === a.id ? `2px solid ${appliedA}` : `2px solid transparent`,
-                    transition: "all .15s",
+                    display: "flex", alignItems: "center", gap: 8, padding: "6px 14px 6px 6px", borderRadius: 999, cursor: "pointer",
+                    background: avatarId === "photo" ? grad : theme.card2,
+                    border: avatarId === "photo" ? `2px solid ${appliedA}` : "2px solid transparent",
+                    color: avatarId === "photo" ? "#fff" : theme.text, fontSize: 12.5, fontWeight: 700,
                   }}>
-                  {a.svg(appliedA, appliedB)}
+                  {avatarPhoto
+                    ? <img src={avatarPhoto} alt="" style={{ width: 30, height: 30, borderRadius: "50%", objectFit: "cover" }} />
+                    : <span style={{ width: 30, height: 30, borderRadius: "50%", background: theme.card, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>+</span>}
+                  Z galérie
                 </div>
-              ))}
+              </div>
+              {photoError && <div style={{ color: "#ef4444", fontSize: 12, marginBottom: 6 }}>{photoError}</div>}
+
+              <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1, textTransform: "uppercase", color: theme.muted, margin: "12px 0 8px" }}>Emotikony</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(6,1fr)", gap: 6 }}>
+                {AVATAR_EMOJIS.map(e => {
+                  const id = "emoji:" + e;
+                  return (
+                    <div key={e} onClick={() => { setAvatarId(id); setPickingAvatar(false); }}
+                      style={{
+                        aspectRatio: "1", borderRadius: 12, cursor: "pointer",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        background: theme.card2, fontSize: 26,
+                        border: avatarId === id ? `2px solid ${appliedA}` : "2px solid transparent",
+                      }}>
+                      <Emoji char={e} size="70%" />
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1, textTransform: "uppercase", color: theme.muted, margin: "12px 0 8px" }}>Postavičky</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8 }}>
+                {AVATARS.map(a => (
+                  <div key={a.id} onClick={() => { setAvatarId(a.id); setPickingAvatar(false); }}
+                    style={{
+                      aspectRatio: "1", borderRadius: 12, cursor: "pointer",
+                      background: avatarId === a.id ? grad : theme.card2, padding: 6,
+                      border: avatarId === a.id ? `2px solid ${appliedA}` : `2px solid transparent`,
+                      transition: "all .15s",
+                    }}>
+                    {a.svg(appliedA, appliedB)}
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>

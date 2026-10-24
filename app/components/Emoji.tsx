@@ -24,7 +24,42 @@ const MAP: Record<string, string> = {
   "🎨": "Artist palette/3D/artist_palette_3d.png",
   "🛠": "Hammer and wrench/3D/hammer_and_wrench_3d.png",
   "⚠": "Warning/3D/warning_3d.png",
+  "😀": "Grinning face/3D/grinning_face_3d.png",
+  "😎": "Smiling face with sunglasses/3D/smiling_face_with_sunglasses_3d.png",
+  "🤓": "Nerd face/3D/nerd_face_3d.png",
+  "🥳": "Partying face/3D/partying_face_3d.png",
+  "😇": "Smiling face with halo/3D/smiling_face_with_halo_3d.png",
+  "🤩": "Star-struck/3D/star-struck_3d.png",
+  "😄": "Grinning face with smiling eyes/3D/grinning_face_with_smiling_eyes_3d.png",
+  "🥰": "Smiling face with hearts/3D/smiling_face_with_hearts_3d.png",
+  "🤔": "Thinking face/3D/thinking_face_3d.png",
+  "😴": "Sleeping face/3D/sleeping_face_3d.png",
+  "🦊": "Fox/3D/fox_3d.png",
+  "🐱": "Cat face/3D/cat_face_3d.png",
+  "🐶": "Dog face/3D/dog_face_3d.png",
+  "🐼": "Panda/3D/panda_3d.png",
+  "🦄": "Unicorn/3D/unicorn_3d.png",
+  "🐧": "Penguin/3D/penguin_3d.png",
+  "🦉": "Owl/3D/owl_3d.png",
+  "🐻": "Bear/3D/bear_3d.png",
+  "🐸": "Frog/3D/frog_3d.png",
+  "🦁": "Lion/3D/lion_3d.png",
+  "🌟": "Glowing star/3D/glowing_star_3d.png",
+  "🔥": "Fire/3D/fire_3d.png",
+  "🌈": "Rainbow/3D/rainbow_3d.png",
+  "💎": "Gem stone/3D/gem_stone_3d.png",
+  "🎮": "Video game/3D/video_game_3d.png",
+  "🎧": "Headphone/3D/headphone_3d.png",
+  "☕": "Hot beverage/3D/hot_beverage_3d.png",
+  "🍕": "Pizza/3D/pizza_3d.png",
+  "🧠": "Brain/3D/brain_3d.png",
+  "🎸": "Guitar/3D/guitar_3d.png",
+  "🌻": "Sunflower/3D/sunflower_3d.png",
+  "🍀": "Four leaf clover/3D/four_leaf_clover_3d.png",
 };
+
+// Emotikony ponúkané ako profilový obrázok
+export const AVATAR_EMOJIS = ["😀","😎","🤓","🥳","😇","🤩","😄","🥰","🤔","😴","🦊","🐱","🐶","🐼","🦄","🐧","🦉","🐻","🐸","🦁","🌟","🔥","🌈","💎","🎮","🎧","☕","🍕","🧠","🎸","🌻","🍀","🚀","🎯","🤖","✨"];
 
 const KEYS = Object.keys(MAP).map(k => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
 const SPLIT = new RegExp(`(${KEYS.join("|")})️?`, "gu");

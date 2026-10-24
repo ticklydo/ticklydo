@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { initializeApp, getApps } from "firebase/app";
+import AvatarContent from "./Avatar";
 import { useTheme } from "../context/ThemeContext";
 import GlobalSearch from "./GlobalSearch";
 import AccountSwitcher, { useAccounts } from "./AccountSwitcher";
@@ -384,7 +385,7 @@ export default function Sidebar() {
           }}
           title="Účty a prepínanie"
         >
-          {avatarFn(appliedA, appliedB)}
+          <AvatarContent fallback={avatarFn(appliedA, appliedB)} />
           {otherUnread > 0 && (
             <span style={{
               position: "absolute", top: -4, right: -4,

@@ -36,6 +36,9 @@ export type ThemeContextType = {
   setUserName: (v: string) => void;
   avatarId: string;
   setAvatarId: (v: string) => void;
+  avatarPhoto: string;
+  setAvatarPhoto: (v: string) => void;
+  googlePhoto: string;
   userEmail: string;
   loaded: boolean;
 };
@@ -54,6 +57,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [appliedB, setAppliedB] = useState("#7c63ff");
   const [userName, setUserName] = useState("");
   const [avatarId, setAvatarId] = useState("robot");
+  const [avatarPhoto, setAvatarPhoto] = useState("");
+  const [googlePhoto, setGooglePhoto] = useState("");
   const [userEmail, setUserEmail] = useState("");
   const [loaded, setLoaded] = useState(false);
   const dataLoaded = useRef(false);
@@ -67,6 +72,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         return;
       }
       setUserEmail(user.email ?? "");
+      setGooglePhoto(user.providerData?.find((p: any) => p.providerId === "google.com")?.photoURL ?? "");
       try {
         const { getFirestore, doc, getDoc } = await import("firebase/firestore");
         const db = getFirestore();
@@ -77,6 +83,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
           if (d.colorB) setAppliedB(d.colorB);
           if (d.userName) setUserName(d.userName);
           if (d.avatarId) setAvatarId(d.avatarId);
+          if (d.avatarPhoto) setAvatarPhoto(d.avatarPhoto);
           if (d.darkMode !== undefined) setDarkModeState(d.darkMode);
         }
       } catch (e) {
@@ -103,6 +110,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
           colorB: appliedB,
           userName,
           avatarId,
+          avatarPhoto,
           darkMode,
         }, { merge: true });
       } catch (e) {
@@ -112,7 +120,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     return () => {
       if (saveTimeout.current) clearTimeout(saveTimeout.current);
     };
-  }, [appliedA, appliedB, userName, avatarId, darkMode]);
+  }, [appliedA, appliedB, userName, avatarId, avatarPhoto, darkMode]);
 
   function setDarkMode(v: boolean) {
     setDarkModeState(v);
@@ -137,6 +145,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       grad, theme,
       userName, setUserName,
       avatarId, setAvatarId,
+      avatarPhoto, setAvatarPhoto, googlePhoto,
       userEmail,
       loaded,
     }}>
