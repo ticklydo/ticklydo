@@ -83,7 +83,7 @@ export function Emoji({ char, size }: { char: string; size?: number | string }) 
 
 // Nahradí emotikony v texte obrázkami: <EmojiText>🚀 Vytvoriť projekt</EmojiText>
 export function EmojiText({ children, size }: { children: React.ReactNode; size?: number | string }) {
-  const parts = React.Children.toArray(children).flatMap((child, ci) => {
+  const parts = React.Children.toArray(children).flatMap((child, ci): React.ReactNode[] => {
     if (typeof child !== "string") return [child];
     return child.split(SPLIT).map((p, i) =>
       MAP[p] ? <Emoji key={`${ci}-${i}`} char={p} size={size} /> : p
