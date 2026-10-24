@@ -89,7 +89,9 @@ export default function LandingPage() {
         .split { min-height: 100vh; display: grid; grid-template-columns: 1.15fr 1fr; }
         .brand-side {
           padding: 2.2rem 4rem 2.5rem;
-          background: linear-gradient(160deg, #fdf1fb 0%, #f1ecff 55%, #e9f1ff 100%);
+          background: linear-gradient(125deg, #fdf3f9, #eff6ff, #edfaf7, #f7f3ff, #fdf3f9);
+          background-size: 300% 300%;
+          animation: softShift 22s ease-in-out infinite;
           display: flex; flex-direction: column; justify-content: space-between; gap: 2rem;
         }
         .brand-main { max-width: 520px; }
@@ -111,6 +113,14 @@ export default function LandingPage() {
         .aud-item b { color: var(--text); font-weight: 600; }
         .action-footer { width: 100%; max-width: 380px; display: flex; flex-direction: column; gap: 0.5rem; align-items: center; font-size: 0.78rem; color: var(--muted); text-align: center; }
         .action-footer .footer-links { justify-content: center; }
+        @keyframes softShift {
+          0% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .brand-side { animation: none; }
+        }
         @media (max-width: 900px) {
           .split { grid-template-columns: 1fr; }
           .brand-side { padding: 1.5rem 1.4rem 2rem; }
@@ -120,7 +130,7 @@ export default function LandingPage() {
 
       <div className="split">
         <section className="brand-side">
-          <img src="/LOGO.png" alt="TicklyDo" style={{height:"44px",width:"auto",alignSelf:"flex-start"}} />
+          <img src="/LOGO.png" alt="TicklyDo" style={{height:"68px",width:"auto",alignSelf:"flex-start"}} />
           <div className="brand-main">
             <h1>Projekty, poznámky a plán týždňa <span className="gradient-text">na jednom mieste.</span></h1>
             <p className="sub">Prehľadne si zorganizuj prácu aj štúdium bez chaosu.</p>
@@ -146,8 +156,8 @@ export default function LandingPage() {
             <h2>Začni s TicklyDo</h2>
             <p className="note">Registrácia je zadarmo, bez kreditnej karty.</p>
             <div className="action-buttons">
-              <button className="btn-primary" onClick={() => router.push("/register")}>Začať zadarmo</button>
-              <button className="btn-secondary" onClick={() => router.push("/login")}>Už mám účet, prihlásiť sa</button>
+              <button className="btn-primary" onClick={() => router.push("/register")}>Registrácia</button>
+              <button className="btn-secondary" onClick={() => router.push("/login")}>Prihlásenie</button>
             </div>
             <div className="aud">
               <div className="aud-label">Pre koho je</div>
