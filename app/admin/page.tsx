@@ -6,7 +6,7 @@ import { collection, doc, getDoc, onSnapshot, query, updateDoc, where } from "fi
 import { auth, db } from "../firebase";
 import { useTheme } from "../context/ThemeContext";
 
-type PendingUser = { uid: string; email: string; createdAt?: number };
+type PendingUser = { uid: string; email: string; createdAt?: number; approvedAt?: number; isAdmin?: boolean };
 
 export default function AdminPage() {
   const { theme, grad } = useTheme();
@@ -14,6 +14,7 @@ export default function AdminPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [pending, setPending] = useState<PendingUser[]>([]);
   const [rejected, setRejected] = useState<PendingUser[]>([]);
+  const [approved, setApproved] = useState<PendingUser[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState("");
 
@@ -32,12 +33,21 @@ export default function AdminPage() {
 
         const toList = (snap: any): PendingUser[] =>
           snap.docs
-            .map((d: any) => ({ uid: d.id, email: d.data().email || "(bez e-mailu)", createdAt: d.data().createdAt }))
+            .map((d: any) => ({ uid: d.id, email: d.data().email || "(bez e-mailu)", createdAt: d.data().createdAt, approvedAt: d.data().approvedAt, isAdmin: d.data().isAdmin === true }))
             .sort((a: PendingUser, b: PendingUser) => (b.createdAt || 0) - (a.createdAt || 0));
 
         unsubs.push(onSnapshot(
           query(collection(db, "users"), where("approved", "==", false)),
           (snap) => setPending(toList(snap).filter((u: PendingUser) => !snap.docs.find((d: any) => d.id === u.uid)?.data().rejected)),
+          (e) => setError("Načítanie zlyhalo: " + e.message)
+        ));
+        unsubs.push(onSnapshot(
+          query(collection(db, "users"), where("approved", "==", true)),
+          (snap) => setApproved(
+            toList(snap)
+              .filter((u: PendingUser) => !u.isAdmin)
+              .sort((a: PendingUser, b: PendingUser) => (b.approvedAt || b.createdAt || 0) - (a.approvedAt || a.createdAt || 0))
+          ),
           (e) => setError("Načítanie zlyhalo: " + e.message)
         ));
         unsubs.push(onSnapshot(
@@ -82,6 +92,12 @@ export default function AdminPage() {
     }
   };
   const reject = (uid: string) => setStatus(uid, { rejected: true });
+  // odobratie prístupu už schválenému účtu
+  const revoke = (uid: string) => {
+    if (window.confirm("Naozaj chceš tomuto používateľovi odobrať prístup?")) {
+      setStatus(uid, { approved: false, rejected: true });
+    }
+  };
 
   const fmt = (ts?: number) => (ts ? new Date(ts).toLocaleString("sk-SK") : "—");
 
@@ -140,6 +156,22 @@ export default function AdminPage() {
           {btn("Schváliť", () => approve(u.uid), true, u.uid)}
           {btn("Zamietnuť", () => reject(u.uid), false, u.uid)}
         </>))}
+      </div>
+
+      <h2 style={{ fontSize: 14, fontWeight: 800, marginBottom: 10 }}>Schválené ({approved.length})</h2>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 28 }}>
+        {approved.length === 0 && <div style={{ fontSize: 13.5, color: theme.muted }}>Zatiaľ žiadne schválené registrácie.</div>}
+        {approved.map(u => (
+          <div key={u.uid} style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "14px 16px", background: theme.card, border: `1px solid ${theme.border}`, borderRadius: 12 }}>
+            <div style={{ flex: 1, minWidth: 200 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: theme.text, wordBreak: "break-all" }}>{u.email}</div>
+              <div style={{ fontSize: 12, color: theme.muted, marginTop: 2 }}>
+                Registrácia: {fmt(u.createdAt)} · Schválené: {fmt(u.approvedAt)}
+              </div>
+            </div>
+            {btn("Odobrať prístup", () => revoke(u.uid), false, u.uid)}
+          </div>
+        ))}
       </div>
 
       {rejected.length > 0 && (
