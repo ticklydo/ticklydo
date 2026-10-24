@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
+
+const useIsoLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 import { useRouter } from "next/navigation";
 import { auth } from "./firebase";
 import { onAuthStateChanged } from "firebase/auth";
@@ -35,7 +37,7 @@ export default function LandingPage() {
   const [cookieBanner, setCookieBanner] = useState(false);
   const [dark, setDark] = useState(false);
 
-  useEffect(() => {
+  useIsoLayoutEffect(() => {
     try {
       if (localStorage.getItem("landing-theme") === "dark") setDark(true);
     } catch {}

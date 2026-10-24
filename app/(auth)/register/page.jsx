@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { auth } from "../../firebase.js";
 import { createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, getRedirectResult } from "firebase/auth";
 import { useRouter } from "next/navigation";
+import AuthShell from "../../components/AuthShell";
 
 export default function RegisterPage() {
   const [email, setEmail] = useState("");
@@ -53,14 +54,15 @@ export default function RegisterPage() {
     }
   };
 
-  const inputStyle = {width:"100%",padding:"10px 14px",background:"#1a1a2e",border:"1.5px solid rgba(255,255,255,0.12)",borderRadius:"8px",color:"#f0eeff",fontSize:"14px",outline:"none",boxSizing:"border-box",fontFamily:"sans-serif"};
-  const labelStyle = {display:"block",color:"rgba(200,190,255,0.7)",fontSize:"13px",marginBottom:"6px",fontFamily:"sans-serif"};
-
   return (
-    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#07070f"}}>
-      <div style={{background:"#13131f",border:"1px solid rgba(255,255,255,0.1)",borderRadius:"16px",padding:"40px",width:"100%",maxWidth:"400px"}}>
+    <AuthShell>
+    {(t) => {
+      const inputStyle = {width:"100%",padding:"10px 14px",background:t.inputBg,border:`1.5px solid ${t.inputBorder}`,borderRadius:"8px",color:t.text,fontSize:"14px",outline:"none",boxSizing:"border-box",fontFamily:"sans-serif"};
+      const labelStyle = {display:"block",color:t.muted,fontSize:"13px",marginBottom:"6px",fontFamily:"sans-serif"};
+      return (
+      <div style={{background:t.card,border:`1px solid ${t.cardBorder}`,borderRadius:"16px",padding:"40px",width:"100%",maxWidth:"400px",boxShadow:"0 12px 40px rgba(0,0,0,0.12)"}}>
         <img src="/LOGO.png" alt="TicklyDo" style={{height:"100px",marginBottom:"8px"}} />
-        <p style={{color:"rgba(200,190,255,0.6)",marginBottom:"24px",fontFamily:"sans-serif"}}>Vytvor si účet</p>
+        <p style={{color:t.muted,marginBottom:"24px",fontFamily:"sans-serif"}}>Vytvor si účet</p>
 
         <div style={{marginBottom:"16px"}}>
           <label style={labelStyle}>Email</label>
@@ -72,9 +74,9 @@ export default function RegisterPage() {
           <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" style={inputStyle} />
           {password.length > 0 && (
             <div style={{marginTop:"8px",fontFamily:"sans-serif",fontSize:"12px"}}>
-              <div style={{color:password.length >= 8 ? "#4ade80" : "#f87171"}}>{password.length >= 8 ? "✓" : "✗"} Minimálne 8 znakov</div>
-              <div style={{color:/[A-Z]/.test(password) ? "#4ade80" : "#f87171"}}>{/[A-Z]/.test(password) ? "✓" : "✗"} Veľké písmeno</div>
-              <div style={{color:/[!@#$%^&*(),.?":{}|<>]/.test(password) ? "#4ade80" : "#f87171"}}>{/[!@#$%^&*(),.?":{}|<>]/.test(password) ? "✓" : "✗"} Špeciálny znak</div>
+              <div style={{color:password.length >= 8 ? t.success : t.error}}>{password.length >= 8 ? "✓" : "✗"} Minimálne 8 znakov</div>
+              <div style={{color:/[A-Z]/.test(password) ? t.success : t.error}}>{/[A-Z]/.test(password) ? "✓" : "✗"} Veľké písmeno</div>
+              <div style={{color:/[!@#$%^&*(),.?":{}|<>]/.test(password) ? t.success : t.error}}>{/[!@#$%^&*(),.?":{}|<>]/.test(password) ? "✓" : "✗"} Špeciálny znak</div>
             </div>
           )}
         </div>
@@ -86,15 +88,15 @@ export default function RegisterPage() {
 
         <div style={{marginBottom:"20px",display:"flex",alignItems:"flex-start",gap:"10px"}}>
           <input type="checkbox" checked={agreed} onChange={e => setAgreed(e.target.checked)} style={{marginTop:"3px",cursor:"pointer",accentColor:"#9333ea"}} />
-          <p style={{color:"rgba(200,190,255,0.6)",fontSize:"13px",fontFamily:"sans-serif",margin:0}}>
+          <p style={{color:t.muted,fontSize:"13px",fontFamily:"sans-serif",margin:0}}>
             Súhlasím s{" "}
-            <span onClick={() => router.push("/terms")} style={{color:"#c084fc",cursor:"pointer"}}>Podmienkami používania</span>
+            <span onClick={() => router.push("/terms")} style={{color:t.link,cursor:"pointer"}}>Podmienkami používania</span>
             {" "}a{" "}
-            <span onClick={() => router.push("/privacy")} style={{color:"#c084fc",cursor:"pointer"}}>Zásadami ochrany osobných údajov</span>
+            <span onClick={() => router.push("/privacy")} style={{color:t.link,cursor:"pointer"}}>Zásadami ochrany osobných údajov</span>
           </p>
         </div>
 
-        {error && <p style={{color:"#f87171",fontSize:"13px",marginBottom:"16px",fontFamily:"sans-serif"}}>{error}</p>}
+        {error && <p style={{color:t.error,fontSize:"13px",marginBottom:"16px",fontFamily:"sans-serif"}}>{error}</p>}
 
         <button onClick={handleSubmit} disabled={loading}
           style={{width:"100%",padding:"12px",background:"linear-gradient(135deg,#db2777,#9333ea,#4f46e5)",border:"none",borderRadius:"8px",color:"#fff",fontSize:"15px",fontWeight:"800",cursor:"pointer",fontFamily:"sans-serif",marginBottom:"12px",opacity:loading?0.7:1}}>
@@ -102,17 +104,19 @@ export default function RegisterPage() {
         </button>
 
         <button onClick={handleGoogle}
-          style={{width:"100%",padding:"12px",background:"#fff",border:"none",borderRadius:"8px",color:"#333",fontSize:"15px",fontWeight:"700",cursor:"pointer",fontFamily:"sans-serif",marginBottom:"16px",display:"flex",alignItems:"center",justifyContent:"center",gap:"8px"}}>
+          style={{width:"100%",padding:"12px",background:"#fff",border:`1px solid ${t.googleBorder}`,borderRadius:"8px",color:"#333",fontSize:"15px",fontWeight:"700",cursor:"pointer",fontFamily:"sans-serif",marginBottom:"16px",display:"flex",alignItems:"center",justifyContent:"center",gap:"8px"}}>
           <img src="https://www.google.com/favicon.ico" style={{height:"18px"}} /> Registrovať cez Google
         </button>
 
-        <p style={{textAlign:"center",color:"rgba(200,190,255,0.5)",fontSize:"13px",fontFamily:"sans-serif"}}>
-          Už máš účet? <span onClick={() => router.push("/login")} style={{color:"#c084fc",cursor:"pointer",fontWeight:"700"}}>Prihlás sa</span>
+        <p style={{textAlign:"center",color:t.muted,fontSize:"13px",fontFamily:"sans-serif"}}>
+          Už máš účet? <span onClick={() => router.push("/login")} style={{color:t.link,cursor:"pointer",fontWeight:"700"}}>Prihlás sa</span>
         </p>
-        <button onClick={() => router.push("/")} style={{marginTop:"16px",background:"none",border:"none",color:"rgba(200,190,255,0.5)",fontSize:"13px",cursor:"pointer",fontFamily:"sans-serif"}}>
+        <button onClick={() => router.push("/")} style={{marginTop:"16px",background:"none",border:"none",color:t.muted,fontSize:"13px",cursor:"pointer",fontFamily:"sans-serif"}}>
           ← Späť na úvodnú stránku
         </button>
       </div>
-    </div>
+      );
+    }}
+    </AuthShell>
   );
 }
