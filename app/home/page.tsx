@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { initializeApp, getApps } from "firebase/app";
 import { useTheme } from "../context/ThemeContext";
+import { EmojiText } from "../components/Emoji";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -459,7 +460,7 @@ export default function HomePage() {
 
             {/* Emoji + Title */}
             <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: 52, marginBottom: 16 }}>{step.emoji}</div>
+              <div style={{ fontSize: 52, marginBottom: 16 }}><EmojiText size={60}>{step.emoji}</EmojiText></div>
               <div style={{ fontSize: 22, fontWeight: 900, marginBottom: 10 }}>{step.title}</div>
               <div style={{ fontSize: 14, color: theme.muted, lineHeight: 1.6 }}>{step.desc}</div>
             </div>
@@ -469,7 +470,7 @@ export default function HomePage() {
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {step.features.map((f, i) => (
                   <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", background: appliedA + "10", borderRadius: 12, fontSize: 13, fontWeight: 600 }}>
-                    {f}
+                    <EmojiText>{f}</EmojiText>
                   </div>
                 ))}
               </div>
@@ -526,7 +527,7 @@ export default function HomePage() {
                   >
                     {creating ? (
                       <><div style={{ width: 14, height: 14, borderRadius: "50%", border: "2px solid #ffffff44", borderTopColor: "#fff", animation: "spin .8s linear infinite" }} />Vytváram...</>
-                    ) : "🚀 Vytvoriť projekt"}
+                    ) : <EmojiText>🚀 Vytvoriť projekt</EmojiText>}
                   </button>
                 </>
               )}

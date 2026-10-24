@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { getAuth } from "firebase/auth";
 import { initializeApp, getApps } from "firebase/app";
 import { useTheme } from "../context/ThemeContext";
+import { EmojiText } from "./Emoji";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -231,10 +232,10 @@ export default function GlobalSearch({ open, onClose }: { open: boolean; onClose
           <div style={{ padding: "24px 18px", color: theme.muted, fontSize: 13 }}>
             <div style={{ fontWeight: 700, marginBottom: 8, color: theme.text }}>Tipy:</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <span>🔍 Hľadaj podľa názvu úlohy</span>
-              <span>📁 Hľadaj podľa názvu projektu</span>
-              <span>🏷️ Hľadaj podľa tagu</span>
-              <span>📝 Hľadaj v poznámkach</span>
+              <span><EmojiText>🔍 Hľadaj podľa názvu úlohy</EmojiText></span>
+              <span><EmojiText>📁 Hľadaj podľa názvu projektu</EmojiText></span>
+              <span><EmojiText>🏷️ Hľadaj podľa tagu</EmojiText></span>
+              <span><EmojiText>📝 Hľadaj v poznámkach</EmojiText></span>
             </div>
             <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 6, fontSize: 11 }}>
               <kbd style={{ background: theme.card2, border: `1px solid ${theme.border}`, borderRadius: 4, padding: "2px 5px" }}>↑↓</kbd> navigácia

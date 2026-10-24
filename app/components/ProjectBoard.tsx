@@ -6,6 +6,7 @@ import { useTheme } from "../context/ThemeContext";
 import { getAuth } from "firebase/auth";
 import { exportToExcel } from "../utils/exportProject";
 import { initializeApp, getApps } from "firebase/app";
+import { EmojiText } from "./Emoji";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -243,7 +244,7 @@ Používaj iba: Vysoká / Stredná / Nízka`,
           ) : incomplete.length === 0 ? (
             "Všetky úlohy sú dokončené"
           ) : (
-            <>✨ Navrhnúť priority ({incomplete.length} úloh)</>
+            <><EmojiText>✨</EmojiText> Navrhnúť priority ({incomplete.length} úloh)</>
           )}
         </button>
       ) : (
@@ -1153,7 +1154,7 @@ Buď konkrétny a stručný, max 6 slov na podúlohu.`,
                       </div>
                     ) : subtaskSuggestions.length > 0 ? (
                       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                        <div style={{ fontSize: 11, fontWeight: 700, color: appliedA, marginBottom: 4 }}>✨ Navrhnuté podúlohy</div>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: appliedA, marginBottom: 4 }}><EmojiText>✨</EmojiText> Navrhnuté podúlohy</div>
                         {subtaskSuggestions.map((s, i) => (
                           <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", background: appliedA + "10", borderRadius: 10, border: `1px solid ${appliedA}22` }}>
                             <div style={{ width: 14, height: 14, borderRadius: 4, border: `1.5px solid ${appliedA}`, flexShrink: 0 }} />
@@ -1169,7 +1170,7 @@ Buď konkrétny a stručný, max 6 slov na podúlohu.`,
                   </div>
                 ) : (
                   <button onClick={() => suggestSubtasks(task)} style={{ marginTop: 8, width: "100%", background: "none", border: `1.5px dashed ${appliedA}66`, borderRadius: 10, padding: "10px", color: appliedA, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "var(--font-geist-sans)", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-                    ✨ Navrhnúť podúlohy pomocou AI
+                    <EmojiText>✨</EmojiText> Navrhnúť podúlohy pomocou AI
                   </button>
                 )}
               </div>
@@ -1534,7 +1535,7 @@ Buď konkrétny a stručný, max 6 slov na podúlohu.`,
                             </div>
                           ) : subtaskSuggestions.length > 0 ? (
                             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                              <div style={{ fontSize: 10, fontWeight: 700, color: appliedA, textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: 4 }}>✨ Navrhnuté podúlohy</div>
+                              <div style={{ fontSize: 10, fontWeight: 700, color: appliedA, textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: 4 }}><EmojiText>✨</EmojiText> Navrhnuté podúlohy</div>
                               {subtaskSuggestions.map((s, i) => (
                                 <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 8px", background: appliedA + "10", borderRadius: 8, border: `1px solid ${appliedA}22` }}>
                                   <div style={{ width: 12, height: 12, borderRadius: 3, border: `1.5px solid ${appliedA}`, flexShrink: 0 }} />
@@ -1551,7 +1552,7 @@ Buď konkrétny a stručný, max 6 slov na podúlohu.`,
                       ) : (
                         <div style={{ padding: "0 14px 10px 42px" }}>
                           <button onClick={() => suggestSubtasks(task)} style={{ background: "none", border: `1px dashed ${appliedA}66`, borderRadius: 8, padding: "5px 12px", color: appliedA, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "var(--font-geist-sans)", display: "flex", alignItems: "center", gap: 5 }}>
-                            ✨ Navrhnúť podúlohy
+                            <EmojiText>✨</EmojiText> Navrhnúť podúlohy
                           </button>
                         </div>
                       )}
@@ -1769,7 +1770,7 @@ Buď konkrétny a stručný, max 6 slov na podúlohu.`,
               {/* ERROR */}
               {aiError && !aiLoading && (
                 <div style={{ background: darkMode ? "#fee2e218" : "#fee2e2", border: "1px solid #ef444433", borderRadius: 12, padding: "14px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
-                  <div style={{ fontSize: 12, color: "#dc2626", fontWeight: 600 }}>⚠ {aiError}</div>
+                  <div style={{ fontSize: 12, color: "#dc2626", fontWeight: 600 }}><EmojiText>⚠</EmojiText> {aiError}</div>
                   <button onClick={summarizeProject} style={{ alignSelf: "flex-start", background: "none", border: `1px solid #dc262633`, borderRadius: 8, padding: "5px 12px", color: "#dc2626", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}>Skúsiť znova</button>
                 </div>
               )}

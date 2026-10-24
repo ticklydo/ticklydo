@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { getAuth } from "firebase/auth";
 import { initializeApp, getApps } from "firebase/app";
 import { useTheme } from "../context/ThemeContext";
+import { EmojiText } from "../components/Emoji";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -120,7 +121,7 @@ export default function ProfilePage() {
             background: grad, display: "flex", alignItems: "center", justifyContent: "center",
             fontSize: 10, cursor: "pointer", color: "#fff",
             boxShadow: "0 2px 6px rgba(0,0,0,0.3)",
-          }} onClick={() => setPickingAvatar(v => !v)}>✏️</div>
+          }} onClick={() => setPickingAvatar(v => !v)}><EmojiText>✏️</EmojiText></div>
 
           {pickingAvatar && (
             <div style={{
@@ -170,7 +171,7 @@ export default function ProfilePage() {
               <div style={{ fontWeight: 800, fontSize: 16 }}>{userName || "Pridaj svoje meno"}</div>
               <button onClick={() => setEditingName(true)} style={{
                 background: "none", border: "none", cursor: "pointer", fontSize: 14, color: theme.muted, padding: 0,
-              }}>✏️</button>
+              }}><EmojiText>✏️</EmojiText></button>
             </div>
           )}
           <div style={{ fontSize: 12, fontWeight: 600, color: theme.muted }}>{userEmail}</div>
@@ -184,7 +185,7 @@ export default function ProfilePage() {
         display: "flex", flexDirection: "column", gap: 16, maxWidth: 480,
         transition: "background .3s",
       }}>
-        <div style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase", letterSpacing: 1, color: theme.muted }}>🎨 Farba aplikácie</div>
+        <div style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase", letterSpacing: 1, color: theme.muted }}><EmojiText>🎨</EmojiText> Farba aplikácie</div>
         <div style={{ height: 6, borderRadius: 4, background: grad }} />
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10 }}>
           {PRESETS.map((p, i) => (
@@ -235,7 +236,7 @@ export default function ProfilePage() {
         display: "flex", flexDirection: "column", gap: 18, maxWidth: 480,
         transition: "background .3s",
       }}>
-        <div style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase", letterSpacing: 1, color: theme.muted }}>🛠 Všeobecné</div>
+        <div style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase", letterSpacing: 1, color: theme.muted }}><EmojiText>🛠</EmojiText> Všeobecné</div>
         {[
           { name: "Tmavý režim", desc: "Prepni medzi tmavým a svetlým" },
           { name: "Notifikácie", desc: "Upozornenia o zmenách v projektoch" },
@@ -270,7 +271,7 @@ export default function ProfilePage() {
         display: "flex", flexDirection: "column", gap: 12, maxWidth: 480,
         transition: "background .3s",
       }}>
-        <div style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase", letterSpacing: 1, color: "#ef4444" }}>⚠️ Nebezpečná zóna</div>
+        <div style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase", letterSpacing: 1, color: "#ef4444" }}><EmojiText>⚠️</EmojiText> Nebezpečná zóna</div>
         <div style={{ fontSize: 13, fontWeight: 600, color: theme.muted }}>Po vymazaní účtu budú všetky tvoje dáta nenávratne odstránené.</div>
         <button onClick={async () => {
           if (!window.confirm("Naozaj chceš vymazať svoj účet? Táto akcia je nevratná.")) return;
