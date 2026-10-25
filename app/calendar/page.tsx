@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useTheme } from "../context/ThemeContext";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { initializeApp, getApps } from "firebase/app";
+import { triggerGcalSync } from "../utils/gcalClient";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -153,7 +154,7 @@ export default function CalendarPage() {
     } else {
       const snap = await getDoc(doc(db, "projects", `${user.uid}_${newEventProject}`));
       if (!snap.exists()) return;
-      await setDoc(doc(db, "projects", `${user.uid}_${newEventProject}`), { events: [...(snap.data().events ?? []), ev] }, { merge: true });
+      await setDoc(doc(db, "projects", `${user.uid}_${newEventProject}`), { events: [...(snap.data().events ?? []), ev] }, { merge: true }); triggerGcalSync();
       const project = projects.find(p => p.id === newEventProject);
       setEvents(prev => [...prev, { ...ev, projectId: newEventProject, projectName: project?.name ?? "", projectColor1: project?.color1 ?? appliedA, projectColor2: project?.color2 ?? appliedB, isGlobal: false }]);
     }
@@ -174,7 +175,7 @@ export default function CalendarPage() {
     } else {
       const snap = await getDoc(doc(db, "projects", `${user.uid}_${event.projectId}`));
       if (!snap.exists()) return;
-      await setDoc(doc(db, "projects", `${user.uid}_${event.projectId}`), { events: (snap.data().events ?? []).filter((e: any) => e.id !== event.id) }, { merge: true });
+      await setDoc(doc(db, "projects", `${user.uid}_${event.projectId}`), { events: (snap.data().events ?? []).filter((e: any) => e.id !== event.id) }, { merge: true }); triggerGcalSync();
     }
 
     setEvents(prev => prev.filter(e => e.id !== event.id));

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTheme } from "../context/ThemeContext";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { initializeApp, getApps } from "firebase/app";
+import { triggerGcalSync } from "../utils/gcalClient";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -380,7 +381,7 @@ export default function WorkPage() {
     const snap = await getDoc(doc(db, "projects", projectPath));
     if (!snap.exists()) return;
     const updatedTasks = (snap.data().tasks ?? []).map((t: any) => t.id === task.id ? { ...t, status: newStatus } : t);
-    await setDoc(doc(db, "projects", projectPath), { tasks: updatedTasks }, { merge: true });
+    await setDoc(doc(db, "projects", projectPath), { tasks: updatedTasks }, { merge: true }); triggerGcalSync();
     setTasks(prev => prev.map(t => t.id === task.id && t.projectId === task.projectId ? { ...t, status: newStatus } : t));
   };
 

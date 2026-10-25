@@ -7,6 +7,7 @@ import { getAuth } from "firebase/auth";
 import { exportToExcel } from "../utils/exportProject";
 import { initializeApp, getApps } from "firebase/app";
 import { EmojiText } from "./Emoji";
+import { triggerGcalSync } from "../utils/gcalClient";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -537,7 +538,7 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
       // tento dokument) — zapisujú sa pri každom uložení, aby sa "samoopravili" aj na starších dokumentoch
       ownerId,
       memberUids: members.map(m => m.uid),
-    }, { merge: true });
+    }, { merge: true }); triggerGcalSync();
   };
 
   const logActivity = (action: string, taskName: string, field?: string, oldVal?: string, newVal?: string): ActivityEntry[] => {
@@ -636,7 +637,7 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
       projectName: projectNameRef.current,
       events: eventsRef.current,
       activityLog: (Array.isArray(newLog) ? newLog : activityLogRef.current).slice(0, 100),
-    }, { merge: true });
+    }, { merge: true }); triggerGcalSync();
     if (detailTask?.id === id) setDetailTask(null);
   }
 
@@ -664,7 +665,7 @@ export default function ProjectBoard({ projectId, projectName: initialName }: { 
     await setDoc(doc(db, "projects", projectId), {
       members: newMembers, invites: newInvites,
       ownerId, memberUids: newMembers.map(m => m.uid),
-    }, { merge: true });
+    }, { merge: true }); triggerGcalSync();
   };
 
   const inviteByEmail = async () => {

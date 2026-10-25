@@ -7,6 +7,7 @@ import { initializeApp, getApps } from "firebase/app";
 import AvatarContent from "../components/Avatar";
 import { useTheme } from "../context/ThemeContext";
 import { EmojiText } from "../components/Emoji";
+import { triggerGcalSync } from "../utils/gcalClient";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -367,7 +368,7 @@ export default function HomePage() {
     if (user && projectToRemove && !projectToRemove.shared) {
       const { getFirestore, doc, deleteDoc } = await import("firebase/firestore");
       const db = getFirestore();
-      try { await deleteDoc(doc(db, "projects", `${user.uid}_${id}`)); } catch {}
+      try { await deleteDoc(doc(db, "projects", `${user.uid}_${id}`)); triggerGcalSync(); } catch {}
     }
     setShowMenuId(null);
     setConfirmDelete(null);

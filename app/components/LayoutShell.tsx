@@ -5,6 +5,7 @@ import { ThemeProvider, useTheme } from "../context/ThemeContext";
 import Sidebar from "./Sidebar";
 import { useAutoSaveAccount } from "./AccountSwitcher";
 import { logoutCurrent } from "../utils/accounts";
+import { setGcalFlag } from "../utils/gcalClient";
 import { ReactNode, useEffect, useState } from "react";
 import { auth, db } from "../firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
@@ -68,6 +69,7 @@ function ApprovalGate({ children }: { children: ReactNode }) {
           else if (d.approved === false) setState("pending");
           else {
             setState("approved");
+            setGcalFlag(user.uid, d.gcalConnected === true);
             // zaznamenanie aktivity (čas poslednej aktivity a dni, kedy sa appka používala) — pre správcu
             try {
               const now = Date.now();
