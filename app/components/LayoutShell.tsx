@@ -96,6 +96,13 @@ function ApprovalGate({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  // odhlásený používateľ nemá čo robiť na chránených stránkach (projekt, poznámky...) — pošli ho na úvodnú
+  const mustLeave = state === "anon" && !isPublicPath(pathname) && !pathname.startsWith("/join/");
+  useEffect(() => {
+    if (mustLeave) window.location.replace("/");
+  }, [mustLeave]);
+  if (mustLeave) return null;
+
   if (isPublicPath(pathname) || state === "anon" || state === "approved") return <>{children}</>;
 
   if (state === "loading") {
