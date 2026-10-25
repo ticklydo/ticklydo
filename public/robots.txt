@@ -3,13 +3,20 @@ Allow: /
 Allow: /login
 Allow: /register
 Allow: /privacy
+Allow: /terms
 
 Disallow: /home
 Disallow: /project/
+Disallow: /project-
 Disallow: /work
 Disallow: /calendar
+Disallow: /weekly-plan
+Disallow: /notes
 Disallow: /notifications
 Disallow: /profile
+Disallow: /admin
+Disallow: /join/
 Disallow: /api/
+Disallow: /cron
 
 Sitemap: https://ticklydo.com/sitemap.xml

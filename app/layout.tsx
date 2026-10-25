@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { GoogleAnalytics } from "@next/third-parties/google";
+import CookieConsent from "./components/CookieConsent";
 import "./globals.css";
 import { LayoutShell } from "./components/LayoutShell";
 
@@ -21,9 +21,14 @@ export const metadata: Metadata = {
   },
   description: "TicklyDo je moderný projektový nástroj pre jednotlivcov a tímy. Spravuj úlohy, kalendár a projekty na jednom mieste. Žiadny chaos, len čistý flow.",
   metadataBase: new URL("https://ticklydo.com"),
+  // "./" = každá stránka má vlastnú kanonickú adresu (nie všetky smerujú na úvodnú)
   alternates: {
-    canonical: "https://ticklydo.com",
+    canonical: "./",
   },
+  // overenie vlastníctva v Google Search Console (kód nastav vo Verceli ako NEXT_PUBLIC_GSC_VERIFICATION)
+  verification: process.env.NEXT_PUBLIC_GSC_VERIFICATION
+    ? { google: process.env.NEXT_PUBLIC_GSC_VERIFICATION }
+    : undefined,
   keywords: [
     "projektový manažment", "task manager", "úlohy", "produktivita",
     "kalendár", "tímová spolupráca", "Slovensko", "organizácia práce",
@@ -96,6 +101,40 @@ export default function RootLayout({
         <meta name="theme-color" content="#7c3aed" />
         <link rel="manifest" href="/manifest.json" />
         <link rel="apple-touch-icon" href="/IKONA.png" />
+        {/* štruktúrované údaje pre Google (názov, logo a popis aplikácie vo výsledkoch vyhľadávania) */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@graph": [
+              {
+                "@type": "Organization",
+                "@id": "https://ticklydo.com/#org",
+                name: "TicklyDo",
+                url: "https://ticklydo.com",
+                logo: "https://ticklydo.com/LOGO.png",
+                email: "support@ticklydo.com",
+              },
+              {
+                "@type": "WebSite",
+                "@id": "https://ticklydo.com/#website",
+                url: "https://ticklydo.com",
+                name: "TicklyDo",
+                inLanguage: "sk",
+                publisher: { "@id": "https://ticklydo.com/#org" },
+              },
+              {
+                "@type": "SoftwareApplication",
+                name: "TicklyDo",
+                applicationCategory: "BusinessApplication",
+                operatingSystem: "Web",
+                url: "https://ticklydo.com",
+                description: "Projekty, poznámky a plán týždňa na jednom mieste.",
+                offers: { "@type": "Offer", price: "0", priceCurrency: "EUR" },
+              },
+            ],
+          }) }}
+        />
         <script dangerouslySetInnerHTML={{__html: `
           if ('serviceWorker' in navigator) {
             window.addEventListener('load', function() {
@@ -106,10 +145,8 @@ export default function RootLayout({
       </head>
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
         <LayoutShell>{children}</LayoutShell>
+        <CookieConsent />
       </body>
-      {process.env.NEXT_PUBLIC_GA_ID && (
-        <GoogleAnalytics gaId={process.env.NEXT_PUBLIC_GA_ID} />
-      )}
     </html>
   );
 }

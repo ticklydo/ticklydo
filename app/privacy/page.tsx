@@ -57,7 +57,7 @@ export default function PrivacyPage() {
         <p style={s}>Cookies sú textové súbory uložené vo tvojom prehliadači ktoré zbierajú štandardné informácie o prihlásení. Keď navštíviš TicklyDo, môžeme automaticky zbierať informácie prostredníctvom cookies.</p>
 
         <h2 style={h}>Ako používame cookies</h2>
-        <p style={s}>TicklyDo používa cookies na zachovanie tvojej prihlasovacej relácie. Nepoužívame reklamné ani sledovacie cookies tretích strán.</p>
+        <p style={s}>TicklyDo používa nevyhnutné cookies na zachovanie tvojej prihlasovacej relácie. Ak v lište s cookies klikneš na „Prijať všetko", použijeme aj analytické cookies služby Google Analytics (Google LLC), ktoré nám anonymne ukazujú, koľko ľudí web navštevuje a ako sa používa, aby sme ho mohli zlepšovať. Ak zvolíš „Len nevyhnutné", analytické cookies sa nenačítajú. Svoj výber môžeš kedykoľvek zmeniť cez odkaz „Nastavenia cookies" v pätičke úvodnej stránky. Nepoužívame reklamné cookies.</p>
 
         <h2 style={h}>Zásady ochrany osobných údajov iných webových stránok</h2>
         <p style={s}>TicklyDo môže obsahovať odkazy na iné webové stránky. Naše zásady ochrany osobných údajov sa vzťahujú iba na TicklyDo, preto ak klikneš na odkaz na inú webovú stránku, mali by si si prečítať ich zásady ochrany osobných údajov.</p>
