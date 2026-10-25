@@ -7,6 +7,7 @@ import { useTheme } from "../context/ThemeContext";
 import { Emoji, EmojiText, AVATAR_EMOJIS } from "../components/Emoji";
 import AvatarContent from "../components/Avatar";
 import { accountAuth, removeAccount, logoutCurrent } from "../utils/accounts";
+import { getFirestore, doc as fsDoc, onSnapshot as fsOnSnapshot } from "firebase/firestore";
 import { enablePush, disablePush, pushEnabledHere, pushSupported } from "../utils/push";
 
 const firebaseConfig = {
@@ -70,6 +71,10 @@ export default function ProfilePage() {
 
   const currentAvatar = AVATARS.find(a => a.id === avatarId) ?? AVATARS[0];
   const [photoError, setPhotoError] = useState("");
+  const [gcalOn, setGcalOn] = useState(false);
+  const [gcalLast, setGcalLast] = useState<number | null>(null);
+  const [gcalBusy, setGcalBusy] = useState(false);
+  const [gcalMsg, setGcalMsg] = useState("");
   const [pwOld, setPwOld] = useState("");
   const [pwNew, setPwNew] = useState("");
   const [pwNew2, setPwNew2] = useState("");
@@ -92,6 +97,71 @@ export default function ProfilePage() {
     });
     return () => unsub();
   }, []);
+
+  // Google Kalendár: stav prepojenia z databázy + výsledok po návrate z Google
+  useEffect(() => {
+    try {
+      const q = new URLSearchParams(window.location.search).get("gcal");
+      if (q === "ok") setGcalMsg("Google Kalendár je prepojený. Termíny sa zapísali do tvojho kalendára.");
+      else if (q === "error") setGcalMsg("Prepojenie s Google Kalendárom sa nepodarilo. Skús to znova.");
+      if (q) window.history.replaceState({}, "", "/profile");
+    } catch {}
+    let unsubDoc: (() => void) | null = null;
+    const unsub = getAuth(app).onAuthStateChanged(u => {
+      if (unsubDoc) { unsubDoc(); unsubDoc = null; }
+      if (!u) { setGcalOn(false); return; }
+      unsubDoc = fsOnSnapshot(fsDoc(getFirestore(app), "users", u.uid), snap => {
+        const d = snap.data();
+        setGcalOn(d?.gcalConnected === true);
+        setGcalLast(d?.gcalLastSync ?? null);
+      }, () => {});
+    });
+    return () => { unsub(); if (unsubDoc) unsubDoc(); };
+  }, []);
+
+  async function gcalCall(path: string) {
+    const user = auth.currentUser;
+    if (!user) throw new Error("Nie si prihlásený.");
+    const idToken = await user.getIdToken();
+    const r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idToken }) });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data?.error || "Chyba servera");
+    return data;
+  }
+
+  async function gcalConnect() {
+    setGcalBusy(true); setGcalMsg("");
+    try {
+      const { url } = await gcalCall("/api/gcal/start");
+      window.location.href = url;
+    } catch (e: any) {
+      setGcalMsg(e.message || "Prepojenie sa nepodarilo.");
+      setGcalBusy(false);
+    }
+  }
+
+  async function gcalSyncNow() {
+    setGcalBusy(true); setGcalMsg("");
+    try {
+      const r = await gcalCall("/api/gcal/sync");
+      setGcalMsg(`Hotovo. Nové: ${r.created}, upravené: ${r.updated}, odstránené: ${r.deleted}.`);
+    } catch (e: any) {
+      setGcalMsg(e.message === "REVOKED" ? "Prístup bol odvolaný. Prepoj kalendár znova." : "Synchronizácia zlyhala. Skús to znova.");
+    }
+    setGcalBusy(false);
+  }
+
+  async function gcalDisconnect() {
+    if (!window.confirm("Odpojiť Google Kalendár? Udalosti, ktoré Ticklydo vytvorilo, sa z kalendára odstránia.")) return;
+    setGcalBusy(true); setGcalMsg("");
+    try {
+      await gcalCall("/api/gcal/disconnect");
+      setGcalMsg("Google Kalendár bol odpojený.");
+    } catch {
+      setGcalMsg("Odpojenie zlyhalo. Skús to znova.");
+    }
+    setGcalBusy(false);
+  }
 
   const pwInputStyle: React.CSSProperties = {
     width: "100%", padding: "10px 12px", borderRadius: 10, boxSizing: "border-box",
@@ -466,6 +536,39 @@ export default function ProfilePage() {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* Google Kalendár */}
+      <div style={{
+        background: theme.card, border: `1px solid ${theme.border}`,
+        borderRadius: 18, padding: 20, maxWidth: 480, transition: "background .3s",
+      }}>
+        <div style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase", letterSpacing: 1, color: theme.muted, marginBottom: 12 }}>Google Kalendár</div>
+        <div style={{ fontSize: 13, color: theme.muted, lineHeight: 1.6, marginBottom: 14 }}>
+          {gcalOn
+            ? `Termíny tvojich úloh a udalosti z projektov sa automaticky zapisujú do tvojho Google Kalendára.${gcalLast ? " Naposledy: " + new Date(gcalLast).toLocaleString("sk-SK") + "." : ""}`
+            : "Prepoj si Google Kalendár a termíny úloh a udalosti z projektov sa ti budú samy zapisovať do kalendára v telefóne aj v počítači. Čítame len udalosti, ktoré vytvorí Ticklydo."}
+        </div>
+        {gcalMsg && <div style={{ fontSize: 12.5, marginBottom: 10, color: gcalMsg.startsWith("Hotovo") || gcalMsg.includes("prepojený") || gcalMsg.includes("odpojený") ? "#22c55e" : "#ef4444" }}>{gcalMsg}</div>}
+        {gcalOn ? (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button onClick={gcalSyncNow} disabled={gcalBusy} style={{
+              background: grad, border: "none", borderRadius: 10, padding: "11px 16px", color: "#fff",
+              fontWeight: 800, fontSize: 14, cursor: gcalBusy ? "default" : "pointer", opacity: gcalBusy ? 0.6 : 1,
+              fontFamily: "var(--font-geist-sans)",
+            }}>{gcalBusy ? "Pracujem..." : "Synchronizovať teraz"}</button>
+            <button onClick={gcalDisconnect} disabled={gcalBusy} style={{
+              background: "transparent", border: `1px solid ${theme.border}`, borderRadius: 10, padding: "11px 16px", color: theme.text,
+              fontWeight: 700, fontSize: 14, cursor: gcalBusy ? "default" : "pointer", fontFamily: "var(--font-geist-sans)",
+            }}>Odpojiť</button>
+          </div>
+        ) : (
+          <button onClick={gcalConnect} disabled={gcalBusy} style={{
+              background: grad, border: "none", borderRadius: 10, padding: "11px 16px", color: "#fff",
+              fontWeight: 800, fontSize: 14, cursor: gcalBusy ? "default" : "pointer", opacity: gcalBusy ? 0.6 : 1,
+              fontFamily: "var(--font-geist-sans)",
+            }}>{gcalBusy ? "Presmerovávam..." : "Prepojiť Google Kalendár"}</button>
+        )}
       </div>
 
       {/* Zmena hesla */}

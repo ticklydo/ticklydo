@@ -80,6 +80,13 @@ function ApprovalGate({ children }: { children: ReactNode }) {
                 if (!days.includes(today)) days.push(today);
                 updateDoc(doc(db, "users", user.uid), { lastActiveAt: now, activeDays: days }).catch(() => {});
               }
+              // Google Kalendár: pri otvorení appky dosynchronizuj (najviac raz za 30 minút)
+              if (d.gcalConnected === true && now - (d.gcalLastSync || 0) > 30 * 60 * 1000 && sessionStorage.getItem("ticklydo_gcal_" + user.uid) !== "1") {
+                sessionStorage.setItem("ticklydo_gcal_" + user.uid, "1");
+                user.getIdToken().then(idToken =>
+                  fetch("/api/gcal/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idToken }) })
+                ).catch(() => {});
+              }
             } catch {}
           }
         },

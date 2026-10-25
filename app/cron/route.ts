@@ -4,6 +4,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { sendPushToUser } from "../utils/pushServer";
+import { syncUser } from "../utils/gcalServer";
 
 export async function GET(req: NextRequest) {
   // Ochrana — len Vercel Cron môže volať
@@ -142,7 +143,19 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({ success: true, notificationsSent });
+    // synchronizácia Google Kalendára pre všetkých, čo majú prepojenie zapnuté
+    let calendarsSynced = 0;
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://ticklydo.com";
+      const connected = await db.collection("users").where("gcalConnected", "==", true).get();
+      for (const u of connected.docs) {
+        try { await syncUser(u.id, baseUrl); calendarsSynced++; } catch (e) { console.error("gcal sync zlyhal:", u.id, e); }
+      }
+    } catch (e) {
+      console.error("gcal sync (cron):", e);
+    }
+
+    return NextResponse.json({ success: true, notificationsSent, calendarsSynced });
   } catch (err: any) {
     console.error("Cron error:", err);
     return NextResponse.json({ error: err.message }, { status: 500 });

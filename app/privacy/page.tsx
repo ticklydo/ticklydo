@@ -24,6 +24,9 @@ export default function PrivacyPage() {
         <p style={s}>TicklyDo zbiera tvoje údaje aby mohla spravovať tvoj účet a poskytovať ti prístup k aplikácii, ukladať obsah ktorý vytvoríš, a zabezpečiť fungovanie prihlásenia a autentifikácie. Údaje o aktivite používame na správu a zlepšovanie služby, identifikátor zariadenia na doručenie upozornení, ktoré si sám zapneš a kedykoľvek vypneš v nastaveniach profilu.</p>
         <p style={s}>TicklyDo nezdieľa tvoje údaje s partnerskými spoločnosťami na marketingové účely.</p>
 
+        <h2 style={h}>Prepojenie s Google Kalendárom</h2>
+        <p style={s}>Ak si prepojenie s Google Kalendárom sám zapneš v Profile, TicklyDo požiada o oprávnenie vytvárať a upravovať udalosti v tvojom kalendári. Do kalendára zapisujeme len termíny úloh a udalosti z tvojich projektov v TicklyDo a nečítame ostatné udalosti v tvojom kalendári. Prístupový kľúč uchovávame šifrovane na serveri len na účely synchronizácie. Prepojenie môžeš kedykoľvek vypnúť v Profile (vytvorené udalosti sa z kalendára odstránia) alebo v nastaveniach svojho Google účtu. Používanie údajov získaných z Google API sa riadi pravidlami <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" style={link}>Google API Services User Data Policy</a>, vrátane obmedzení Limited Use.</p>
+
         <h2 style={h}>Ako uchovávame tvoje údaje</h2>
         <p style={s}>TicklyDo bezpečne uchováva tvoje údaje v Google Firebase, čo je cloudová databáza spoločnosti Google LLC. Dáta môžu byť uložené na serveroch v EÚ alebo USA. Google LLC je certifikovaná podľa EU-US Data Privacy Framework. Viac informácií nájdeš na <a href="https://policies.google.com/privacy" target="_blank" style={link}>policies.google.com/privacy</a>.</p>
         <p style={s}>TicklyDo bude uchovávať tvoje údaje po dobu existencie tvojho účtu. Po vymazaní účtu budú tvoje údaje vymazané do 30 dní.</p>
