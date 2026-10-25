@@ -203,7 +203,16 @@ export default function ProfilePage() {
     if (!user?.email) return;
     setPwBusy(true);
     try {
-      await sendPasswordResetEmail(auth, user.email);
+      let sent = false;
+      try {
+        const r = await fetch("/api/send-reset", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: user.email }),
+        });
+        sent = r.ok;
+      } catch {}
+      if (!sent) await sendPasswordResetEmail(auth, user.email);
       setPwDone("Poslali sme ti email s odkazom na nastavenie hesla.");
     } catch {
       setPwError("Email sa nepodarilo odoslať. Skús to znova.");

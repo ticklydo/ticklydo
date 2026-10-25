@@ -89,7 +89,17 @@ export default function LoginPage() {
   const handleReset = async () => {
     if (!email) return setError("Zadaj email pre reset hesla.");
     try {
-      await sendPasswordResetEmail(auth, email);
+      // vlastný pekný email; ak by server zlyhal, použije sa štandardný email od Firebase
+      let sent = false;
+      try {
+        const r = await fetch("/api/send-reset", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email }),
+        });
+        sent = r.ok;
+      } catch {}
+      if (!sent) await sendPasswordResetEmail(auth, email);
       setResetSent(true);
     } catch (err) {
       setError("Nepodarilo sa odoslať reset hesla.");
