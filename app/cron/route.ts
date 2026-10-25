@@ -3,6 +3,7 @@
 // Nastav v vercel.json: { "crons": [{ "path": "/api/cron", "schedule": "0 6 * * *" }] }
 
 import { NextRequest, NextResponse } from "next/server";
+import { sendPushToUser } from "../utils/pushServer";
 
 export async function GET(req: NextRequest) {
   // Ochrana — len Vercel Cron môže volať
@@ -123,6 +124,17 @@ export async function GET(req: NextRequest) {
               read: false,
               createdAt: Date.now(),
             }, { merge: true });
+
+            // push na zariadenia adresáta (ak ich má zapnuté)
+            try {
+              await sendPushToUser(recipientUid, {
+                title: titleByType[type] ?? "Blížiaci sa termín",
+                body: `Úloha „${task.name}" v projekte ${projectName}`,
+                link: "/notifications",
+              });
+            } catch (e) {
+              console.error("Push zlyhal:", e);
+            }
 
             notificationsSent++;
           }
