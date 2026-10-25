@@ -14,15 +14,27 @@ function normalizeKey(raw?: string): string | undefined {
 }
 
 export function adminInit() {
-  if (!getApps().length) {
+  if (getApps().length) return;
+  // jednoduchšia možnosť: celý obsah JSON súboru so servisným kľúčom v jednej premennej
+  const whole = process.env.FIREBASE_SERVICE_ACCOUNT;
+  if (whole) {
+    const j = JSON.parse(whole);
     initializeApp({
       credential: cert({
-        projectId: process.env.FIREBASE_PROJECT_ID,
-        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-        privateKey: normalizeKey(process.env.FIREBASE_PRIVATE_KEY),
+        projectId: j.project_id,
+        clientEmail: j.client_email,
+        privateKey: normalizeKey(j.private_key),
       }),
     });
+    return;
   }
+  initializeApp({
+    credential: cert({
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      privateKey: normalizeKey(process.env.FIREBASE_PRIVATE_KEY),
+    }),
+  });
 }
 
 export function adminDb() { adminInit(); return getFirestore(); }
