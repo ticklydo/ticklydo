@@ -4,13 +4,22 @@ import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
 import { getMessaging } from "firebase-admin/messaging";
 
+// Súkromný kľúč z Vercelu býva vložený s úvodzovkami alebo s textom \n namiesto nových riadkov — upravíme ho
+function normalizeKey(raw?: string): string | undefined {
+  if (!raw) return undefined;
+  let k = raw.trim();
+  if ((k.startsWith('"') && k.endsWith('"')) || (k.startsWith("'") && k.endsWith("'"))) k = k.slice(1, -1);
+  k = k.replace(/\\n/g, "\n").replace(/\r/g, "");
+  return k;
+}
+
 export function adminInit() {
   if (!getApps().length) {
     initializeApp({
       credential: cert({
         projectId: process.env.FIREBASE_PROJECT_ID,
         clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-        privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
+        privateKey: normalizeKey(process.env.FIREBASE_PRIVATE_KEY),
       }),
     });
   }
