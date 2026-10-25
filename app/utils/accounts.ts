@@ -120,7 +120,7 @@ export async function removeAccount(uid: string): Promise<void> {
 }
 
 // Odhlási aktuálny účet. Ak sú na zariadení ďalšie uložené účty, prepne na prvý z nich,
-// inak prejde na prihlásenie.
+// inak prejde na úvodnú stránku.
 export async function logoutCurrent(): Promise<void> {
   const main = mainAuth();
   const uid = main.currentUser?.uid;
@@ -133,7 +133,7 @@ export async function logoutCurrent(): Promise<void> {
     } catch {}
   }
   await main.signOut();
-  window.location.href = "/login";
+  window.location.href = "/";
 }
 
 // Odhlási všetky účty na tomto zariadení.
@@ -143,5 +143,5 @@ export async function logoutAll(): Promise<void> {
   }
   writeAccounts([]);
   await mainAuth().signOut();
-  window.location.href = "/login";
+  window.location.href = "/";
 }

@@ -4,6 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { ThemeProvider, useTheme } from "../context/ThemeContext";
 import Sidebar from "./Sidebar";
 import { useAutoSaveAccount } from "./AccountSwitcher";
+import { logoutCurrent } from "../utils/accounts";
 import { ReactNode, useEffect, useState } from "react";
 import { auth, db } from "../firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
@@ -122,7 +123,7 @@ function ApprovalGate({ children }: { children: ReactNode }) {
         {email && <p style={{ fontSize: 13, color: "rgba(200,190,255,0.5)", marginBottom: 20 }}>{email}</p>}
         <a href="mailto:support@ticklydo.com" style={{ display: "block", fontSize: 13, color: "#c084fc", marginBottom: 20, textDecoration: "none" }}>support@ticklydo.com</a>
         <button
-          onClick={async () => { await signOut(auth); router.push("/"); }}
+          onClick={() => { logoutCurrent(); }}
           style={{ padding: "10px 24px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.2)", background: "transparent", color: "#f0eeff", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "var(--font-geist-sans)" }}
         >
           Odhlásiť sa

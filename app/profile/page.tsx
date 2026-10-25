@@ -6,7 +6,7 @@ import { initializeApp, getApps } from "firebase/app";
 import { useTheme } from "../context/ThemeContext";
 import { Emoji, EmojiText, AVATAR_EMOJIS } from "../components/Emoji";
 import AvatarContent from "../components/Avatar";
-import { accountAuth } from "../utils/accounts";
+import { accountAuth, removeAccount, logoutCurrent } from "../utils/accounts";
 import { enablePush, disablePush, pushEnabledHere, pushSupported } from "../utils/push";
 
 const firebaseConfig = {
@@ -528,13 +528,14 @@ export default function ProfilePage() {
             const { getFirestore, doc, deleteDoc } = await import("firebase/firestore");
             const db = getFirestore();
             await deleteDoc(doc(db, "users", user.uid));
+            const deletedUid = user.uid;
             await user.delete();
+            await removeAccount(deletedUid);
             window.location.href = "/";
           } catch (err: any) {
             if (err.code === "auth/requires-recent-login") {
               alert("Z bezpečnostných dôvodov sa musíš znova prihlásiť pred vymazaním účtu.");
-              await auth.signOut();
-              window.location.href = "/login";
+              await logoutCurrent();
             } else {
               alert("Chyba pri mazaní účtu: " + err.message);
             }
