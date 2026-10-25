@@ -27,8 +27,8 @@ export async function POST(req: NextRequest) {
       state,
     }).toString();
     return NextResponse.json({ url });
-  } catch (e) {
+  } catch (e: any) {
     console.error("gcal start:", e);
-    return NextResponse.json({ error: "Interná chyba servera" }, { status: 500 });
+    return NextResponse.json({ error: "Chyba servera: " + (e?.message || String(e)).slice(0, 300) }, { status: 500 });
   }
 }
