@@ -1,11 +1,12 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { getAuth } from "firebase/auth";
+import { getAuth, EmailAuthProvider, reauthenticateWithCredential, updatePassword, sendPasswordResetEmail } from "firebase/auth";
 import { initializeApp, getApps } from "firebase/app";
 import { useTheme } from "../context/ThemeContext";
 import { Emoji, EmojiText, AVATAR_EMOJIS } from "../components/Emoji";
 import AvatarContent from "../components/Avatar";
+import { accountAuth } from "../utils/accounts";
 import { enablePush, disablePush, pushEnabledHere, pushSupported } from "../utils/push";
 
 const firebaseConfig = {
@@ -69,6 +70,13 @@ export default function ProfilePage() {
 
   const currentAvatar = AVATARS.find(a => a.id === avatarId) ?? AVATARS[0];
   const [photoError, setPhotoError] = useState("");
+  const [pwOld, setPwOld] = useState("");
+  const [pwNew, setPwNew] = useState("");
+  const [pwNew2, setPwNew2] = useState("");
+  const [pwBusy, setPwBusy] = useState(false);
+  const [pwError, setPwError] = useState("");
+  const [pwDone, setPwDone] = useState("");
+  const [hasPassword, setHasPassword] = useState(true);
   const [pushOn, setPushOn] = useState(false);
   const [pushOk, setPushOk] = useState(true);
   const [pushBusy, setPushBusy] = useState(false);
@@ -79,10 +87,59 @@ export default function ProfilePage() {
     pushSupported().then(setPushOk);
     const unsub = getAuth(app).onAuthStateChanged(u => {
       setUidNow(u?.uid ?? null);
+      setHasPassword(!!u?.providerData?.some(p => p.providerId === "password"));
       setPushOn(u ? pushEnabledHere(u.uid) : false);
     });
     return () => unsub();
   }, []);
+
+  const pwInputStyle: React.CSSProperties = {
+    width: "100%", padding: "10px 12px", borderRadius: 10, boxSizing: "border-box",
+    background: theme.card2, border: `1px solid ${theme.border}`, color: theme.text,
+    fontSize: 16, outline: "none", fontFamily: "var(--font-geist-sans)",
+  };
+
+  async function changePassword() {
+    setPwError(""); setPwDone("");
+    const user = auth.currentUser;
+    if (!user || !user.email) return;
+    if (!pwOld) return setPwError("Zadaj svoje aktuálne heslo.");
+    if (pwNew.length < 8) return setPwError("Nové heslo musí mať aspoň 8 znakov.");
+    if (!/[A-Z]/.test(pwNew)) return setPwError("Nové heslo musí obsahovať aspoň jedno veľké písmeno.");
+    if (!/[!@#$%^&*(),.?":{}|<>]/.test(pwNew)) return setPwError("Nové heslo musí obsahovať aspoň jeden špeciálny znak.");
+    if (pwNew !== pwNew2) return setPwError("Nové heslá sa nezhodujú.");
+    if (pwNew === pwOld) return setPwError("Nové heslo musí byť iné ako aktuálne.");
+    setPwBusy(true);
+    try {
+      await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, pwOld));
+      await updatePassword(user, pwNew);
+      // aktualizuj aj uloženú reláciu tohto účtu (prepínanie účtov)
+      try { await accountAuth(user.uid).updateCurrentUser(auth.currentUser); } catch {}
+      setPwOld(""); setPwNew(""); setPwNew2("");
+      setPwDone("Heslo bolo zmenené.");
+    } catch (e: any) {
+      const code = e?.code || "";
+      if (code === "auth/wrong-password" || code === "auth/invalid-credential" || code === "auth/invalid-login-credentials") setPwError("Aktuálne heslo nie je správne.");
+      else if (code === "auth/too-many-requests") setPwError("Príliš veľa pokusov. Skús to o chvíľu.");
+      else if (code === "auth/weak-password") setPwError("Nové heslo je príliš slabé.");
+      else setPwError("Zmena hesla zlyhala. Skús to znova.");
+    }
+    setPwBusy(false);
+  }
+
+  async function sendSetPasswordEmail() {
+    setPwError(""); setPwDone("");
+    const user = auth.currentUser;
+    if (!user?.email) return;
+    setPwBusy(true);
+    try {
+      await sendPasswordResetEmail(auth, user.email);
+      setPwDone("Poslali sme ti email s odkazom na nastavenie hesla.");
+    } catch {
+      setPwError("Email sa nepodarilo odoslať. Skús to znova.");
+    }
+    setPwBusy(false);
+  }
 
   async function togglePush() {
     if (!uidNow || pushBusy) return;
@@ -409,6 +466,49 @@ export default function ProfilePage() {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* Zmena hesla */}
+      <div style={{
+        background: theme.card, border: `1px solid ${theme.border}`,
+        borderRadius: 18, padding: 20, maxWidth: 480, transition: "background .3s",
+      }}>
+        <div style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase", letterSpacing: 1, color: theme.muted, marginBottom: 14 }}>Heslo</div>
+        {hasPassword ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <input type="password" autoComplete="current-password" placeholder="Aktuálne heslo" value={pwOld} onChange={e => setPwOld(e.target.value)} style={pwInputStyle} />
+            <input type="password" autoComplete="new-password" placeholder="Nové heslo" value={pwNew} onChange={e => setPwNew(e.target.value)} style={pwInputStyle} />
+            {pwNew.length > 0 && (
+              <div style={{ fontSize: 12, lineHeight: 1.6 }}>
+                <div style={{ color: pwNew.length >= 8 ? "#22c55e" : "#ef4444" }}>{pwNew.length >= 8 ? "✓" : "✗"} Minimálne 8 znakov</div>
+                <div style={{ color: /[A-Z]/.test(pwNew) ? "#22c55e" : "#ef4444" }}>{/[A-Z]/.test(pwNew) ? "✓" : "✗"} Veľké písmeno</div>
+                <div style={{ color: /[!@#$%^&*(),.?":{}|<>]/.test(pwNew) ? "#22c55e" : "#ef4444" }}>{/[!@#$%^&*(),.?":{}|<>]/.test(pwNew) ? "✓" : "✗"} Špeciálny znak</div>
+              </div>
+            )}
+            <input type="password" autoComplete="new-password" placeholder="Nové heslo znova" value={pwNew2} onChange={e => setPwNew2(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") changePassword(); }} style={pwInputStyle} />
+            {pwError && <div style={{ color: "#ef4444", fontSize: 12.5 }}>{pwError}</div>}
+            {pwDone && <div style={{ color: "#22c55e", fontSize: 12.5 }}>{pwDone}</div>}
+            <button onClick={changePassword} disabled={pwBusy} style={{
+              background: grad, border: "none", borderRadius: 10, padding: "11px 16px", color: "#fff",
+              fontWeight: 800, fontSize: 14, cursor: pwBusy ? "default" : "pointer", opacity: pwBusy ? 0.6 : 1,
+              fontFamily: "var(--font-geist-sans)",
+            }}>{pwBusy ? "Ukladám..." : "Zmeniť heslo"}</button>
+          </div>
+        ) : (
+          <div>
+            <div style={{ fontSize: 13, color: theme.muted, lineHeight: 1.6, marginBottom: 12 }}>
+              Do účtu sa prihlasuješ cez Google, takže heslo v Ticklydo nemáš. Ak si chceš nastaviť vlastné heslo (a prihlasovať sa aj emailom), pošleme ti odkaz na email.
+            </div>
+            {pwError && <div style={{ color: "#ef4444", fontSize: 12.5, marginBottom: 8 }}>{pwError}</div>}
+            {pwDone && <div style={{ color: "#22c55e", fontSize: 12.5, marginBottom: 8 }}>{pwDone}</div>}
+            <button onClick={sendSetPasswordEmail} disabled={pwBusy} style={{
+              background: grad, border: "none", borderRadius: 10, padding: "11px 16px", color: "#fff",
+              fontWeight: 800, fontSize: 14, cursor: pwBusy ? "default" : "pointer", opacity: pwBusy ? 0.6 : 1,
+              fontFamily: "var(--font-geist-sans)",
+            }}>{pwBusy ? "Odosielam..." : "Poslať odkaz na nastavenie hesla"}</button>
+          </div>
+        )}
       </div>
 
       {/* Nebezpečná zóna */}
