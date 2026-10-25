@@ -85,10 +85,10 @@ export async function saveCurrentAccount(user: User): Promise<void> {
 }
 
 // Prepne na iný uložený účet bez odhlásenia a znovuprihlásenia.
-export async function switchToAccount(uid: string): Promise<void> {
+export async function switchToAccount(uid: string, opts?: { skipSave?: boolean }): Promise<void> {
   const main = mainAuth();
   if (main.currentUser?.uid === uid) return;
-  if (main.currentUser) await saveCurrentAccount(main.currentUser);
+  if (main.currentUser && !opts?.skipSave) await saveCurrentAccount(main.currentUser);
 
   const target = accountAuth(uid);
   await target.authStateReady();
@@ -124,16 +124,18 @@ export async function removeAccount(uid: string): Promise<void> {
 export async function logoutCurrent(): Promise<void> {
   const main = mainAuth();
   const uid = main.currentUser?.uid;
-  if (uid) await removeAccount(uid);
+  if (uid) await removeAccount(uid); // odstráni účet zo zoznamu a odhlási jeho uloženú reláciu
   const others = getSavedAccounts().filter(a => a.uid !== uid);
   if (others.length > 0) {
     try {
-      await switchToAccount(others[0].uid);
+      // skipSave: odhlasovaný účet sa nesmie znova uložiť
+      await switchToAccount(others[0].uid, { skipSave: true });
       return;
     } catch {}
   }
-  await main.signOut();
-  window.location.href = "/";
+  try { await main.signOut(); } catch {}
+  try { localStorage.removeItem("ticklydo_remember_until"); } catch {}
+  window.location.replace("/");
 }
 
 // Odhlási všetky účty na tomto zariadení.
